@@ -1,0 +1,704 @@
+{
+    "dataRoles": [
+        {
+            "displayName": "Geometry ID",
+            "name": "geometryId",
+            "kind": "Grouping",
+            "description": "A unique identifier for each geometry"
+        },
+        {
+            "displayName": "Geometry Type",
+            "name": "geometryType",
+            "kind": "Measure",
+            "description": "The type of geometry - point, line, or polygon"
+        },
+        {
+            "displayName": "Point1 Latitude",
+            "name": "point1Latitude",
+            "kind": "Measure",
+            "description": "If you're plotting points, this is the latitude of the point"
+        },
+        {
+            "displayName": "Point1 Longitude",
+            "name": "point1Longitude",
+            "kind": "Measure",
+            "description": "If you're plotting points, this is the longitude of the point"
+        },
+        {
+            "displayName": "Point2 Latitude",
+            "name": "point2Latitude",
+            "kind": "Measure",
+            "description": "If you're plotting points, this is the latitude of the point"
+        },
+        {
+            "displayName": "Point2 Longitude",
+            "name": "point2Longitude",
+            "kind": "Measure",
+            "description": "If you're plotting points, this is the longitude of the point"
+        },
+        {
+            "displayName": "Encoded Line Coordinates",
+            "name": "lineCoordinates",
+            "kind": "Measure",
+            "description": "The coordinates of the line, encoded as a Google polyline string"
+        },
+        {
+            "displayName": "Scatter radius (m)",
+            "name": "scatterRadius",
+            "kind": "Measure",
+            "description": "The radius of scatter in meters"
+        },
+        {
+            "displayName": "Scatter line width (m)",
+            "name": "scatterLineWidth",
+            "kind": "Measure",
+            "description": "The width of scatter's lines in meters"
+        },
+        {
+            "displayName": "Scatter line color",
+            "name": "scatterLineColor",
+            "kind": "Measure",
+            "description": "The color of the scatter's lines in hex format - #RGB, #RRGGBB, or #RRGGBBAA"
+        },
+        {
+            "displayName": "Scatter fill (Hex)",
+            "name": "scatterFillColor",
+            "kind": "Measure",
+            "description": "The fill color of the scatter in hex format - #RGB, #RRGGBB, or #RRGGBBAA"
+        },
+        {
+            "displayName": "(Line) line width (m)",
+            "name": "lineLineWidth",
+            "kind": "Measure",
+            "description": "The width of line's lines in meters"
+        },
+        {
+            "displayName": "(Line) line color",
+            "name": "lineLineColor",
+            "kind": "Measure",
+            "description": "The color of the line in hex format - #RGB, #RRGGBB, or #RRGGBBAA"
+        },
+        {
+            "displayName": "Path width (m)",
+            "name": "pathWidth",
+            "kind": "Measure",
+            "description": "The width of path's lines in meters"
+        },
+        {
+            "displayName": "Path color",
+            "name": "pathColor",
+            "kind": "Measure",
+            "description": "The color of the path in hex format - #RGB, #RRGGBB, or #RRGGBBAA"
+        },
+        {
+            "displayName": "Polygon line width (m)",
+            "name": "polygonLineWidth",
+            "kind": "Measure",
+            "description": "The width of polygon's lines in meters"
+        },
+        {
+            "displayName": "Polygon color",
+            "name": "polygonColor",
+            "kind": "Measure",
+            "description": "The color of the polygon in hex format - #RGB, #RRGGBB, or #RRGGBBAA"
+        },
+        {
+            "displayName": "Polygon fill (Hex)",
+            "name": "polygonFillColor",
+            "kind": "Measure",
+            "description": "The fill color of the polygon in hex format - #RGB, #RRGGBB, or #RRGGBBAA"
+        },
+        {
+            "displayName": "Polygon extrude elevation (meters)",
+            "name": "polygonExtrudeElevation",
+            "kind": "Measure",
+            "description": "Height to extrude the polygon, in meters"
+        },
+        {
+            "displayName": "Arc line width (m)",
+            "name": "arcLineWidth",
+            "kind": "Measure",
+            "description": "The width of arc's lines in meters"
+        },
+        {
+            "displayName": "Arc Source color",
+            "name": "arcSourceColor",
+            "kind": "Measure",
+            "description": "The color of the arc's source in hex format - #RGB, #RRGGBB, or #RRGGBBAA"
+        },
+        {
+            "displayName": "Arc Target color",
+            "name": "arcTargetColor",
+            "kind": "Measure",
+            "description": "The color of the arc's target in hex format - #RGB, #RRGGBB, or #RRGGBBAA"
+        },
+        {
+            "displayName": "Tooltip HTML",
+            "name": "tooltipHtml",
+            "kind": "Measure",
+            "description": "The HTML to display in the tooltip. You can use CSS = )"
+        }
+    ],
+    "objects": {
+        "mapProps": {
+            "displayName": "Map properties",
+            "properties": {
+                "initialSouth": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "initialWest": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "initialNorth": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "initialEast": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "flyTo": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "flyToDuration": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "flyToPadding": {
+                    "type": {
+                        "numeric": true
+                    }
+                }
+            }
+        },
+        "scatterProps": {
+            "displayName": "Scatter properties",
+            "properties": {
+                "geometryType": {
+                    "type": {
+                        "text": true
+                    }
+                },
+                "radiusMinPixels": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "radiusMaxPixels": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "defaultRadius": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "stroked": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "filled": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "defaultFillColor": {
+                    "type": {
+                        "fill": {
+                            "solid": {
+                                "color": true
+                            }
+                        }
+                    }
+                },
+                "defaultFillOpacity": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "defaultLineColor": {
+                    "type": {
+                        "fill": {
+                            "solid": {
+                                "color": true
+                            }
+                        }
+                    }
+                },
+                "defaultLineOpacity": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "lineWidthMinPixels": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "lineWidthMaxPixels": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "defaultLineWidth": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "billboard": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "highlightSizeScale": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "highlightColor": {
+                    "type": {
+                        "fill": {
+                            "solid": {
+                                "color": true
+                            }
+                        }
+                    }
+                },
+                "highlightOpacity": {
+                    "type": {
+                        "numeric": true
+                    }
+                }
+            }
+        },
+        "lineProps": {
+            "displayName": "Line properties",
+            "properties": {
+                "geometryType": {
+                    "type": {
+                        "text": true
+                    }
+                },
+                "lineWidthMinPixels": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "lineWidthMaxPixels": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "defaultLineWidth": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "defaultLineColor": {
+                    "type": {
+                        "fill": {
+                            "solid": {
+                                "color": true
+                            }
+                        }
+                    }
+                },
+                "defaultLineOpacity": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "highlightSizeScale": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "highlightColor": {
+                    "type": {
+                        "fill": {
+                            "solid": {
+                                "color": true
+                            }
+                        }
+                    }
+                },
+                "highlightOpacity": {
+                    "type": {
+                        "numeric": true
+                    }
+                }
+            }
+        },
+        "pathProps": {
+            "displayName": "Path properties",
+            "properties": {
+                "geometryType": {
+                    "type": {
+                        "text": true
+                    }
+                },
+                "lineWidthMinPixels": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "lineWidthMaxPixels": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "defaultLineWidth": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "defaultLineColor": {
+                    "type": {
+                        "fill": {
+                            "solid": {
+                                "color": true
+                            }
+                        }
+                    }
+                },
+                "defaultLineOpacity": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "lineMiterLimit": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "lineCapRounded": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "lineJointRounded": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "highlightSizeScale": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "highlightColor": {
+                    "type": {
+                        "fill": {
+                            "solid": {
+                                "color": true
+                            }
+                        }
+                    }
+                },
+                "highlightOpacity": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "billboard": {
+                    "type": {
+                        "bool": true
+                    }
+                }
+            }
+        },
+        "arcProps": {
+            "displayName": "Arc properties",
+            "properties": {
+                "geometryType": {
+                    "type": {
+                        "text": true
+                    }
+                },
+                "lineWidthMinPixels": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "lineWidthMaxPixels": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "defaultLineWidth": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "defaultSourceColor": {
+                    "type": {
+                        "fill": {
+                            "solid": {
+                                "color": true
+                            }
+                        }
+                    }
+                },
+                "defaultSourceOpacity": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "defaultTargetColor": {
+                    "type": {
+                        "fill": {
+                            "solid": {
+                                "color": true
+                            }
+                        }
+                    }
+                },
+                "defaultTargetOpacity": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "highlightSizeScale": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "highlightColor": {
+                    "type": {
+                        "fill": {
+                            "solid": {
+                                "color": true
+                            }
+                        }
+                    }
+                },
+                "highlightOpacity": {
+                    "type": {
+                        "numeric": true
+                    }
+                }
+            }
+        },
+        "polygonProps": {
+            "displayName": "Polygon properties",
+            "properties": {
+                "geometryType": {
+                    "type": {
+                        "text": true
+                    }
+                },
+                "stroked": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "filled": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "defaultFillColor": {
+                    "type": {
+                        "fill": {
+                            "solid": {
+                                "color": true
+                            }
+                        }
+                    }
+                },
+                "defaultFillOpacity": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "lineWidthMinPixels": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "lineWidthMaxPixels": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "defaultLineWidth": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "defaultLineColor": {
+                    "type": {
+                        "fill": {
+                            "solid": {
+                                "color": true
+                            }
+                        }
+                    }
+                },
+                "defaultLineOpacity": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "extruded": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "wireframe": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "lineJointRounded": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "lineMiterLimit": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "highlightSizeScale": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "highlightColor": {
+                    "type": {
+                        "fill": {
+                            "solid": {
+                                "color": true
+                            }
+                        }
+                    }
+                },
+                "highlightOpacity": {
+                    "type": {
+                        "numeric": true
+                    }
+                }
+            }
+        },
+        "encodingProps": {
+            "displayName": "Encoding properties",
+            "properties": {
+                "encodingPrecision": {
+                    "type": {
+                        "numeric": true
+                    }
+                }
+            }
+        }
+    },
+    "dataViewMappings": [
+        {
+            "categorical": {
+                "categories": {
+                    "for": {
+                        "in": "geometryId"
+                    },
+                    "dataReductionAlgorithm": {
+                        "window": {
+                            "count": 10000
+                        }
+                    }
+                },
+                "values": {
+                    "select": [
+                        {
+                            "bind": {
+                                "to": "geometryType"
+                            }
+                        },
+                        {
+                            "bind": {
+                                "to": "point1Latitude"
+                            }
+                        },
+                        {
+                            "bind": {
+                                "to": "point1Longitude"
+                            }
+                        },
+                        {
+                            "bind": {
+                                "to": "point2Latitude"
+                            }
+                        },
+                        {
+                            "bind": {
+                                "to": "point2Longitude"
+                            }
+                        },
+                        {
+                            "bind": {
+                                "to": "lineCoordinates"
+                            }
+                        },
+                        {
+                            "bind": {
+                                "to": "lineColor"
+                            }
+                        },
+                        {
+                            "bind": {
+                                "to": "fillColor"
+                            }
+                        },
+                        {
+                            "bind": {
+                                "to": "lineWidth"
+                            }
+                        },
+                        {
+                            "bind": {
+                                "to": "radius"
+                            }
+                        },
+                        {
+                            "bind": {
+                                "to": "extrudeElevation"
+                            }
+                        },
+                        {
+                            "bind": {
+                                "to": "extrudeElevation"
+                            }
+                        },
+                        {
+                            "bind": {
+                                "to": "tooltipHtml"
+                            }
+                        }
+                    ]
+                }
+            }
+        }
+    ],
+    "privileges": [
+        {
+            "name": "WebAccess",
+            "essential": true,
+            "parameters": [
+                "https://basemaps.cartocdn.com",
+                "https://a.basemaps.cartocdn.com",
+                "https://b.basemaps.cartocdn.com",
+                "https://c.basemaps.cartocdn.com",
+                "https://d.basemaps.cartocdn.com"
+            ]
+        }
+    ]
+}
