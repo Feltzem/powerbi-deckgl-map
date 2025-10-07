@@ -40,6 +40,7 @@ export class Visual implements IVisual {
     private selectedIds: string[];
     private lastOptions: VisualUpdateOptions | null;
     private hasManuallyBeenNavigated: boolean;
+    private currentBaseMap: string;
 
     constructor(options: VisualConstructorOptions) {
         this.host = options.host;
@@ -52,39 +53,14 @@ export class Visual implements IVisual {
         this.selectedIds = [];
         this.hasManuallyBeenNavigated = false;
 
+        // Get the settings:
+        const settings = this.formattingSettingsService.populateFormattingSettingsModel(VisualFormattingSettingsModel, null);
+        this.currentBaseMap = settings.map.baseMap.value.value as string;
+
         if (document) {
             this.map = new Map({
                 container: options.element,
-                style: {
-                    'version': 8,
-                    'sources': {
-                        'raster-tiles': {
-                            'type': 'raster',
-                            'tiles': [
-                                // "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-                                'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-                                'https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-                                'https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-                                'https://d.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-
-                            ],
-                            'tileSize': 256,
-                            'attribution':
-                                // 'Map tiles by <a target="_blank" href="https://stamen.com">Stamen Design</a>; Hosting by <a href="https://stadiamaps.com/" target="_blank">Stadia Maps</a>. Data &copy; <a href="https://www.openstreetmap.org/about" target="_blank">OpenStreetMap</a> contributors'
-                                '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-
-                        }
-                    },
-                    'layers': [
-                        {
-                            'id': 'simple-tiles',
-                            'type': 'raster',
-                            'source': 'raster-tiles',
-                            'minzoom': 0,
-                            'maxzoom': 20,
-                        }
-                    ]
-                },
+                style: this.getMapStyle(settings.map.baseMap.value.value as string),
                 canvasContextAttributes: { antialias: true },
                 maxZoom: 20 // To match tiles
 
@@ -131,6 +107,34 @@ export class Visual implements IVisual {
                 this.map.addControl(new NavigationControl());
             })
         }
+    }
+
+    private getMapStyle(baseMap: string) {
+        return {
+            'version': 8 as const,
+            'sources': {
+                'raster-tiles': {
+                    'type': 'raster' as const,
+                    'tiles': [
+                        `https://a.basemaps.cartocdn.com/${baseMap}/{z}/{x}/{y}{r}.png`,
+                        `https://b.basemaps.cartocdn.com/${baseMap}/{z}/{x}/{y}{r}.png`,
+                        `https://c.basemaps.cartocdn.com/${baseMap}/{z}/{x}/{y}{r}.png`,
+                        `https://d.basemaps.cartocdn.com/${baseMap}/{z}/{x}/{y}{r}.png`,
+                    ],
+                    'tileSize': 256,
+                    'attribution': '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+                }
+            },
+            'layers': [
+                {
+                    'id': 'simple-tiles',
+                    'type': 'raster' as const,
+                    'source': 'raster-tiles',
+                    'minzoom': 0,
+                    'maxzoom': 20,
+                }
+            ]
+        };
     }
 
     public onClick = (info, event) => {
@@ -266,6 +270,13 @@ export class Visual implements IVisual {
         }
         this.formattingSettings = this.formattingSettingsService.populateFormattingSettingsModel(VisualFormattingSettingsModel, options.dataViews[0]);
         var settings = this.formattingSettings;
+
+        // Check if baseMap changed
+        const newBaseMap = settings.map.baseMap.value.value as string;
+        if (newBaseMap !== this.currentBaseMap) {
+            this.map.setStyle(this.getMapStyle(newBaseMap));
+            this.currentBaseMap = newBaseMap;
+        }
 
         // indicates this is the first segment of new data.
         const dataView = options.dataViews[0];

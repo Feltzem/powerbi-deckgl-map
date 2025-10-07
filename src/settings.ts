@@ -545,6 +545,27 @@ export class EncodingCardSettings extends FormattingSettingsCard {
 }
 
 export class MapCardSettings extends FormattingSettingsCard {
+
+    baseMap = new formattingSettings.ItemDropdown({
+        name: "baseMap",
+        displayName: "Base Map",
+        description: "The base map to show",
+        value: { value: "light_all", displayName: "light_all" },
+        items: [
+            { value: "light_all", displayName: "light_all" },
+            { value: "dark_all", displayName: "dark_all" },
+            { value: "light_nolabels", displayName: "light_nolabels" },
+            { value: "light_only_labels", displayName: "light_only_labels" },
+            { value: "dark_nolabels", displayName: "dark_nolabels" },
+            { value: "dark_only_labels", displayName: "dark_only_labels" },
+            { value: "rastertiles/voyager", displayName: "rastertiles/voyager" },
+            { value: "rastertiles/voyager_nolabels", displayName: "rastertiles/voyager_nolabels" },
+            { value: "rastertiles/voyager_only_labels", displayName: "rastertiles/voyager_only_labels" },
+            { value: "rastertiles/voyager_labels_under", displayName: "rastertiles/voyager_labels_under" },
+        ]
+
+    });
+
     initialSouth = new formattingSettings.NumUpDown({
         name: "initialSouth",
         displayName: "Initial southern map latitude",
@@ -657,6 +678,7 @@ export class MapCardSettings extends FormattingSettingsCard {
     name: string = "mapProps";
     displayName: string = "Map properties";
     slices: Array<FormattingSettingsSlice> = [
+        this.baseMap,
         this.initialSouth,
         this.initialWest,
         this.initialNorth,

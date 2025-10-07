@@ -35,7 +35,6 @@ const validLon = (lon: number): boolean => {
 export function createSelectorDataPoints(options: VisualUpdateOptions, settings: VisualFormattingSettingsModel, host: IVisualHost, decodeCache: object): OurData[] {
     const dataPoints: OurData[] = []
     const dataViews = options.dataViews;
-    console.log("DataViews:", dataViews);
 
     if (!dataViews || !dataViews[0]
     ) {

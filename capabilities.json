@@ -103,8 +103,8 @@
             "description": "The width of polygon's lines in meters"
         },
         {
-            "displayName": "Polygon color",
-            "name": "polygonColor",
+            "displayName": "Polygon line color",
+            "name": "polygonLineColor",
             "kind": "Measure",
             "description": "The color of the polygon in hex format - #RGB, #RRGGBB, or #RRGGBBAA"
         },
@@ -149,6 +149,11 @@
         "mapProps": {
             "displayName": "Map properties",
             "properties": {
+                "baseMap": {
+                    "type": {
+                        "enumeration": []
+                    }
+                },
                 "initialSouth": {
                     "type": {
                         "numeric": true
@@ -651,42 +656,87 @@
                         },
                         {
                             "bind": {
-                                "to": "lineCoordinates"
-                            }
-                        },
-                        {
-                            "bind": {
                                 "to": "wktLineCoordinates"
                             }
                         },
                         {
                             "bind": {
-                                "to": "lineColor"
+                                "to": "lineCoordinates"
                             }
                         },
                         {
                             "bind": {
-                                "to": "fillColor"
+                                "to": "scatterRadius"
                             }
                         },
                         {
                             "bind": {
-                                "to": "lineWidth"
+                                "to": "scatterLineWidth"
                             }
                         },
                         {
                             "bind": {
-                                "to": "radius"
+                                "to": "scatterLineColor"
                             }
                         },
                         {
                             "bind": {
-                                "to": "extrudeElevation"
+                                "to": "scatterFillColor"
                             }
                         },
                         {
                             "bind": {
-                                "to": "extrudeElevation"
+                                "to": "lineLineWidth"
+                            }
+                        },
+                        {
+                            "bind": {
+                                "to": "lineLineColor"
+                            }
+                        },
+                        {
+                            "bind": {
+                                "to": "pathWidth"
+                            }
+                        },
+                        {
+                            "bind": {
+                                "to": "pathColor"
+                            }
+                        },
+                        {
+                            "bind": {
+                                "to": "polygonLineWidth"
+                            }
+                        },
+                        {
+                            "bind": {
+                                "to": "polygonLineColor"
+                            }
+                        },
+                        {
+                            "bind": {
+                                "to": "polygonFillColor"
+                            }
+                        },
+                        {
+                            "bind": {
+                                "to": "polygonExtrudeElevation"
+                            }
+                        },
+                        {
+                            "bind": {
+                                "to": "arcLineWidth"
+                            }
+                        },
+                        {
+                            "bind": {
+                                "to": "arcSourceColor"
+                            }
+                        },
+                        {
+                            "bind": {
+                                "to": "arcTargetColor"
                             }
                         },
                         {
