@@ -7,6 +7,8 @@ import { decodeFloatsWithCache } from "./encoding";
 import { OurData } from "./dataPoint";
 import { InputGeometryType } from "./enum";
 import { VisualFormattingSettingsModel } from "./settings";
+import { WKTLoader } from '@loaders.gl/wkt';
+import { parseSync } from '@loaders.gl/core';
 
 const getNumberFromPrimitive = (value: powerbi.PrimitiveValue): number | null => {
     if (value === null) {
@@ -33,6 +35,7 @@ const validLon = (lon: number): boolean => {
 export function createSelectorDataPoints(options: VisualUpdateOptions, settings: VisualFormattingSettingsModel, host: IVisualHost, decodeCache: object): OurData[] {
     const dataPoints: OurData[] = []
     const dataViews = options.dataViews;
+    console.log("DataViews:", dataViews);
 
     if (!dataViews || !dataViews[0]
     ) {
@@ -65,6 +68,7 @@ export function createSelectorDataPoints(options: VisualUpdateOptions, settings:
 
     // Geometry stuff:
     const lineCoordinateValue = categorical.values.filter(x => x.source.roles.lineCoordinates)[0];
+    const wktLineCoordinateValue = categorical.values.filter(x => x.source.roles.wktLineCoordinates)[0];
     const point1LatitudeValue = categorical.values.filter(x => x.source.roles.point1Latitude)[0];
     const point1LongitudeValue = categorical.values.filter(x => x.source.roles.point1Longitude)[0];
     const point2LatitudeValue = categorical.values.filter(x => x.source.roles.point2Latitude)[0];
@@ -74,6 +78,7 @@ export function createSelectorDataPoints(options: VisualUpdateOptions, settings:
     const polygonExtrudeElevationValue = categorical.values.filter(x => x.source.roles.polygonExtrudeElevation)[0];
 
     const lineCoordinateValues = lineCoordinateValue ? lineCoordinateValue.values : null;
+    const wktLineCoordinateValues = wktLineCoordinateValue ? wktLineCoordinateValue.values : null;
     const point1LatitudeValues = point1LatitudeValue ? point1LatitudeValue.values : null;
     const point1LongitudeValues = point1LongitudeValue ? point1LongitudeValue.values : null;
     const point2LatitudeValues = point2LatitudeValue ? point2LatitudeValue.values : null;
@@ -176,19 +181,54 @@ export function createSelectorDataPoints(options: VisualUpdateOptions, settings:
                 };
             }
         } else if (geomType === pathString || geomType === polygonString) {
-            if (!lineCoordinateValues) {
-                errorMessages.push(`Geometry ${geometryId}: invalid line/polygon coordinates`);
+            if (!lineCoordinateValues && !wktLineCoordinateValues) {
+                errorMessages.push(`Geometry ${geometryId} is a line/polygon but is missing line/polygon coordinates. Specify either encoded line coordinates or WKT line/polygon coordinates.`);
                 continue;
             }
-            const lineStrings = lineCoordinateValues[i].toString().split(",").map((line: string) => {
-                const coordinates = decodeFloatsWithCache(geometryId, decodeCache, line, [precision, precision], true);
-                if (coordinates.length === 0) {
-                    errorMessages.push(`Geometry ${geometryId}: invalid decoded line coordinates.`);
-                    return null;
+            let value = null;
+            let isWkt = false;
+            if (lineCoordinateValues && lineCoordinateValues[i] !== null) {
+                value = lineCoordinateValues[i];
+                isWkt = false;
+            } else if (wktLineCoordinateValues && wktLineCoordinateValues[i] !== null) {
+                value = wktLineCoordinateValues[i];
+                isWkt = true;
+            }
+            if (value === null) {
+                errorMessages.push(`Geometry ${geometryId} is a line/polygon but has null line/polygon coordinates. Specify either encoded line coordinates or WKT line/polygon coordinates.`);
+                continue;
+            }
+            let lineStrings: number[][][] = [];
+            if (isWkt) {
+                // Use WKT coordinates:
+                const wkt = value.toString();
+                try {
+                    const geojson = parseSync(wkt, WKTLoader);
+                    if (!geojson) {
+                        errorMessages.push(`Geometry ${geometryId}: invalid WKT line coordinates.`);
+                        continue;
+                    }
+                    if (geojson.type === 'LineString' && geojson.coordinates) {
+                        lineStrings = [geojson.coordinates as number[][]];
+                    } else if (geojson.type === 'Polygon' && geojson.coordinates) {
+                        lineStrings = geojson.coordinates as number[][][];
+                    } else {
+                        errorMessages.push(`Geometry ${geometryId}: WKT geometry must be LineString or Polygon.`);
+                        continue;
+                    }
+                } catch (error) {
+                    errorMessages.push(`Geometry ${geometryId}: invalid WKT line coordinates.`);
                 }
-                return coordinates;
-            }).filter(x => x !== null);
-
+            } else {
+                lineStrings = value.toString().split(",").map((line: string) => {
+                    const coordinates = decodeFloatsWithCache(geometryId, decodeCache, line, [precision, precision], true);
+                    if (coordinates.length === 0) {
+                        errorMessages.push(`Geometry ${geometryId}: invalid decoded line coordinates.`);
+                        return null;
+                    }
+                    return coordinates;
+                }).filter(x => x !== null);
+            }
             if (lineStrings.some(ls => ls.some(c => c.length !== 2 || !validLon(c[0]) || !validLat(c[1])))) {
                 errorMessages.push(`Geometry ${geometryId}: invalid line/polygon coordinates (one or more coordinates out of range)`);
                 continue;

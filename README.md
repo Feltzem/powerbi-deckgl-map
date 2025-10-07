@@ -4,18 +4,16 @@ Designed to support points / lines / polygons from <https://deck.gl/docs/api-ref
 
 ## TODO
 
-- add wkt
-
 - Add satellite layer?
 - Add icon to reset the map tilt/bearing.
 - highlight this way: <https://learn.microsoft.com/en-us/power-bi/developer/visuals/highlight?tabs=Standard>
-
 - extra layers:
   - <https://deck.gl/docs/api-reference/layers/column-layer>
   - swithc polygon layer to <https://deck.gl/docs/api-reference/layers/solid-polygon-layer>
   - aggregate:
     - <https://deck.gl/docs/api-reference/aggregation-layers/heatmap-layer>
     - <https://deck.gl/docs/api-reference/aggregation-layers/hexagon-layer>
+- add github workflow that installs pbiviz and packages artefact.
 
 ## Developing
 

@@ -37,10 +37,16 @@
             "description": "If you're plotting points, this is the longitude of the point"
         },
         {
+            "displayName": "WKT Line/Polygon",
+            "name": "wktLineCoordinates",
+            "kind": "Measure",
+            "description": "The coordinates of the line/polygon in LineString or Polygon WKT format"
+        },
+        {
             "displayName": "Encoded Line Coordinates",
             "name": "lineCoordinates",
             "kind": "Measure",
-            "description": "The coordinates of the line, encoded as a Google polyline string"
+            "description": "The coordinates of the line/polygon, encoded as a Google polyline string"
         },
         {
             "displayName": "Scatter radius (m)",
@@ -646,6 +652,11 @@
                         {
                             "bind": {
                                 "to": "lineCoordinates"
+                            }
+                        },
+                        {
+                            "bind": {
+                                "to": "wktLineCoordinates"
                             }
                         },
                         {
