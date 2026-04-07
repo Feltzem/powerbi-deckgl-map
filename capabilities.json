@@ -1,705 +1,961 @@
 {
-    "dataRoles": [
-        {
-            "displayName": "Geometry ID",
-            "name": "geometryId",
-            "kind": "Grouping",
-            "description": "A unique identifier for each geometry"
-        },
-        {
-            "displayName": "Layer Type",
-            "name": "layerType",
-            "kind": "Measure",
-            "description": "The type of geometry - by default, the string 'scatter', 'line' (A->B), 'arc' (A-> B), 'path' (A->B->C ...) or 'polygon'"
-        },
-        {
-            "displayName": "Point1 Latitude",
-            "name": "point1Latitude",
-            "kind": "Measure",
-            "description": "Scatter: this is the latitude of the point. Lines/arcs: this is the latitude of the starting point"
-        },
-        {
-            "displayName": "Point1 Longitude",
-            "name": "point1Longitude",
-            "kind": "Measure",
-            "description": "Scatter: this is the longitude of the point. Lines/arcs: this is the longitude of the starting point"
-        },
-        {
-            "displayName": "Point2 Latitude",
-            "name": "point2Latitude",
-            "kind": "Measure",
-            "description": "Lines/arcs: this is the latitude of the ending point"
-        },
-        {
-            "displayName": "Point2 Longitude",
-            "name": "point2Longitude",
-            "kind": "Measure",
-            "description": "Lines/arcs: this is the longitude of the ending point"
-        },
-        {
-            "displayName": "Well Known Text",
-            "name": "wkt",
-            "kind": "Measure",
-            "description": "Geometry in WKT format. (If using line/arc you must use Point1/Point2.)"
-        },
-        {
-            "displayName": "Well Known Polyline",
-            "name": "wkp",
-            "kind": "Measure",
-            "description": "Geometry in WKP format. (If using line/arc you must use Point1/Point2.)"
-        },
-        {
-            "displayName": "Scatter radius (m)",
-            "name": "scatterRadius",
-            "kind": "Measure",
-            "description": "The radius of scatter in meters"
-        },
-        {
-            "displayName": "Scatter line width (m)",
-            "name": "scatterLineWidth",
-            "kind": "Measure",
-            "description": "The width of scatter's lines in meters"
-        },
-        {
-            "displayName": "Scatter line color",
-            "name": "scatterLineColor",
-            "kind": "Measure",
-            "description": "The color of the scatter's lines in hex format - #RGB, #RRGGBB, or #RRGGBBAA"
-        },
-        {
-            "displayName": "Scatter fill (Hex)",
-            "name": "scatterFillColor",
-            "kind": "Measure",
-            "description": "The fill color of the scatter in hex format - #RGB, #RRGGBB, or #RRGGBBAA"
-        },
-        {
-            "displayName": "(Line) line width (m)",
-            "name": "lineLineWidth",
-            "kind": "Measure",
-            "description": "The width of line's lines in meters."
-        },
-        {
-            "displayName": "(Line) line color",
-            "name": "lineLineColor",
-            "kind": "Measure",
-            "description": "The color of the line in hex format - #RGB, #RRGGBB, or #RRGGBBAA"
-        },
-        {
-            "displayName": "Path width (m)",
-            "name": "pathWidth",
-            "kind": "Measure",
-            "description": "The width of path's lines in meters"
-        },
-        {
-            "displayName": "Path color",
-            "name": "pathColor",
-            "kind": "Measure",
-            "description": "The color of the path in hex format - #RGB, #RRGGBB, or #RRGGBBAA"
-        },
-        {
-            "displayName": "Polygon line width (m)",
-            "name": "polygonLineWidth",
-            "kind": "Measure",
-            "description": "The width of polygon's lines in meters"
-        },
-        {
-            "displayName": "Polygon line color",
-            "name": "polygonLineColor",
-            "kind": "Measure",
-            "description": "The color of the polygon in hex format - #RGB, #RRGGBB, or #RRGGBBAA"
-        },
-        {
-            "displayName": "Polygon fill (Hex)",
-            "name": "polygonFillColor",
-            "kind": "Measure",
-            "description": "The fill color of the polygon in hex format - #RGB, #RRGGBB, or #RRGGBBAA"
-        },
-        {
-            "displayName": "Polygon extrude elevation (meters)",
-            "name": "polygonExtrudeElevation",
-            "kind": "Measure",
-            "description": "Height to extrude the polygon, in meters"
-        },
-        {
-            "displayName": "Arc line width (m)",
-            "name": "arcLineWidth",
-            "kind": "Measure",
-            "description": "The width of arc's lines in meters"
-        },
-        {
-            "displayName": "Arc Source color",
-            "name": "arcSourceColor",
-            "kind": "Measure",
-            "description": "The color of the arc's source in hex format - #RGB, #RRGGBB, or #RRGGBBAA"
-        },
-        {
-            "displayName": "Arc Target color",
-            "name": "arcTargetColor",
-            "kind": "Measure",
-            "description": "The color of the arc's target in hex format - #RGB, #RRGGBB, or #RRGGBBAA"
-        },
-        {
-            "displayName": "Tooltip HTML",
-            "name": "tooltipHtml",
-            "kind": "Measure",
-            "description": "The HTML to display in the tooltip. You can use CSS = )"
-        }
-    ],
-    "supportsHighlight": false,
-    "objects": {
-        "mapProps": {
-            "displayName": "Map properties",
-            "properties": {
-                "baseMap": {
-                    "type": {
-                        "enumeration": []
-                    }
-                },
-                "initialSouth": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "initialWest": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "initialNorth": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "initialEast": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "flyTo": {
-                    "type": {
-                        "bool": true
-                    }
-                },
-                "flyToDuration": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "flyToPadding": {
-                    "type": {
-                        "numeric": true
-                    }
-                }
-            }
-        },
-        "highlightingProps": {
-            "displayName": "Highlighting",
-            "properties": {
-                "highlightOnClick": {
-                    "type": {
-                        "bool": true
-                    }
-                },
-                "autoHighlight": {
-                    "type": {
-                        "bool": true
-                    }
-                },
-                "unselectedFadeOpacity": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "autoHighlightColor": {
-                    "type": {
-                        "fill": {
-                            "solid": {
-                                "color": true
-                            }
-                        }
-                    }
-                },
-                "autoHighlightOpacity": {
-                    "type": {
-                        "numeric": true
-                    }
-                }
-            }
-        },
-        "validationProps": {
-            "displayName": "Validation properties",
-            "properties": {
-                "validateGeometries": {
-                    "type": {
-                        "bool": true
-                    }
-                }
-            }
-        },
-        "scatterProps": {
-            "displayName": "Scatter properties",
-            "properties": {
-                "layerType": {
-                    "type": {
-                        "text": true
-                    }
-                },
-                "radiusMinPixels": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "radiusMaxPixels": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "defaultRadius": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "stroked": {
-                    "type": {
-                        "bool": true
-                    }
-                },
-                "filled": {
-                    "type": {
-                        "bool": true
-                    }
-                },
-                "defaultFillColor": {
-                    "type": {
-                        "fill": {
-                            "solid": {
-                                "color": true
-                            }
-                        }
-                    }
-                },
-                "defaultFillOpacity": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "defaultLineColor": {
-                    "type": {
-                        "fill": {
-                            "solid": {
-                                "color": true
-                            }
-                        }
-                    }
-                },
-                "defaultLineOpacity": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "lineWidthMinPixels": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "lineWidthMaxPixels": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "defaultLineWidth": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "billboard": {
-                    "type": {
-                        "bool": true
-                    }
-                }
-            }
-        },
-        "lineProps": {
-            "displayName": "Line properties",
-            "properties": {
-                "layerType": {
-                    "type": {
-                        "text": true
-                    }
-                },
-                "lineWidthMinPixels": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "lineWidthMaxPixels": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "defaultLineWidth": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "defaultLineColor": {
-                    "type": {
-                        "fill": {
-                            "solid": {
-                                "color": true
-                            }
-                        }
-                    }
-                },
-                "defaultLineOpacity": {
-                    "type": {
-                        "numeric": true
-                    }
-                }
-            }
-        },
-        "pathProps": {
-            "displayName": "Path properties",
-            "properties": {
-                "layerType": {
-                    "type": {
-                        "text": true
-                    }
-                },
-                "lineWidthMinPixels": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "lineWidthMaxPixels": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "defaultLineWidth": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "defaultLineColor": {
-                    "type": {
-                        "fill": {
-                            "solid": {
-                                "color": true
-                            }
-                        }
-                    }
-                },
-                "defaultLineOpacity": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "lineMiterLimit": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "lineCapRounded": {
-                    "type": {
-                        "bool": true
-                    }
-                },
-                "lineJointRounded": {
-                    "type": {
-                        "bool": true
-                    }
-                },
-                "billboard": {
-                    "type": {
-                        "bool": true
-                    }
-                }
-            }
-        },
-        "arcProps": {
-            "displayName": "Arc properties",
-            "properties": {
-                "layerType": {
-                    "type": {
-                        "text": true
-                    }
-                },
-                "lineWidthMinPixels": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "lineWidthMaxPixels": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "defaultLineWidth": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "defaultSourceColor": {
-                    "type": {
-                        "fill": {
-                            "solid": {
-                                "color": true
-                            }
-                        }
-                    }
-                },
-                "defaultSourceOpacity": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "defaultTargetColor": {
-                    "type": {
-                        "fill": {
-                            "solid": {
-                                "color": true
-                            }
-                        }
-                    }
-                },
-                "defaultTargetOpacity": {
-                    "type": {
-                        "numeric": true
-                    }
-                }
-            }
-        },
-        "polygonProps": {
-            "displayName": "Polygon properties",
-            "properties": {
-                "layerType": {
-                    "type": {
-                        "text": true
-                    }
-                },
-                "stroked": {
-                    "type": {
-                        "bool": true
-                    }
-                },
-                "filled": {
-                    "type": {
-                        "bool": true
-                    }
-                },
-                "defaultFillColor": {
-                    "type": {
-                        "fill": {
-                            "solid": {
-                                "color": true
-                            }
-                        }
-                    }
-                },
-                "defaultFillOpacity": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "lineWidthMinPixels": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "lineWidthMaxPixels": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "defaultLineWidth": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "defaultLineColor": {
-                    "type": {
-                        "fill": {
-                            "solid": {
-                                "color": true
-                            }
-                        }
-                    }
-                },
-                "defaultLineOpacity": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "extruded": {
-                    "type": {
-                        "bool": true
-                    }
-                },
-                "wireframe": {
-                    "type": {
-                        "bool": true
-                    }
-                },
-                "lineJointRounded": {
-                    "type": {
-                        "bool": true
-                    }
-                },
-                "lineMiterLimit": {
-                    "type": {
-                        "numeric": true
-                    }
-                }
-            }
-        }
+  "dataRoles": [
+    {
+      "displayName": "Geometry ID",
+      "name": "geometryId",
+      "kind": "Grouping",
+      "description": "A unique identifier for each geometry"
     },
-    "dataViewMappings": [
-        {
-            "categorical": {
-                "categories": {
-                    "for": {
-                        "in": "geometryId"
-                    },
-                    "dataReductionAlgorithm": {
-                        "window": {
-                            "count": 10000
-                        }
-                    }
-                },
-                "values": {
-                    "select": [
-                        {
-                            "bind": {
-                                "to": "layerType"
-                            }
-                        },
-                        {
-                            "bind": {
-                                "to": "point1Latitude"
-                            }
-                        },
-                        {
-                            "bind": {
-                                "to": "point1Longitude"
-                            }
-                        },
-                        {
-                            "bind": {
-                                "to": "point2Latitude"
-                            }
-                        },
-                        {
-                            "bind": {
-                                "to": "point2Longitude"
-                            }
-                        },
-                        {
-                            "bind": {
-                                "to": "wkt"
-                            }
-                        },
-                        {
-                            "bind": {
-                                "to": "wkp"
-                            }
-                        },
-                        {
-                            "bind": {
-                                "to": "scatterRadius"
-                            }
-                        },
-                        {
-                            "bind": {
-                                "to": "scatterLineWidth"
-                            }
-                        },
-                        {
-                            "bind": {
-                                "to": "scatterLineColor"
-                            }
-                        },
-                        {
-                            "bind": {
-                                "to": "scatterFillColor"
-                            }
-                        },
-                        {
-                            "bind": {
-                                "to": "lineLineWidth"
-                            }
-                        },
-                        {
-                            "bind": {
-                                "to": "lineLineColor"
-                            }
-                        },
-                        {
-                            "bind": {
-                                "to": "pathWidth"
-                            }
-                        },
-                        {
-                            "bind": {
-                                "to": "pathColor"
-                            }
-                        },
-                        {
-                            "bind": {
-                                "to": "polygonLineWidth"
-                            }
-                        },
-                        {
-                            "bind": {
-                                "to": "polygonLineColor"
-                            }
-                        },
-                        {
-                            "bind": {
-                                "to": "polygonFillColor"
-                            }
-                        },
-                        {
-                            "bind": {
-                                "to": "polygonExtrudeElevation"
-                            }
-                        },
-                        {
-                            "bind": {
-                                "to": "arcLineWidth"
-                            }
-                        },
-                        {
-                            "bind": {
-                                "to": "arcSourceColor"
-                            }
-                        },
-                        {
-                            "bind": {
-                                "to": "arcTargetColor"
-                            }
-                        },
-                        {
-                            "bind": {
-                                "to": "tooltipHtml"
-                            }
-                        }
-                    ]
-                }
+    {
+      "displayName": "Layer Type",
+      "name": "layerType",
+      "kind": "Measure",
+      "description": "The type of geometry - by default, the string 'scatter', 'line' (A->B), 'arc' (A-> B), 'path' (A->B->C ...) or 'polygon'"
+    },
+    {
+      "displayName": "Point1 Latitude",
+      "name": "point1Latitude",
+      "kind": "Measure",
+      "description": "Scatter: this is the latitude of the point. Lines/arcs: this is the latitude of the starting point"
+    },
+    {
+      "displayName": "Point1 Longitude",
+      "name": "point1Longitude",
+      "kind": "Measure",
+      "description": "Scatter: this is the longitude of the point. Lines/arcs: this is the longitude of the starting point"
+    },
+    {
+      "displayName": "Point2 Latitude",
+      "name": "point2Latitude",
+      "kind": "Measure",
+      "description": "Lines/arcs: this is the latitude of the ending point"
+    },
+    {
+      "displayName": "Point2 Longitude",
+      "name": "point2Longitude",
+      "kind": "Measure",
+      "description": "Lines/arcs: this is the longitude of the ending point"
+    },
+    {
+      "displayName": "Well Known Text",
+      "name": "wkt",
+      "kind": "Measure",
+      "description": "Geometry in WKT format. (If using line/arc you must use Point1/Point2.)"
+    },
+    {
+      "displayName": "Well Known Polyline",
+      "name": "wkp",
+      "kind": "Measure",
+      "description": "Geometry in WKP format. (If using line/arc you must use Point1/Point2.)"
+    },
+    {
+      "displayName": "Scatter radius (m)",
+      "name": "scatterRadius",
+      "kind": "Measure",
+      "description": "The radius of scatter in meters"
+    },
+    {
+      "displayName": "Scatter line width (m)",
+      "name": "scatterLineWidth",
+      "kind": "Measure",
+      "description": "The width of scatter's lines in meters"
+    },
+    {
+      "displayName": "Scatter line color",
+      "name": "scatterLineColor",
+      "kind": "Measure",
+      "description": "The color of the scatter's lines in hex format - #RGB, #RRGGBB, or #RRGGBBAA - or a numeric value to be mapped through the scatter line gradient settings"
+    },
+    {
+      "displayName": "Scatter fill (Hex)",
+      "name": "scatterFillColor",
+      "kind": "Measure",
+      "description": "The fill color of the scatter in hex format - #RGB, #RRGGBB, or #RRGGBBAA - or a numeric value to be mapped through the scatter fill gradient settings"
+    },
+    {
+      "displayName": "(Line) line width (m)",
+      "name": "lineLineWidth",
+      "kind": "Measure",
+      "description": "The width of line's lines in meters."
+    },
+    {
+      "displayName": "(Line) line color",
+      "name": "lineLineColor",
+      "kind": "Measure",
+      "description": "The color of the line in hex format - #RGB, #RRGGBB, or #RRGGBBAA - or a numeric value to be mapped through the line gradient settings"
+    },
+    {
+      "displayName": "Path width (m)",
+      "name": "pathWidth",
+      "kind": "Measure",
+      "description": "The width of path's lines in meters"
+    },
+    {
+      "displayName": "Path color",
+      "name": "pathColor",
+      "kind": "Measure",
+      "description": "The color of the path in hex format - #RGB, #RRGGBB, or #RRGGBBAA - or a numeric value to be mapped through the path gradient settings"
+    },
+    {
+      "displayName": "Polygon line width (m)",
+      "name": "polygonLineWidth",
+      "kind": "Measure",
+      "description": "The width of polygon's lines in meters"
+    },
+    {
+      "displayName": "Polygon line color",
+      "name": "polygonLineColor",
+      "kind": "Measure",
+      "description": "The color of the polygon in hex format - #RGB, #RRGGBB, or #RRGGBBAA - or a numeric value to be mapped through the polygon line gradient settings"
+    },
+    {
+      "displayName": "Polygon fill (Hex)",
+      "name": "polygonFillColor",
+      "kind": "Measure",
+      "description": "The fill color of the polygon in hex format - #RGB, #RRGGBB, or #RRGGBBAA - or a numeric value to be mapped through the polygon fill gradient settings"
+    },
+    {
+      "displayName": "Polygon extrude elevation (meters)",
+      "name": "polygonExtrudeElevation",
+      "kind": "Measure",
+      "description": "Height to extrude the polygon, in meters"
+    },
+    {
+      "displayName": "Arc line width (m)",
+      "name": "arcLineWidth",
+      "kind": "Measure",
+      "description": "The width of arc's lines in meters"
+    },
+    {
+      "displayName": "Arc Source color",
+      "name": "arcSourceColor",
+      "kind": "Measure",
+      "description": "The color of the arc's source in hex format - #RGB, #RRGGBB, or #RRGGBBAA - or a numeric value to be mapped through the arc source gradient settings"
+    },
+    {
+      "displayName": "Arc Target color",
+      "name": "arcTargetColor",
+      "kind": "Measure",
+      "description": "The color of the arc's target in hex format - #RGB, #RRGGBB, or #RRGGBBAA - or a numeric value to be mapped through the arc target gradient settings"
+    },
+    {
+      "displayName": "Tooltip HTML",
+      "name": "tooltipHtml",
+      "kind": "Measure",
+      "description": "The HTML to display in the tooltip. You can use CSS = )"
+    }
+  ],
+  "supportsHighlight": false,
+  "objects": {
+    "mapProps": {
+      "displayName": "Map properties",
+      "properties": {
+        "baseMap": {
+          "type": {
+            "enumeration": []
+          }
+        },
+        "initialSouth": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "initialWest": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "initialNorth": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "initialEast": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "flyTo": {
+          "type": {
+            "bool": true
+          }
+        },
+        "flyToDuration": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "flyToPadding": {
+          "type": {
+            "numeric": true
+          }
+        }
+      }
+    },
+    "highlightingProps": {
+      "displayName": "Highlighting",
+      "properties": {
+        "highlightOnClick": {
+          "type": {
+            "bool": true
+          }
+        },
+        "autoHighlight": {
+          "type": {
+            "bool": true
+          }
+        },
+        "unselectedFadeOpacity": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "autoHighlightColor": {
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
             }
+          }
+        },
+        "autoHighlightOpacity": {
+          "type": {
+            "numeric": true
+          }
         }
-    ],
-    "privileges": [
-        {
-            "name": "WebAccess",
-            "essential": true,
-            "parameters": [
-                "https://basemaps.cartocdn.com",
-                "https://a.basemaps.cartocdn.com",
-                "https://b.basemaps.cartocdn.com",
-                "https://c.basemaps.cartocdn.com",
-                "https://d.basemaps.cartocdn.com"
-            ]
+      }
+    },
+    "validationProps": {
+      "displayName": "Validation properties",
+      "properties": {
+        "validateGeometries": {
+          "type": {
+            "bool": true
+          }
         }
-    ]
+      }
+    },
+    "scatterProps": {
+      "displayName": "Scatter properties",
+      "properties": {
+        "layerType": {
+          "type": {
+            "text": true
+          }
+        },
+        "radiusMinPixels": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "radiusMaxPixels": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "defaultRadius": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "stroked": {
+          "type": {
+            "bool": true
+          }
+        },
+        "filled": {
+          "type": {
+            "bool": true
+          }
+        },
+        "defaultFillColor": {
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
+          }
+        },
+        "defaultFillOpacity": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "defaultLineColor": {
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
+          }
+        },
+        "defaultLineOpacity": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "lineWidthMinPixels": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "lineWidthMaxPixels": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "defaultLineWidth": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "lineGradientLowColor": {
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
+          }
+        },
+        "lineGradientUseMiddleColor": {
+          "type": {
+            "bool": true
+          }
+        },
+        "lineGradientMiddleColor": {
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
+          }
+        },
+        "lineGradientHighColor": {
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
+          }
+        },
+        "fillGradientLowColor": {
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
+          }
+        },
+        "fillGradientUseMiddleColor": {
+          "type": {
+            "bool": true
+          }
+        },
+        "fillGradientMiddleColor": {
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
+          }
+        },
+        "fillGradientHighColor": {
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
+          }
+        },
+        "billboard": {
+          "type": {
+            "bool": true
+          }
+        }
+      }
+    },
+    "lineProps": {
+      "displayName": "Line properties",
+      "properties": {
+        "layerType": {
+          "type": {
+            "text": true
+          }
+        },
+        "lineWidthMinPixels": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "lineWidthMaxPixels": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "defaultLineWidth": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "defaultLineColor": {
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
+          }
+        },
+        "defaultLineOpacity": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "gradientLowColor": {
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
+          }
+        },
+        "gradientUseMiddleColor": {
+          "type": {
+            "bool": true
+          }
+        },
+        "gradientMiddleColor": {
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
+          }
+        },
+        "gradientHighColor": {
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "pathProps": {
+      "displayName": "Path properties",
+      "properties": {
+        "layerType": {
+          "type": {
+            "text": true
+          }
+        },
+        "lineWidthMinPixels": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "lineWidthMaxPixels": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "defaultLineWidth": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "defaultLineColor": {
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
+          }
+        },
+        "defaultLineOpacity": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "gradientLowColor": {
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
+          }
+        },
+        "gradientUseMiddleColor": {
+          "type": {
+            "bool": true
+          }
+        },
+        "gradientMiddleColor": {
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
+          }
+        },
+        "gradientHighColor": {
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
+          }
+        },
+        "lineMiterLimit": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "lineCapRounded": {
+          "type": {
+            "bool": true
+          }
+        },
+        "lineJointRounded": {
+          "type": {
+            "bool": true
+          }
+        },
+        "billboard": {
+          "type": {
+            "bool": true
+          }
+        }
+      }
+    },
+    "arcProps": {
+      "displayName": "Arc properties",
+      "properties": {
+        "layerType": {
+          "type": {
+            "text": true
+          }
+        },
+        "lineWidthMinPixels": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "lineWidthMaxPixels": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "defaultLineWidth": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "defaultSourceColor": {
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
+          }
+        },
+        "defaultSourceOpacity": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "sourceGradientLowColor": {
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
+          }
+        },
+        "sourceGradientUseMiddleColor": {
+          "type": {
+            "bool": true
+          }
+        },
+        "sourceGradientMiddleColor": {
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
+          }
+        },
+        "sourceGradientHighColor": {
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
+          }
+        },
+        "defaultTargetColor": {
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
+          }
+        },
+        "defaultTargetOpacity": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "targetGradientLowColor": {
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
+          }
+        },
+        "targetGradientUseMiddleColor": {
+          "type": {
+            "bool": true
+          }
+        },
+        "targetGradientMiddleColor": {
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
+          }
+        },
+        "targetGradientHighColor": {
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "polygonProps": {
+      "displayName": "Polygon properties",
+      "properties": {
+        "layerType": {
+          "type": {
+            "text": true
+          }
+        },
+        "stroked": {
+          "type": {
+            "bool": true
+          }
+        },
+        "filled": {
+          "type": {
+            "bool": true
+          }
+        },
+        "defaultFillColor": {
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
+          }
+        },
+        "defaultFillOpacity": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "lineGradientLowColor": {
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
+          }
+        },
+        "lineGradientUseMiddleColor": {
+          "type": {
+            "bool": true
+          }
+        },
+        "lineGradientMiddleColor": {
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
+          }
+        },
+        "lineGradientHighColor": {
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
+          }
+        },
+        "fillGradientLowColor": {
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
+          }
+        },
+        "fillGradientUseMiddleColor": {
+          "type": {
+            "bool": true
+          }
+        },
+        "fillGradientMiddleColor": {
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
+          }
+        },
+        "fillGradientHighColor": {
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
+          }
+        },
+        "lineWidthMinPixels": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "lineWidthMaxPixels": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "defaultLineWidth": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "defaultLineColor": {
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
+          }
+        },
+        "defaultLineOpacity": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "extruded": {
+          "type": {
+            "bool": true
+          }
+        },
+        "wireframe": {
+          "type": {
+            "bool": true
+          }
+        },
+        "lineJointRounded": {
+          "type": {
+            "bool": true
+          }
+        },
+        "lineMiterLimit": {
+          "type": {
+            "numeric": true
+          }
+        }
+      }
+    }
+  },
+  "dataViewMappings": [
+    {
+      "categorical": {
+        "categories": {
+          "for": {
+            "in": "geometryId"
+          },
+          "dataReductionAlgorithm": {
+            "window": {
+              "count": 10000
+            }
+          }
+        },
+        "values": {
+          "select": [
+            {
+              "bind": {
+                "to": "layerType"
+              }
+            },
+            {
+              "bind": {
+                "to": "point1Latitude"
+              }
+            },
+            {
+              "bind": {
+                "to": "point1Longitude"
+              }
+            },
+            {
+              "bind": {
+                "to": "point2Latitude"
+              }
+            },
+            {
+              "bind": {
+                "to": "point2Longitude"
+              }
+            },
+            {
+              "bind": {
+                "to": "wkt"
+              }
+            },
+            {
+              "bind": {
+                "to": "wkp"
+              }
+            },
+            {
+              "bind": {
+                "to": "scatterRadius"
+              }
+            },
+            {
+              "bind": {
+                "to": "scatterLineWidth"
+              }
+            },
+            {
+              "bind": {
+                "to": "scatterLineColor"
+              }
+            },
+            {
+              "bind": {
+                "to": "scatterFillColor"
+              }
+            },
+            {
+              "bind": {
+                "to": "lineLineWidth"
+              }
+            },
+            {
+              "bind": {
+                "to": "lineLineColor"
+              }
+            },
+            {
+              "bind": {
+                "to": "pathWidth"
+              }
+            },
+            {
+              "bind": {
+                "to": "pathColor"
+              }
+            },
+            {
+              "bind": {
+                "to": "polygonLineWidth"
+              }
+            },
+            {
+              "bind": {
+                "to": "polygonLineColor"
+              }
+            },
+            {
+              "bind": {
+                "to": "polygonFillColor"
+              }
+            },
+            {
+              "bind": {
+                "to": "polygonExtrudeElevation"
+              }
+            },
+            {
+              "bind": {
+                "to": "arcLineWidth"
+              }
+            },
+            {
+              "bind": {
+                "to": "arcSourceColor"
+              }
+            },
+            {
+              "bind": {
+                "to": "arcTargetColor"
+              }
+            },
+            {
+              "bind": {
+                "to": "tooltipHtml"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "privileges": [
+    {
+      "name": "WebAccess",
+      "essential": true,
+      "parameters": [
+        "https://basemaps.cartocdn.com",
+        "https://a.basemaps.cartocdn.com",
+        "https://b.basemaps.cartocdn.com",
+        "https://c.basemaps.cartocdn.com",
+        "https://d.basemaps.cartocdn.com"
+      ]
+    }
+  ]
 }

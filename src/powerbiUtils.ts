@@ -1,16 +1,80 @@
 import powerbi from "powerbi-visuals-api";
 
-export const getNumberFromPrimitive = (value: powerbi.PrimitiveValue): number | null => {
-    if (value === null) {
-        return null;
-    }
-    const num = parseFloat(value.toString());
-    return Number.isNaN(num) ? null : num;
+const strictNumberPattern = /^[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?$/;
+
+export interface ParsedColorInput {
+  hexColor: string | null;
+  numericValue: number | null;
 }
 
-export const getNumberFromValue = (col: powerbi.PrimitiveValue | null): number | null => {
-    if (!col) {
-        return null;
-    }
-    return getNumberFromPrimitive(col);
-}
+export const getNumberFromPrimitive = (
+  value: powerbi.PrimitiveValue,
+): number | null => {
+  if (value === null) {
+    return null;
+  }
+  const num = parseFloat(value.toString());
+  return Number.isNaN(num) ? null : num;
+};
+
+export const getNumberFromValue = (
+  col: powerbi.PrimitiveValue | null,
+): number | null => {
+  if (!col) {
+    return null;
+  }
+  return getNumberFromPrimitive(col);
+};
+
+export const getStrictNumberFromPrimitive = (
+  value: powerbi.PrimitiveValue,
+): number | null => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value === "bigint") {
+    const num = Number(value);
+    return Number.isFinite(num) ? num : null;
+  }
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed || !strictNumberPattern.test(trimmed)) {
+    return null;
+  }
+
+  const num = Number(trimmed);
+  return Number.isFinite(num) ? num : null;
+};
+
+export const getStrictNumberFromValue = (
+  col: powerbi.PrimitiveValue | null,
+): number | null => {
+  if (col === null || col === undefined) {
+    return null;
+  }
+  return getStrictNumberFromPrimitive(col);
+};
+
+export const getHexColorString = (
+  col: powerbi.PrimitiveValue | null,
+): string | null => {
+  if (typeof col !== "string") {
+    return null;
+  }
+
+  const trimmed = col.trim();
+  return trimmed.startsWith("#") ? trimmed : null;
+};
+
+export const parseColorInput = (
+  col: powerbi.PrimitiveValue | null,
+): ParsedColorInput => ({
+  hexColor: getHexColorString(col),
+  numericValue: getStrictNumberFromValue(col),
+});

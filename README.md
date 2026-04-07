@@ -22,6 +22,7 @@ For now, the main things to know:
   - We specify a layer type column which contains either `'scatter'`, `'arc'`, `'line'`, `'path'`, or `'polygon'` to specify which type to draw. (These strings can be customised in the options.)
   - Individual columns/values/defaults for each of the different attributes. E.g. you can have a column for the scatter fill color or polygon fill color (which can be the same).
 - To support e.g. custom colors/widths per line/row, we allow the user to provide their own #RGB (for color) or float (for width). In Javascript we could let the user just provide a custom function (as deck.gl does), but that's trickier in Power BI.
+- All color fields can also take numeric values. When a numeric field is bound, the relevant format pane section maps the visible range onto Low / optional Middle / High colors for that geometry and color channel, and the visual shows a matching gradient legend for each active numeric scale.
 
 ### Highlighting/selection
 
@@ -31,7 +32,7 @@ Secondly, you can filter the selected shapes by click. This is two way:
 
 - When you click an item on the map (or multiple by holding down CTRL key), it:
   - Filters any associated visual to these selections.
-  - But it *doesn't* remove the other shapes from the map. Why? Because otherwise you wouldn't be able to click another one (especially for multi-select). So you know what you've clicked, it highlights these in red (or whatever color you choose) - again, especially useful for multi-select.
+  - But it _doesn't_ remove the other shapes from the map. Why? Because otherwise you wouldn't be able to click another one (especially for multi-select). So you know what you've clicked, it highlights these in red (or whatever color you choose) - again, especially useful for multi-select.
   - When you click on the map, it resets the selection.
 - When you select items in an associated visual, it will filter the map to only show those selected shapes i.e. selection not highlighting. If you already have a selection made at map-level, it will remove these.
 
