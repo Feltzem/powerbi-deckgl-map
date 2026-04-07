@@ -4,7 +4,7 @@
     "displayName": "deck.gl map",
     "guid": "powerbi_deckgl_map",
     "visualClassName": "Visual",
-    "version": "1.5.1.0",
+    "version": "1.5.2.0",
     "description": "High-performance WebGL mapping using deck.gl for Power BI.",
     "supportUrl": "https://github.com/Feltzem/powerbi-deckgl-map/issues",
     "gitHubUrl": "https://github.com/Feltzem/powerbi-deckgl-map"
