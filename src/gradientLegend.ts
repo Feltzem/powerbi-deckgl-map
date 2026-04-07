@@ -1,33 +1,53 @@
-import {
-  decodeHex,
-  interpolateGradientColor,
-  RGBAColor,
-  withOpacity,
-} from "./col";
+import powerbi from "powerbi-visuals-api";
+import { interpolateGradientColor, RGBAColor } from "./col";
 import { InputLayerType, OurData } from "./dataTypes";
 import {
-  getNumericColorRange,
-  NumericColorGradient,
-  NumericColorRange,
-} from "./layers/col";
+  GradientBinningMethod,
+  getGradientBinningMethodDisplayName,
+  getGradientLegendClasses,
+  getNumericColorBins,
+  GradientLegendClass,
+  NumericColorBins,
+} from "./gradientClassification";
+import { resolveGradientPresetColors } from "./gradientPresets";
+import { NumericColorGradient } from "./layers/col";
 import {
   NumericGradientSettings,
   VisualFormattingSettingsModel,
 } from "./settings";
 
-const defaultLowColor: RGBAColor = [44, 123, 182, 255];
-const defaultMiddleColor: RGBAColor = [255, 255, 191, 255];
-const defaultHighColor: RGBAColor = [215, 25, 28, 255];
 const legendValueFormatter = new Intl.NumberFormat(undefined, {
   maximumSignificantDigits: 4,
 });
 
+type LegendRoleName =
+  | "scatterFillColor"
+  | "scatterLineColor"
+  | "lineLineColor"
+  | "pathColor"
+  | "polygonFillColor"
+  | "polygonLineColor"
+  | "arcSourceColor"
+  | "arcTargetColor";
+
+type LegendRoleTitleMap = Partial<Record<LegendRoleName, string>>;
+
+const legendRoleNames: LegendRoleName[] = [
+  "scatterFillColor",
+  "scatterLineColor",
+  "lineLineColor",
+  "pathColor",
+  "polygonFillColor",
+  "polygonLineColor",
+  "arcSourceColor",
+  "arcTargetColor",
+];
+
 export interface GradientLegendSpec {
   key: string;
   title: string;
-  lowValue: number;
-  middleValue: number;
-  highValue: number;
+  subtitle: string;
+  classes: GradientLegendClass[];
   gradientCss: string;
 }
 
@@ -37,63 +57,116 @@ const rgbaToCss = (color: RGBAColor): string =>
 const getLegendGradient = (
   settings: NumericGradientSettings,
   opacity: number,
-): NumericColorGradient => ({
-  lowColor: withOpacity(
-    decodeHex(settings.lowColor.value.value, defaultLowColor),
-    opacity,
-  ),
-  middleColor: settings.useMiddleColor.value
-    ? withOpacity(
-        decodeHex(settings.middleColor.value.value, defaultMiddleColor),
-        opacity,
-      )
-    : null,
-  highColor: withOpacity(
-    decodeHex(settings.highColor.value.value, defaultHighColor),
-    opacity,
-  ),
-});
+): NumericColorGradient =>
+  resolveGradientPresetColors(settings.preset.value.value as string, opacity);
 
 const getLegendMidpointColor = (
-  range: NumericColorRange,
+  bins: NumericColorBins,
   gradient: NumericColorGradient,
 ): RGBAColor => {
   const middleValue =
-    range.minValue === null || range.maxValue === null
+    bins.minValue === null || bins.maxValue === null
       ? 0
-      : range.minValue + (range.maxValue - range.minValue) / 2;
+      : bins.minValue + (bins.maxValue - bins.minValue) / 2;
   return interpolateGradientColor(
     middleValue,
-    range.minValue ?? middleValue,
-    range.maxValue ?? middleValue,
+    bins.minValue ?? middleValue,
+    bins.maxValue ?? middleValue,
     gradient.lowColor,
     gradient.highColor,
     gradient.middleColor,
   );
 };
 
+const createSteppedGradient = (classes: GradientLegendClass[]): string => {
+  if (classes.length === 0) {
+    return "";
+  }
+
+  const stops = classes.flatMap((legendClass, index) => {
+    const start = (index / classes.length) * 100;
+    const end = ((index + 1) / classes.length) * 100;
+    const color = rgbaToCss(legendClass.color);
+    return [`${color} ${start}%`, `${color} ${end}%`];
+  });
+
+  return `linear-gradient(90deg, ${stops.join(", ")})`;
+};
+
+const formatLegendRange = (lowValue: number, highValue: number): string => {
+  if (lowValue === highValue) {
+    return formatLegendValue(lowValue);
+  }
+
+  return `${formatLegendValue(lowValue)} - ${formatLegendValue(highValue)}`;
+};
+
+const getLegendRoleTitles = (
+  dataView: powerbi.DataView | undefined,
+): LegendRoleTitleMap => {
+  const values = dataView?.categorical?.values;
+  if (!values) {
+    return {};
+  }
+
+  const roleTitles: LegendRoleTitleMap = {};
+  for (const roleName of legendRoleNames) {
+    const valueColumn = values.find(
+      (column) => column.source?.roles?.[roleName],
+    );
+    const title =
+      valueColumn?.source?.displayName ?? valueColumn?.source?.queryName;
+    if (title) {
+      roleTitles[roleName] = title;
+    }
+  }
+
+  return roleTitles;
+};
+
+const getLegendTitle = (
+  roleTitles: LegendRoleTitleMap,
+  roleName: LegendRoleName,
+  fallbackTitle: string,
+): string => roleTitles[roleName] ?? fallbackTitle;
+
 const createLegendSpec = (
   key: string,
   title: string,
-  range: NumericColorRange,
+  bins: NumericColorBins,
   gradient: NumericColorGradient,
+  classificationMethod: string,
 ): GradientLegendSpec | null => {
-  if (range.minValue === null || range.maxValue === null) {
+  if (
+    bins.minValue === null ||
+    bins.maxValue === null ||
+    bins.classCount <= 0
+  ) {
     return null;
   }
 
-  const middleValue = range.minValue + (range.maxValue - range.minValue) / 2;
-  const middleColor = getLegendMidpointColor(range, gradient);
+  const classes = getGradientLegendClasses(bins, gradient);
+  const hasMiddleStop = gradient.middleColor !== null && classes.length > 2;
+  const middleColor = hasMiddleStop
+    ? rgbaToCss(getLegendMidpointColor(bins, gradient))
+    : null;
+  const gradientCss =
+    classes.length > 1
+      ? createSteppedGradient(classes)
+      : hasMiddleStop
+        ? `linear-gradient(90deg, ${rgbaToCss(
+            gradient.lowColor,
+          )} 0%, ${middleColor!} 50%, ${rgbaToCss(gradient.highColor)} 100%)`
+        : `linear-gradient(90deg, ${rgbaToCss(gradient.lowColor)} 0%, ${rgbaToCss(
+            gradient.highColor,
+          )} 100%)`;
 
   return {
     key,
     title,
-    lowValue: range.minValue,
-    middleValue,
-    highValue: range.maxValue,
-    gradientCss: `linear-gradient(90deg, ${rgbaToCss(
-      gradient.lowColor,
-    )} 0%, ${rgbaToCss(middleColor)} 50%, ${rgbaToCss(gradient.highColor)} 100%)`,
+    subtitle: getGradientBinningMethodDisplayName(classificationMethod),
+    classes,
+    gradientCss,
   };
 };
 
@@ -122,8 +195,10 @@ export const formatLegendValue = (value: number): string => {
 export const getGradientLegendSpecs = (
   dataPoints: OurData[],
   settings: VisualFormattingSettingsModel,
+  dataView?: powerbi.DataView,
 ): GradientLegendSpec[] => {
   const specs: GradientLegendSpec[] = [];
+  const roleTitles = getLegendRoleTitles(dataView);
   const scatterData = dataPoints.filter(
     (d) => d.type === InputLayerType.Scatter,
   );
@@ -139,15 +214,23 @@ export const getGradientLegendSpecs = (
       specs,
       createLegendSpec(
         "scatter-fill",
-        "Scatter fill",
-        getNumericColorRange(
+        getLegendTitle(roleTitles, "scatterFillColor", "Scatter fill"),
+        getNumericColorBins(
           scatterData,
           (d) => d.scatterProperties?.fillColorValue,
+          {
+            method: settings.scatter.fillGradient.binningMethod.value
+              .value as GradientBinningMethod,
+            classCount: settings.scatter.fillGradient.classCount.value,
+            definedInterval:
+              settings.scatter.fillGradient.definedInterval.value,
+          },
         ),
         getLegendGradient(
           settings.scatter.fillGradient,
           settings.scatter.fill.defaultFillOpacity.value,
         ),
+        settings.scatter.fillGradient.binningMethod.value.value as string,
       ),
     );
   }
@@ -157,15 +240,23 @@ export const getGradientLegendSpecs = (
       specs,
       createLegendSpec(
         "scatter-line",
-        "Scatter line",
-        getNumericColorRange(
+        getLegendTitle(roleTitles, "scatterLineColor", "Scatter line"),
+        getNumericColorBins(
           scatterData,
           (d) => d.scatterProperties?.lineColorValue,
+          {
+            method: settings.scatter.lineGradient.binningMethod.value
+              .value as GradientBinningMethod,
+            classCount: settings.scatter.lineGradient.classCount.value,
+            definedInterval:
+              settings.scatter.lineGradient.definedInterval.value,
+          },
         ),
         getLegendGradient(
           settings.scatter.lineGradient,
           settings.scatter.line.color.defaultLineOpacity.value,
         ),
+        settings.scatter.lineGradient.binningMethod.value.value as string,
       ),
     );
   }
@@ -174,12 +265,18 @@ export const getGradientLegendSpecs = (
     specs,
     createLegendSpec(
       "line",
-      "Line",
-      getNumericColorRange(lineData, (d) => d.lineProperties?.lineColorValue),
+      getLegendTitle(roleTitles, "lineLineColor", "Line"),
+      getNumericColorBins(lineData, (d) => d.lineProperties?.lineColorValue, {
+        method: settings.line.gradient.binningMethod.value
+          .value as GradientBinningMethod,
+        classCount: settings.line.gradient.classCount.value,
+        definedInterval: settings.line.gradient.definedInterval.value,
+      }),
       getLegendGradient(
         settings.line.gradient,
         settings.line.line.color.defaultLineOpacity.value,
       ),
+      settings.line.gradient.binningMethod.value.value as string,
     ),
   );
 
@@ -187,12 +284,18 @@ export const getGradientLegendSpecs = (
     specs,
     createLegendSpec(
       "path",
-      "Path",
-      getNumericColorRange(pathData, (d) => d.pathProperties?.lineColorValue),
+      getLegendTitle(roleTitles, "pathColor", "Path"),
+      getNumericColorBins(pathData, (d) => d.pathProperties?.lineColorValue, {
+        method: settings.path.gradient.binningMethod.value
+          .value as GradientBinningMethod,
+        classCount: settings.path.gradient.classCount.value,
+        definedInterval: settings.path.gradient.definedInterval.value,
+      }),
       getLegendGradient(
         settings.path.gradient,
         settings.path.line.color.defaultLineOpacity.value,
       ),
+      settings.path.gradient.binningMethod.value.value as string,
     ),
   );
 
@@ -201,15 +304,23 @@ export const getGradientLegendSpecs = (
       specs,
       createLegendSpec(
         "polygon-fill",
-        "Polygon fill",
-        getNumericColorRange(
+        getLegendTitle(roleTitles, "polygonFillColor", "Polygon fill"),
+        getNumericColorBins(
           polygonData,
           (d) => d.polygonProperties?.fillColorValue,
+          {
+            method: settings.polygon.fillGradient.binningMethod.value
+              .value as GradientBinningMethod,
+            classCount: settings.polygon.fillGradient.classCount.value,
+            definedInterval:
+              settings.polygon.fillGradient.definedInterval.value,
+          },
         ),
         getLegendGradient(
           settings.polygon.fillGradient,
           settings.polygon.fill.defaultFillOpacity.value,
         ),
+        settings.polygon.fillGradient.binningMethod.value.value as string,
       ),
     );
   }
@@ -219,15 +330,23 @@ export const getGradientLegendSpecs = (
       specs,
       createLegendSpec(
         "polygon-line",
-        "Polygon line",
-        getNumericColorRange(
+        getLegendTitle(roleTitles, "polygonLineColor", "Polygon line"),
+        getNumericColorBins(
           polygonData,
           (d) => d.polygonProperties?.lineColorValue,
+          {
+            method: settings.polygon.lineGradient.binningMethod.value
+              .value as GradientBinningMethod,
+            classCount: settings.polygon.lineGradient.classCount.value,
+            definedInterval:
+              settings.polygon.lineGradient.definedInterval.value,
+          },
         ),
         getLegendGradient(
           settings.polygon.lineGradient,
           settings.polygon.line.color.defaultLineOpacity.value,
         ),
+        settings.polygon.lineGradient.binningMethod.value.value as string,
       ),
     );
   }
@@ -236,12 +355,18 @@ export const getGradientLegendSpecs = (
     specs,
     createLegendSpec(
       "arc-source",
-      "Arc source",
-      getNumericColorRange(arcData, (d) => d.arcProperties?.sourceColorValue),
+      getLegendTitle(roleTitles, "arcSourceColor", "Arc source"),
+      getNumericColorBins(arcData, (d) => d.arcProperties?.sourceColorValue, {
+        method: settings.arc.sourceGradient.binningMethod.value
+          .value as GradientBinningMethod,
+        classCount: settings.arc.sourceGradient.classCount.value,
+        definedInterval: settings.arc.sourceGradient.definedInterval.value,
+      }),
       getLegendGradient(
         settings.arc.sourceGradient,
         settings.arc.defaultSourceOpacity.value,
       ),
+      settings.arc.sourceGradient.binningMethod.value.value as string,
     ),
   );
 
@@ -249,33 +374,44 @@ export const getGradientLegendSpecs = (
     specs,
     createLegendSpec(
       "arc-target",
-      "Arc target",
-      getNumericColorRange(arcData, (d) => d.arcProperties?.targetColorValue),
+      getLegendTitle(roleTitles, "arcTargetColor", "Arc target"),
+      getNumericColorBins(arcData, (d) => d.arcProperties?.targetColorValue, {
+        method: settings.arc.targetGradient.binningMethod.value
+          .value as GradientBinningMethod,
+        classCount: settings.arc.targetGradient.classCount.value,
+        definedInterval: settings.arc.targetGradient.definedInterval.value,
+      }),
       getLegendGradient(
         settings.arc.targetGradient,
         settings.arc.defaultTargetOpacity.value,
       ),
+      settings.arc.targetGradient.binningMethod.value.value as string,
     ),
   );
 
   return specs;
 };
 
-const createStop = (label: string, value: number): HTMLDivElement => {
-  const stop = document.createElement("div");
-  stop.className = "deckgl-gradient-legend__stop";
+const createLegendClassRow = (
+  legendClass: GradientLegendClass,
+): HTMLDivElement => {
+  const row = document.createElement("div");
+  row.className = "deckgl-gradient-legend__class";
 
-  const stopLabel = document.createElement("span");
-  stopLabel.className = "deckgl-gradient-legend__stop-label";
-  stopLabel.textContent = label;
+  const swatch = document.createElement("span");
+  swatch.className = "deckgl-gradient-legend__class-swatch";
+  swatch.style.backgroundColor = rgbaToCss(legendClass.color);
 
-  const stopValue = document.createElement("span");
-  stopValue.className = "deckgl-gradient-legend__stop-value";
-  stopValue.textContent = formatLegendValue(value);
+  const label = document.createElement("span");
+  label.className = "deckgl-gradient-legend__class-label";
+  label.textContent = formatLegendRange(
+    legendClass.lowValue,
+    legendClass.highValue,
+  );
 
-  stop.appendChild(stopLabel);
-  stop.appendChild(stopValue);
-  return stop;
+  row.appendChild(swatch);
+  row.appendChild(label);
+  return row;
 };
 
 export const renderGradientLegend = (
@@ -295,11 +431,6 @@ export const renderGradientLegend = (
   const panel = document.createElement("div");
   panel.className = "deckgl-gradient-legend__panel";
 
-  const heading = document.createElement("div");
-  heading.className = "deckgl-gradient-legend__heading";
-  heading.textContent = "Gradient scale";
-  panel.appendChild(heading);
-
   for (const spec of specs) {
     const item = document.createElement("section");
     item.className = "deckgl-gradient-legend__item";
@@ -310,17 +441,22 @@ export const renderGradientLegend = (
     title.textContent = spec.title;
     item.appendChild(title);
 
+    const subtitle = document.createElement("div");
+    subtitle.className = "deckgl-gradient-legend__item-subtitle";
+    subtitle.textContent = spec.subtitle;
+    item.appendChild(subtitle);
+
     const bar = document.createElement("div");
     bar.className = "deckgl-gradient-legend__bar";
     bar.style.backgroundImage = spec.gradientCss;
     item.appendChild(bar);
 
-    const stops = document.createElement("div");
-    stops.className = "deckgl-gradient-legend__stops";
-    stops.appendChild(createStop("Low", spec.lowValue));
-    stops.appendChild(createStop("Mid", spec.middleValue));
-    stops.appendChild(createStop("High", spec.highValue));
-    item.appendChild(stops);
+    const classes = document.createElement("div");
+    classes.className = "deckgl-gradient-legend__classes";
+    for (const legendClass of spec.classes) {
+      classes.appendChild(createLegendClassRow(legendClass));
+    }
+    item.appendChild(classes);
 
     panel.appendChild(item);
   }

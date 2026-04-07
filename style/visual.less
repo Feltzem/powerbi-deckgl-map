@@ -77,6 +77,11 @@
   color: #243341;
 }
 
+.deckgl-gradient-legend__item-subtitle {
+  font-size: 11px;
+  color: #617583;
+}
+
 .deckgl-gradient-legend__bar {
   width: 100%;
   height: 10px;
@@ -84,38 +89,27 @@
   border: 1px solid rgba(36, 51, 65, 0.12);
 }
 
-.deckgl-gradient-legend__stops {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+.deckgl-gradient-legend__classes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.deckgl-gradient-legend__class {
+  display: flex;
+  align-items: center;
   gap: 8px;
 }
 
-.deckgl-gradient-legend__stop {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
+.deckgl-gradient-legend__class-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(36, 51, 65, 0.14);
 }
 
-.deckgl-gradient-legend__stop:nth-child(2) {
-  align-items: center;
-  text-align: center;
-}
-
-.deckgl-gradient-legend__stop:last-child {
-  align-items: flex-end;
-  text-align: right;
-}
-
-.deckgl-gradient-legend__stop-label {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: #6f8190;
-}
-
-.deckgl-gradient-legend__stop-value {
+.deckgl-gradient-legend__class-label {
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   color: #243341;

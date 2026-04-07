@@ -487,7 +487,7 @@ export class Visual implements IVisual {
     if (this.legendContainer) {
       renderGradientLegend(
         this.legendContainer,
-        getGradientLegendSpecs(this.dataPoints, settings),
+        getGradientLegendSpecs(this.dataPoints, settings, dataView),
       );
     }
   }

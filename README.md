@@ -22,7 +22,7 @@ For now, the main things to know:
   - We specify a layer type column which contains either `'scatter'`, `'arc'`, `'line'`, `'path'`, or `'polygon'` to specify which type to draw. (These strings can be customised in the options.)
   - Individual columns/values/defaults for each of the different attributes. E.g. you can have a column for the scatter fill color or polygon fill color (which can be the same).
 - To support e.g. custom colors/widths per line/row, we allow the user to provide their own #RGB (for color) or float (for width). In Javascript we could let the user just provide a custom function (as deck.gl does), but that's trickier in Power BI.
-- All color fields can also take numeric values. When a numeric field is bound, the relevant format pane section maps the visible range onto Low / optional Middle / High colors for that geometry and color channel, and the visual shows a matching gradient legend for each active numeric scale.
+- All color fields can also take numeric values. When a numeric field is bound, the relevant format pane section maps the visible range onto a preset gradient scale for that geometry and color channel. You can classify the values using natural breaks, quantile, equal interval, or defined interval binning, and the visual shows a matching legend for the active classes.
 
 ### Highlighting/selection
 

@@ -1,8 +1,14 @@
 import { ScatterplotLayer } from "@deck.gl/layers";
 import { InputLayerType, OurData } from "../dataTypes";
 import { decodeHex, withOpacity } from "../col";
+import {
+  GradientBinningMethod,
+  getNumericColorBins,
+  getNumericColorBinsSignature,
+} from "../gradientClassification";
+import { resolveGradientPresetColors } from "../gradientPresets";
 import { HighlightingCardSettings, ScatterCardSettings } from "../settings";
-import { getLayerColorWithGradient, getNumericColorRange } from "./col";
+import { getLayerColorWithGradient } from "./col";
 
 export default function getScatterLayer(
   dataPoints: OurData[],
@@ -19,56 +25,14 @@ export default function getScatterLayer(
     decodeHex(settings.line.color.defaultLineColor.value.value, [0, 0, 0, 100]),
     settings.line.color.defaultLineOpacity.value,
   );
-  const fillGradient = {
-    lowColor: withOpacity(
-      decodeHex(
-        settings.fillGradient.lowColor.value.value,
-        [44, 123, 182, 255],
-      ),
-      settings.fill.defaultFillOpacity.value,
-    ),
-    middleColor: settings.fillGradient.useMiddleColor.value
-      ? withOpacity(
-          decodeHex(
-            settings.fillGradient.middleColor.value.value,
-            [255, 255, 191, 255],
-          ),
-          settings.fill.defaultFillOpacity.value,
-        )
-      : null,
-    highColor: withOpacity(
-      decodeHex(
-        settings.fillGradient.highColor.value.value,
-        [215, 25, 28, 255],
-      ),
-      settings.fill.defaultFillOpacity.value,
-    ),
-  };
-  const lineGradient = {
-    lowColor: withOpacity(
-      decodeHex(
-        settings.lineGradient.lowColor.value.value,
-        [44, 123, 182, 255],
-      ),
-      settings.line.color.defaultLineOpacity.value,
-    ),
-    middleColor: settings.lineGradient.useMiddleColor.value
-      ? withOpacity(
-          decodeHex(
-            settings.lineGradient.middleColor.value.value,
-            [255, 255, 191, 255],
-          ),
-          settings.line.color.defaultLineOpacity.value,
-        )
-      : null,
-    highColor: withOpacity(
-      decodeHex(
-        settings.lineGradient.highColor.value.value,
-        [215, 25, 28, 255],
-      ),
-      settings.line.color.defaultLineOpacity.value,
-    ),
-  };
+  const fillGradient = resolveGradientPresetColors(
+    settings.fillGradient.preset.value.value as string,
+    settings.fill.defaultFillOpacity.value,
+  );
+  const lineGradient = resolveGradientPresetColors(
+    settings.lineGradient.preset.value.value as string,
+    settings.line.color.defaultLineOpacity.value,
+  );
   const fadeFactor = Math.max(
     0,
     Math.min(1, highlighting.unselectedFadeOpacity.value / 100),
@@ -80,13 +44,25 @@ export default function getScatterLayer(
     highlighting.autoHighlightOpacity.value,
   );
   const data = dataPoints.filter((x) => x.type === InputLayerType.Scatter);
-  const fillColorRange = getNumericColorRange(
+  const fillColorBins = getNumericColorBins(
     data,
     (d) => d.scatterProperties?.fillColorValue,
+    {
+      method: settings.fillGradient.binningMethod.value
+        .value as GradientBinningMethod,
+      classCount: settings.fillGradient.classCount.value,
+      definedInterval: settings.fillGradient.definedInterval.value,
+    },
   );
-  const lineColorRange = getNumericColorRange(
+  const lineColorBins = getNumericColorBins(
     data,
     (d) => d.scatterProperties?.lineColorValue,
+    {
+      method: settings.lineGradient.binningMethod.value
+        .value as GradientBinningMethod,
+      classCount: settings.lineGradient.classCount.value,
+      definedInterval: settings.lineGradient.definedInterval.value,
+    },
   );
 
   return new ScatterplotLayer<OurData>({
@@ -116,7 +92,7 @@ export default function getScatterLayer(
         d.scatterProperties?.fillColorValue,
         defaultFillColor,
         fillGradient,
-        fillColorRange,
+        fillColorBins,
         shouldFadeUnselected,
         fadeFactor,
         selectedIds,
@@ -128,7 +104,7 @@ export default function getScatterLayer(
         d.scatterProperties?.lineColorValue,
         defaultLineColor,
         lineGradient,
-        lineColorRange,
+        lineColorBins,
         shouldFadeUnselected,
         fadeFactor,
         selectedIds,
@@ -148,12 +124,11 @@ export default function getScatterLayer(
       getFillColor: [
         settings.fill.defaultFillColor.value.value,
         settings.fill.defaultFillOpacity.value,
-        settings.fillGradient.lowColor.value.value,
-        settings.fillGradient.useMiddleColor.value,
-        settings.fillGradient.middleColor.value.value,
-        settings.fillGradient.highColor.value.value,
-        fillColorRange.minValue,
-        fillColorRange.maxValue,
+        settings.fillGradient.preset.value.value,
+        settings.fillGradient.binningMethod.value.value,
+        settings.fillGradient.classCount.value,
+        settings.fillGradient.definedInterval.value,
+        getNumericColorBinsSignature(fillColorBins),
         highlighting.highlightOnClick.value,
         highlighting.unselectedFadeOpacity.value,
         selectedIds,
@@ -161,12 +136,11 @@ export default function getScatterLayer(
       getLineColor: [
         settings.line.color.defaultLineColor.value.value,
         settings.line.color.defaultLineOpacity.value,
-        settings.lineGradient.lowColor.value.value,
-        settings.lineGradient.useMiddleColor.value,
-        settings.lineGradient.middleColor.value.value,
-        settings.lineGradient.highColor.value.value,
-        lineColorRange.minValue,
-        lineColorRange.maxValue,
+        settings.lineGradient.preset.value.value,
+        settings.lineGradient.binningMethod.value.value,
+        settings.lineGradient.classCount.value,
+        settings.lineGradient.definedInterval.value,
+        getNumericColorBinsSignature(lineColorBins),
         highlighting.highlightOnClick.value,
         highlighting.unselectedFadeOpacity.value,
         selectedIds,

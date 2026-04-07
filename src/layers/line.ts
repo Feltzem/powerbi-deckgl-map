@@ -1,8 +1,14 @@
 import { LineLayer } from "@deck.gl/layers";
 import { InputLayerType, OurData } from "../dataTypes";
 import { withOpacity, decodeHex } from "../col";
+import {
+  GradientBinningMethod,
+  getNumericColorBins,
+  getNumericColorBinsSignature,
+} from "../gradientClassification";
+import { resolveGradientPresetColors } from "../gradientPresets";
 import { HighlightingCardSettings, LineCardSettings } from "../settings";
-import { getLayerColorWithGradient, getNumericColorRange } from "./col";
+import { getLayerColorWithGradient } from "./col";
 
 export default function getLineLayer(
   dataPoints: OurData[],
@@ -15,25 +21,10 @@ export default function getLineLayer(
     decodeHex(settings.line.color.defaultLineColor.value.value, [0, 0, 0, 100]),
     settings.line.color.defaultLineOpacity.value,
   );
-  const gradient = {
-    lowColor: withOpacity(
-      decodeHex(settings.gradient.lowColor.value.value, [44, 123, 182, 255]),
-      settings.line.color.defaultLineOpacity.value,
-    ),
-    middleColor: settings.gradient.useMiddleColor.value
-      ? withOpacity(
-          decodeHex(
-            settings.gradient.middleColor.value.value,
-            [255, 255, 191, 255],
-          ),
-          settings.line.color.defaultLineOpacity.value,
-        )
-      : null,
-    highColor: withOpacity(
-      decodeHex(settings.gradient.highColor.value.value, [215, 25, 28, 255]),
-      settings.line.color.defaultLineOpacity.value,
-    ),
-  };
+  const gradient = resolveGradientPresetColors(
+    settings.gradient.preset.value.value as string,
+    settings.line.color.defaultLineOpacity.value,
+  );
   const fadeFactor = Math.max(
     0,
     Math.min(1, highlighting.unselectedFadeOpacity.value / 100),
@@ -45,9 +36,15 @@ export default function getLineLayer(
     highlighting.autoHighlightOpacity.value,
   );
   const data = dataPoints.filter((x) => x.type === InputLayerType.Line);
-  const lineColorRange = getNumericColorRange(
+  const lineColorBins = getNumericColorBins(
     data,
     (d) => d.lineProperties?.lineColorValue,
+    {
+      method: settings.gradient.binningMethod.value
+        .value as GradientBinningMethod,
+      classCount: settings.gradient.classCount.value,
+      definedInterval: settings.gradient.definedInterval.value,
+    },
   );
 
   return new LineLayer<OurData>({
@@ -77,7 +74,7 @@ export default function getLineLayer(
         d.lineProperties?.lineColorValue,
         defaultLineColor,
         gradient,
-        lineColorRange,
+        lineColorBins,
         shouldFadeUnselected,
         fadeFactor,
         selectedIds,
@@ -93,12 +90,11 @@ export default function getLineLayer(
       getColor: [
         settings.line.color.defaultLineColor.value.value,
         settings.line.color.defaultLineOpacity.value,
-        settings.gradient.lowColor.value.value,
-        settings.gradient.useMiddleColor.value,
-        settings.gradient.middleColor.value.value,
-        settings.gradient.highColor.value.value,
-        lineColorRange.minValue,
-        lineColorRange.maxValue,
+        settings.gradient.preset.value.value,
+        settings.gradient.binningMethod.value.value,
+        settings.gradient.classCount.value,
+        settings.gradient.definedInterval.value,
+        getNumericColorBinsSignature(lineColorBins),
         highlighting.highlightOnClick.value,
         highlighting.unselectedFadeOpacity.value,
         selectedIds,

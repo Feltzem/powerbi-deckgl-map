@@ -312,68 +312,44 @@
             "numeric": true
           }
         },
-        "lineGradientLowColor": {
+        "lineGradientPreset": {
           "type": {
-            "fill": {
-              "solid": {
-                "color": true
-              }
-            }
+            "enumeration": []
           }
         },
-        "lineGradientUseMiddleColor": {
+        "lineGradientBinningMethod": {
           "type": {
-            "bool": true
+            "enumeration": []
           }
         },
-        "lineGradientMiddleColor": {
+        "lineGradientClassCount": {
           "type": {
-            "fill": {
-              "solid": {
-                "color": true
-              }
-            }
+            "numeric": true
           }
         },
-        "lineGradientHighColor": {
+        "lineGradientDefinedInterval": {
           "type": {
-            "fill": {
-              "solid": {
-                "color": true
-              }
-            }
+            "numeric": true
           }
         },
-        "fillGradientLowColor": {
+        "fillGradientPreset": {
           "type": {
-            "fill": {
-              "solid": {
-                "color": true
-              }
-            }
+            "enumeration": []
           }
         },
-        "fillGradientUseMiddleColor": {
+        "fillGradientBinningMethod": {
           "type": {
-            "bool": true
+            "enumeration": []
           }
         },
-        "fillGradientMiddleColor": {
+        "fillGradientClassCount": {
           "type": {
-            "fill": {
-              "solid": {
-                "color": true
-              }
-            }
+            "numeric": true
           }
         },
-        "fillGradientHighColor": {
+        "fillGradientDefinedInterval": {
           "type": {
-            "fill": {
-              "solid": {
-                "color": true
-              }
-            }
+            "numeric": true
           }
         },
         "billboard": {
@@ -420,36 +396,24 @@
             "numeric": true
           }
         },
-        "gradientLowColor": {
+        "gradientPreset": {
           "type": {
-            "fill": {
-              "solid": {
-                "color": true
-              }
-            }
+            "enumeration": []
           }
         },
-        "gradientUseMiddleColor": {
+        "gradientBinningMethod": {
           "type": {
-            "bool": true
+            "enumeration": []
           }
         },
-        "gradientMiddleColor": {
+        "gradientClassCount": {
           "type": {
-            "fill": {
-              "solid": {
-                "color": true
-              }
-            }
+            "numeric": true
           }
         },
-        "gradientHighColor": {
+        "gradientDefinedInterval": {
           "type": {
-            "fill": {
-              "solid": {
-                "color": true
-              }
-            }
+            "numeric": true
           }
         }
       }
@@ -491,36 +455,24 @@
             "numeric": true
           }
         },
-        "gradientLowColor": {
+        "gradientPreset": {
           "type": {
-            "fill": {
-              "solid": {
-                "color": true
-              }
-            }
+            "enumeration": []
           }
         },
-        "gradientUseMiddleColor": {
+        "gradientBinningMethod": {
           "type": {
-            "bool": true
+            "enumeration": []
           }
         },
-        "gradientMiddleColor": {
+        "gradientClassCount": {
           "type": {
-            "fill": {
-              "solid": {
-                "color": true
-              }
-            }
+            "numeric": true
           }
         },
-        "gradientHighColor": {
+        "gradientDefinedInterval": {
           "type": {
-            "fill": {
-              "solid": {
-                "color": true
-              }
-            }
+            "numeric": true
           }
         },
         "lineMiterLimit": {
@@ -582,36 +534,24 @@
             "numeric": true
           }
         },
-        "sourceGradientLowColor": {
+        "sourceGradientPreset": {
           "type": {
-            "fill": {
-              "solid": {
-                "color": true
-              }
-            }
+            "enumeration": []
           }
         },
-        "sourceGradientUseMiddleColor": {
+        "sourceGradientBinningMethod": {
           "type": {
-            "bool": true
+            "enumeration": []
           }
         },
-        "sourceGradientMiddleColor": {
+        "sourceGradientClassCount": {
           "type": {
-            "fill": {
-              "solid": {
-                "color": true
-              }
-            }
+            "numeric": true
           }
         },
-        "sourceGradientHighColor": {
+        "sourceGradientDefinedInterval": {
           "type": {
-            "fill": {
-              "solid": {
-                "color": true
-              }
-            }
+            "numeric": true
           }
         },
         "defaultTargetColor": {
@@ -628,36 +568,24 @@
             "numeric": true
           }
         },
-        "targetGradientLowColor": {
+        "targetGradientPreset": {
           "type": {
-            "fill": {
-              "solid": {
-                "color": true
-              }
-            }
+            "enumeration": []
           }
         },
-        "targetGradientUseMiddleColor": {
+        "targetGradientBinningMethod": {
           "type": {
-            "bool": true
+            "enumeration": []
           }
         },
-        "targetGradientMiddleColor": {
+        "targetGradientClassCount": {
           "type": {
-            "fill": {
-              "solid": {
-                "color": true
-              }
-            }
+            "numeric": true
           }
         },
-        "targetGradientHighColor": {
+        "targetGradientDefinedInterval": {
           "type": {
-            "fill": {
-              "solid": {
-                "color": true
-              }
-            }
+            "numeric": true
           }
         }
       }
@@ -694,68 +622,44 @@
             "numeric": true
           }
         },
-        "lineGradientLowColor": {
+        "lineGradientPreset": {
           "type": {
-            "fill": {
-              "solid": {
-                "color": true
-              }
-            }
+            "enumeration": []
           }
         },
-        "lineGradientUseMiddleColor": {
+        "lineGradientBinningMethod": {
           "type": {
-            "bool": true
+            "enumeration": []
           }
         },
-        "lineGradientMiddleColor": {
+        "lineGradientClassCount": {
           "type": {
-            "fill": {
-              "solid": {
-                "color": true
-              }
-            }
+            "numeric": true
           }
         },
-        "lineGradientHighColor": {
+        "lineGradientDefinedInterval": {
           "type": {
-            "fill": {
-              "solid": {
-                "color": true
-              }
-            }
+            "numeric": true
           }
         },
-        "fillGradientLowColor": {
+        "fillGradientPreset": {
           "type": {
-            "fill": {
-              "solid": {
-                "color": true
-              }
-            }
+            "enumeration": []
           }
         },
-        "fillGradientUseMiddleColor": {
+        "fillGradientBinningMethod": {
           "type": {
-            "bool": true
+            "enumeration": []
           }
         },
-        "fillGradientMiddleColor": {
+        "fillGradientClassCount": {
           "type": {
-            "fill": {
-              "solid": {
-                "color": true
-              }
-            }
+            "numeric": true
           }
         },
-        "fillGradientHighColor": {
+        "fillGradientDefinedInterval": {
           "type": {
-            "fill": {
-              "solid": {
-                "color": true
-              }
-            }
+            "numeric": true
           }
         },
         "lineWidthMinPixels": {

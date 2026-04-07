@@ -1,6 +1,20 @@
 "use strict";
 
 import { formattingSettings } from "powerbi-visuals-utils-formattingmodel";
+import {
+  defaultGradientBinningMethod,
+  defaultGradientClassCount,
+  defaultGradientDefinedInterval,
+  GradientBinningMethod,
+  getGradientBinningMethodDisplayName,
+  gradientBinningMethodItems,
+} from "./gradientClassification";
+import {
+  defaultGradientPresetKey,
+  getGradientPreset,
+  GradientPresetKey,
+  gradientPresetItems,
+} from "./gradientPresets";
 
 import FormattingSettingsCard = formattingSettings.SimpleCard;
 import FormattingSettingsSlice = formattingSettings.Slice;
@@ -255,23 +269,23 @@ export class BaseFillSettings extends FormattingSettingsCard {
 }
 
 interface NumericGradientSettingsOptions {
-  lowColorName: string;
-  useMiddleColorName: string;
-  middleColorName: string;
-  highColorName: string;
+  presetName: string;
+  binningMethodName: string;
+  classCountName: string;
+  definedIntervalName: string;
   fieldLabel: string;
   displayPrefix?: string;
-  defaultLowColor?: string;
-  defaultMiddleColor?: string;
-  defaultHighColor?: string;
-  defaultUseMiddleColor?: boolean;
+  defaultPreset?: GradientPresetKey;
+  defaultBinningMethod?: GradientBinningMethod;
+  defaultClassCount?: number;
+  defaultDefinedInterval?: number;
 }
 
 export class NumericGradientSettings extends FormattingSettingsCard {
-  lowColor: formattingSettings.ColorPicker;
-  useMiddleColor: formattingSettings.ToggleSwitch;
-  middleColor: formattingSettings.ColorPicker;
-  highColor: formattingSettings.ColorPicker;
+  preset: formattingSettings.ItemDropdown;
+  binningMethod: formattingSettings.ItemDropdown;
+  classCount: formattingSettings.NumUpDown;
+  definedInterval: formattingSettings.NumUpDown;
   slices: Array<FormattingSettingsSlice> = [];
 
   constructor(options: NumericGradientSettingsOptions) {
@@ -280,40 +294,71 @@ export class NumericGradientSettings extends FormattingSettingsCard {
     const displayPrefix = options.displayPrefix
       ? `${options.displayPrefix} `
       : "";
+    const presetKey = options.defaultPreset ?? defaultGradientPresetKey;
+    const preset = getGradientPreset(presetKey);
+    const binningMethod =
+      options.defaultBinningMethod ?? defaultGradientBinningMethod;
 
-    this.lowColor = new formattingSettings.ColorPicker({
-      name: options.lowColorName,
-      displayName: `${displayPrefix}Low color`,
-      description: `Color used for the lowest numeric ${options.fieldLabel} values`,
-      value: { value: options.defaultLowColor ?? "#2c7bb6" },
+    this.preset = new formattingSettings.ItemDropdown({
+      name: options.presetName,
+      displayName: `${displayPrefix}Gradient scale`,
+      description: `Preset color scale used for numeric ${options.fieldLabel} values`,
+      value: { value: presetKey, displayName: preset.displayName },
+      items: gradientPresetItems,
     });
 
-    this.useMiddleColor = new formattingSettings.ToggleSwitch({
-      name: options.useMiddleColorName,
-      displayName: `${displayPrefix}Use middle color`,
-      description: `Blend the low and high ${options.fieldLabel} colors through a midpoint color`,
-      value: options.defaultUseMiddleColor ?? false,
+    this.binningMethod = new formattingSettings.ItemDropdown({
+      name: options.binningMethodName,
+      displayName: `${displayPrefix}Classification method`,
+      description: `How numeric ${options.fieldLabel} values are grouped into color classes`,
+      value: {
+        value: binningMethod,
+        displayName: getGradientBinningMethodDisplayName(binningMethod),
+      },
+      items: gradientBinningMethodItems,
     });
 
-    this.middleColor = new formattingSettings.ColorPicker({
-      name: options.middleColorName,
-      displayName: `${displayPrefix}Middle color`,
-      description: `Color used for midpoint numeric ${options.fieldLabel} values`,
-      value: { value: options.defaultMiddleColor ?? "#ffffbf" },
+    this.classCount = new formattingSettings.NumUpDown({
+      name: options.classCountName,
+      displayName: `${displayPrefix}Class count`,
+      description:
+        "Number of classes used for natural breaks, quantile, and equal interval classification",
+      value: options.defaultClassCount ?? defaultGradientClassCount,
+      options: {
+        minValue: {
+          type: powerbi.visuals.ValidatorType.Min,
+          value: 2,
+        },
+        maxValue: {
+          type: powerbi.visuals.ValidatorType.Max,
+          value: 12,
+        },
+      },
     });
 
-    this.highColor = new formattingSettings.ColorPicker({
-      name: options.highColorName,
-      displayName: `${displayPrefix}High color`,
-      description: `Color used for the highest numeric ${options.fieldLabel} values`,
-      value: { value: options.defaultHighColor ?? "#d7191c" },
+    this.definedInterval = new formattingSettings.NumUpDown({
+      name: options.definedIntervalName,
+      displayName: `${displayPrefix}Defined interval`,
+      description:
+        "Interval size used when the classification method is set to defined interval",
+      value: options.defaultDefinedInterval ?? defaultGradientDefinedInterval,
+      options: {
+        minValue: {
+          type: powerbi.visuals.ValidatorType.Min,
+          value: 0.000001,
+        },
+        maxValue: {
+          type: powerbi.visuals.ValidatorType.Max,
+          value: 1000000000,
+        },
+      },
     });
 
     this.slices = [
-      this.lowColor,
-      this.useMiddleColor,
-      this.middleColor,
-      this.highColor,
+      this.preset,
+      this.binningMethod,
+      this.classCount,
+      this.definedInterval,
     ];
   }
 }
@@ -323,18 +368,18 @@ export class ScatterCardSettings extends FormattingSettingsCard {
   line = new BaseStrokeSettings();
   fill = new BaseFillSettings();
   lineGradient = new NumericGradientSettings({
-    lowColorName: "lineGradientLowColor",
-    useMiddleColorName: "lineGradientUseMiddleColor",
-    middleColorName: "lineGradientMiddleColor",
-    highColorName: "lineGradientHighColor",
+    presetName: "lineGradientPreset",
+    binningMethodName: "lineGradientBinningMethod",
+    classCountName: "lineGradientClassCount",
+    definedIntervalName: "lineGradientDefinedInterval",
     fieldLabel: "scatter line color",
     displayPrefix: "Line",
   });
   fillGradient = new NumericGradientSettings({
-    lowColorName: "fillGradientLowColor",
-    useMiddleColorName: "fillGradientUseMiddleColor",
-    middleColorName: "fillGradientMiddleColor",
-    highColorName: "fillGradientHighColor",
+    presetName: "fillGradientPreset",
+    binningMethodName: "fillGradientBinningMethod",
+    classCountName: "fillGradientClassCount",
+    definedIntervalName: "fillGradientDefinedInterval",
     fieldLabel: "scatter fill color",
     displayPrefix: "Fill",
   });
@@ -432,10 +477,10 @@ export class ScatterCardSettings extends FormattingSettingsCard {
 export class LineCardSettings extends FormattingSettingsCard {
   line = new BaseStrokeSettings();
   gradient = new NumericGradientSettings({
-    lowColorName: "gradientLowColor",
-    useMiddleColorName: "gradientUseMiddleColor",
-    middleColorName: "gradientMiddleColor",
-    highColorName: "gradientHighColor",
+    presetName: "gradientPreset",
+    binningMethodName: "gradientBinningMethod",
+    classCountName: "gradientClassCount",
+    definedIntervalName: "gradientDefinedInterval",
     fieldLabel: "line color",
   });
 
@@ -460,18 +505,18 @@ export class LineCardSettings extends FormattingSettingsCard {
 export class ArcCardSettings extends FormattingSettingsCard {
   strokeWidth = new BaseStrokeWidthSettings();
   sourceGradient = new NumericGradientSettings({
-    lowColorName: "sourceGradientLowColor",
-    useMiddleColorName: "sourceGradientUseMiddleColor",
-    middleColorName: "sourceGradientMiddleColor",
-    highColorName: "sourceGradientHighColor",
+    presetName: "sourceGradientPreset",
+    binningMethodName: "sourceGradientBinningMethod",
+    classCountName: "sourceGradientClassCount",
+    definedIntervalName: "sourceGradientDefinedInterval",
     fieldLabel: "arc source color",
     displayPrefix: "Source",
   });
   targetGradient = new NumericGradientSettings({
-    lowColorName: "targetGradientLowColor",
-    useMiddleColorName: "targetGradientUseMiddleColor",
-    middleColorName: "targetGradientMiddleColor",
-    highColorName: "targetGradientHighColor",
+    presetName: "targetGradientPreset",
+    binningMethodName: "targetGradientBinningMethod",
+    classCountName: "targetGradientClassCount",
+    definedIntervalName: "targetGradientDefinedInterval",
     fieldLabel: "arc target color",
     displayPrefix: "Target",
   });
@@ -589,10 +634,10 @@ export class PathLineSettings extends FormattingSettingsCard {
 export class PathCardSettings extends FormattingSettingsCard {
   line = new BaseStrokeSettings();
   gradient = new NumericGradientSettings({
-    lowColorName: "gradientLowColor",
-    useMiddleColorName: "gradientUseMiddleColor",
-    middleColorName: "gradientMiddleColor",
-    highColorName: "gradientHighColor",
+    presetName: "gradientPreset",
+    binningMethodName: "gradientBinningMethod",
+    classCountName: "gradientClassCount",
+    definedIntervalName: "gradientDefinedInterval",
     fieldLabel: "path color",
   });
   path = new PathLineSettings();
@@ -621,19 +666,19 @@ export class PathCardSettings extends FormattingSettingsCard {
 export class PolygonCardSettings extends FormattingSettingsCard {
   line = new BaseStrokeSettings();
   lineGradient = new NumericGradientSettings({
-    lowColorName: "lineGradientLowColor",
-    useMiddleColorName: "lineGradientUseMiddleColor",
-    middleColorName: "lineGradientMiddleColor",
-    highColorName: "lineGradientHighColor",
+    presetName: "lineGradientPreset",
+    binningMethodName: "lineGradientBinningMethod",
+    classCountName: "lineGradientClassCount",
+    definedIntervalName: "lineGradientDefinedInterval",
     fieldLabel: "polygon line color",
     displayPrefix: "Line",
   });
   fill = new BaseFillSettings();
   fillGradient = new NumericGradientSettings({
-    lowColorName: "fillGradientLowColor",
-    useMiddleColorName: "fillGradientUseMiddleColor",
-    middleColorName: "fillGradientMiddleColor",
-    highColorName: "fillGradientHighColor",
+    presetName: "fillGradientPreset",
+    binningMethodName: "fillGradientBinningMethod",
+    classCountName: "fillGradientClassCount",
+    definedIntervalName: "fillGradientDefinedInterval",
     fieldLabel: "polygon fill color",
     displayPrefix: "Fill",
   });

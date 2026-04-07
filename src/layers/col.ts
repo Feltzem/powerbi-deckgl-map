@@ -1,42 +1,16 @@
+import { decodeHex, RGBAColor, withScaledOpacity } from "../col";
 import {
-  decodeHex,
-  interpolateGradientColor,
-  RGBAColor,
-  withScaledOpacity,
-} from "../col";
+  getGradientColorForValue,
+  getNumericColorRange,
+  NumericColorBins,
+  NumericColorRange,
+} from "../gradientClassification";
 
 export interface NumericColorGradient {
   lowColor: RGBAColor;
   middleColor?: RGBAColor | null;
   highColor: RGBAColor;
 }
-
-export interface NumericColorRange {
-  minValue: number | null;
-  maxValue: number | null;
-}
-
-export const getNumericColorRange = <T>(
-  items: T[],
-  getNumericValue: (item: T) => number | null | undefined,
-): NumericColorRange => {
-  let minValue: number | null = null;
-  let maxValue: number | null = null;
-
-  for (const item of items) {
-    const numericValue = getNumericValue(item);
-    if (typeof numericValue !== "number" || !isFinite(numericValue)) {
-      continue;
-    }
-
-    minValue =
-      minValue === null ? numericValue : Math.min(minValue, numericValue);
-    maxValue =
-      maxValue === null ? numericValue : Math.max(maxValue, numericValue);
-  }
-
-  return { minValue, maxValue };
-};
 
 export const applySelectionFade = (
   color: RGBAColor,
@@ -71,7 +45,7 @@ export const getLayerColorWithGradient = (
   numericColorValue: number | null | undefined,
   defaultColor: RGBAColor,
   gradient: NumericColorGradient,
-  range: NumericColorRange,
+  bins: NumericColorBins,
   shouldFade: boolean,
   fadeFactor: number,
   selectedIds: Set<string>,
@@ -80,16 +54,14 @@ export const getLayerColorWithGradient = (
   if (
     typeof numericColorValue === "number" &&
     isFinite(numericColorValue) &&
-    range.minValue !== null &&
-    range.maxValue !== null
+    bins.minValue !== null &&
+    bins.maxValue !== null &&
+    bins.classCount > 0
   ) {
-    const gradientColor = interpolateGradientColor(
+    const gradientColor = getGradientColorForValue(
       numericColorValue,
-      range.minValue,
-      range.maxValue,
-      gradient.lowColor,
-      gradient.highColor,
-      gradient.middleColor,
+      bins,
+      gradient,
     );
     return applySelectionFade(
       gradientColor,
