@@ -20,7 +20,7 @@ export const getNumberFromPrimitive = (
 export const getNumberFromValue = (
   col: powerbi.PrimitiveValue | null,
 ): number | null => {
-  if (!col) {
+  if (col === null || col === undefined) {
     return null;
   }
   return getNumberFromPrimitive(col);
@@ -64,12 +64,15 @@ export const getStrictNumberFromValue = (
 export const getHexColorString = (
   col: powerbi.PrimitiveValue | null,
 ): string | null => {
-  if (typeof col !== "string") {
+  if (col === null || col === undefined) {
     return null;
   }
 
-  const trimmed = col.trim();
-  return trimmed.startsWith("#") ? trimmed : null;
+  const trimmed = col
+    .toString()
+    .trim()
+    .replace(/^(['"])(.*)\1$/, "$2");
+  return /^#|^rgba?\(/i.test(trimmed) ? trimmed : null;
 };
 
 export const parseColorInput = (
