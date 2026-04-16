@@ -64,7 +64,6 @@ export default function getArcLayer(
       definedInterval: settings.targetGradient.definedInterval.value,
     },
   );
-
   return new ArcLayer<OurData>({
     id: `arc-layer-base`,
     data: data,

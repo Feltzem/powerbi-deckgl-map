@@ -21,8 +21,13 @@ For now, the main things to know:
 - We can only (?) have a single input to a visual, which means if we want multiple layer types on each visual, they all need to be in the same table. Therefore:
   - We specify a layer type column which contains either `'scatter'`, `'arc'`, `'line'`, `'path'`, or `'polygon'` to specify which type to draw. (These strings can be customised in the options.)
   - Individual columns/values/defaults for each of the different attributes. E.g. you can have a column for the scatter fill color or polygon fill color (which can be the same).
-- To support e.g. custom colors/widths per line/row, we allow the user to provide their own #RGBA (for color and opacity) or float (for width). In Javascript we could let the user just provide a custom function (as deck.gl does), but that's trickier in Power BI.
-- All color fields can also take numeric values. When a numeric field is bound, the relevant format pane section maps the visible range onto a preset gradient scale for that geometry and color channel. You can classify the values using natural breaks, quantile, equal interval, or defined interval binning, and the visual shows a matching legend for the active classes. Note that opacity can not be set based on numeric field - a #RGBA field must be used to style on both color and opacity.
+- To support e.g. custom colors/widths per line/row, we allow the user to provide their own `#RGB`, `#RRGGBB`, `#RRGGBBAA`, `rgb(...)`, or `rgba(...)` string (for color and opacity) or float (for width). In Javascript we could let the user just provide a custom function (as deck.gl does), but that's trickier in Power BI.
+- All color fields can also take numeric values. When a numeric field is bound, the relevant format pane section maps the visible range onto a preset gradient scale for that geometry and color channel. You can classify the values using natural breaks, quantile, equal interval, or defined interval binning, and the visual shows a matching legend for the active classes. Note that opacity can not be set based on numeric field - an explicit alpha-bearing color such as `#RRGGBBAA` or `rgba(...)` must be used to style both color and opacity.
+
+### Arc styling notes
+
+- `Arc Source color` and `Arc Target color` accept direct CSS/hex colors and preserve any alpha channel present in the bound data.
+- Arc opacity always comes from the alpha channel in the bound source/target color field, or from the format pane defaults when no color bucket value is supplied.
 
 ### Highlighting/selection
 
@@ -35,6 +40,14 @@ Secondly, you can filter the selected shapes by click. This is two way:
   - But it _doesn't_ remove the other shapes from the map. Why? Because otherwise you wouldn't be able to click another one (especially for multi-select). So you know what you've clicked, it highlights these in red (or whatever color you choose) - again, especially useful for multi-select.
   - When you click on the map, it resets the selection.
 - When you select items in an associated visual, it will filter the map to only show those selected shapes i.e. selection not highlighting. If you already have a selection made at map-level, it will remove these.
+
+## Sample Data
+
+- Diagnostic sample CSV: `data_samples/nz_sa2_travel_to_work_od_2023.csv`
+- Matching Power Query / Advanced Editor script: `data_samples/nz_sa2_travel_to_work_od_2023.powerquery.m`
+- Matching Python transform script: `scripts/build_powerbi_table.py`
+- Running `python scripts/build_powerbi_table.py` creates a SQLite table at `data_samples/generated/nz_sa2_travel_to_work_od_2023.powerbi.sqlite` with the same typed columns plus the derived `tooltip` column.
+- The checked-in query points at the repo-local copy of the CSV so it can be imported into Power BI without relying on the original external folder.
 
 ## TODO
 

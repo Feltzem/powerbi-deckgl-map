@@ -1,9 +1,7 @@
 import { decodeHex, RGBAColor, withScaledOpacity } from "../col";
 import {
   getGradientColorForValue,
-  getNumericColorRange,
   NumericColorBins,
-  NumericColorRange,
 } from "../gradientClassification";
 
 export interface NumericColorGradient {
@@ -31,14 +29,36 @@ export const applySelectionFade = (
 export const getLayerColor = (
   colorProp: string | null | undefined,
   defaultColor: RGBAColor,
+): RGBAColor => decodeHex(colorProp, defaultColor);
+
+export const getLayerColorWithGradientBase = (
+  colorProp: string | null | undefined,
+  numericColorValue: number | null | undefined,
+  defaultColor: RGBAColor,
+  gradient: NumericColorGradient,
+  bins: NumericColorBins,
+): RGBAColor => {
+  if (
+    typeof numericColorValue === "number" &&
+    isFinite(numericColorValue) &&
+    bins.minValue !== null &&
+    bins.maxValue !== null &&
+    bins.classCount > 0
+  ) {
+    return getGradientColorForValue(numericColorValue, bins, gradient);
+  }
+
+  return getLayerColor(colorProp, defaultColor);
+};
+
+export const getLayerColorWithSelectionFade = (
+  color: RGBAColor,
   shouldFade: boolean,
   fadeFactor: number,
   selectedIds: Set<string>,
   id: string,
-): RGBAColor => {
-  const col = decodeHex(colorProp, defaultColor);
-  return applySelectionFade(col, shouldFade, fadeFactor, selectedIds, id);
-};
+): RGBAColor =>
+  applySelectionFade(color, shouldFade, fadeFactor, selectedIds, id);
 
 export const getLayerColorWithGradient = (
   colorProp: string | null | undefined,
@@ -51,30 +71,15 @@ export const getLayerColorWithGradient = (
   selectedIds: Set<string>,
   id: string,
 ): RGBAColor => {
-  if (
-    typeof numericColorValue === "number" &&
-    isFinite(numericColorValue) &&
-    bins.minValue !== null &&
-    bins.maxValue !== null &&
-    bins.classCount > 0
-  ) {
-    const gradientColor = getGradientColorForValue(
-      numericColorValue,
-      bins,
-      gradient,
-    );
-    return applySelectionFade(
-      gradientColor,
-      shouldFade,
-      fadeFactor,
-      selectedIds,
-      id,
-    );
-  }
-
-  return getLayerColor(
+  const color = getLayerColorWithGradientBase(
     colorProp,
+    numericColorValue,
     defaultColor,
+    gradient,
+    bins,
+  );
+  return getLayerColorWithSelectionFade(
+    color,
     shouldFade,
     fadeFactor,
     selectedIds,
