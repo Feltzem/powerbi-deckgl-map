@@ -44,7 +44,7 @@ export const parsePath = (
   data.pathData = geometry;
   data.pathProperties = {
     lineWidth: getNumberFromValue(rowValues.pathWidth),
-    lineColor: pathColor.hexColor,
+    lineColor: pathColor.rgbaColor,
     lineColorValue: pathColor.numericValue,
   };
   return true;

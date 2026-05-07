@@ -3,6 +3,7 @@ import {
   ColorRoleStats,
   ColorRoleStatsStore,
 } from "./dataTypes";
+import { RGBAColor } from "./col";
 
 export const colorRoleKeys: ColorRoleKey[] = [
   "scatterFillColor",
@@ -30,11 +31,11 @@ export const createEmptyColorRoleStatsStore = (): ColorRoleStatsStore =>
 export const updateColorRoleStats = (
   store: ColorRoleStatsStore,
   roleKey: ColorRoleKey,
-  textColor: string | null | undefined,
+  textColor: RGBAColor | null | undefined,
   numericValue: number | null | undefined,
 ) => {
   const stats = store[roleKey];
-  if (typeof textColor === "string" && textColor.trim().length > 0) {
+  if (textColor) {
     stats.hasTextColor = true;
   }
 

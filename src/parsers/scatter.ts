@@ -36,9 +36,9 @@ export const parseScatter = (
   };
   data.scatterProperties = {
     lineWidth: getNumberFromValue(rowValues.scatterLineWidth),
-    lineColor: lineColor.hexColor,
+    lineColor: lineColor.rgbaColor,
     lineColorValue: lineColor.numericValue,
-    fillColor: fillColor.hexColor,
+    fillColor: fillColor.rgbaColor,
     fillColorValue: fillColor.numericValue,
   };
   return true;

@@ -1,9 +1,10 @@
 import powerbi from "powerbi-visuals-api";
+import { parseColorString, RGBAColor } from "./col";
 
 const strictNumberPattern = /^[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?$/;
 
 export interface ParsedColorInput {
-  hexColor: string | null;
+  rgbaColor: RGBAColor | null;
   numericValue: number | null;
 }
 
@@ -78,6 +79,6 @@ export const getHexColorString = (
 export const parseColorInput = (
   col: powerbi.PrimitiveValue | null,
 ): ParsedColorInput => ({
-  hexColor: getHexColorString(col),
+  rgbaColor: parseColorString(getHexColorString(col)),
   numericValue: getStrictNumberFromValue(col),
 });

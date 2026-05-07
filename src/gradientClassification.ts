@@ -372,7 +372,7 @@ export const getNumericColorBins = <T>(
   };
 };
 
-const getBinIndex = (value: number, bins: NumericColorBins): number => {
+export const getBinIndex = (value: number, bins: NumericColorBins): number => {
   if (bins.classCount <= 1) {
     return 0;
   }
@@ -411,6 +411,23 @@ export const getGradientColorForValue = (
   return sampleGradientAtPosition(gradient, position);
 };
 
+export const getGradientClassColors = (
+  bins: NumericColorBins,
+  gradient: GradientLike,
+): RGBAColor[] =>
+  Array.from({ length: bins.classCount }, (_, index) =>
+    sampleGradientAtPosition(
+      gradient,
+      bins.classCount <= 1 ? 0.5 : index / Math.max(1, bins.classCount - 1),
+    ),
+  );
+
+export const getGradientColorForValueFromClasses = (
+  value: number,
+  bins: NumericColorBins,
+  classColors: RGBAColor[],
+): RGBAColor => classColors[getBinIndex(value, bins)] ?? classColors[0];
+
 export const getGradientLegendClasses = (
   bins: NumericColorBins,
   gradient: GradientLike,
@@ -419,14 +436,12 @@ export const getGradientLegendClasses = (
     return [];
   }
 
+  const classColors = getGradientClassColors(bins, gradient);
   return Array.from({ length: bins.classCount }, (_, index) => ({
     key: `class-${index}`,
     lowValue: bins.breaks[index],
     highValue: bins.breaks[index + 1],
-    color: sampleGradientAtPosition(
-      gradient,
-      bins.classCount <= 1 ? 0.5 : index / Math.max(1, bins.classCount - 1),
-    ),
+    color: classColors[index],
   }));
 };
 

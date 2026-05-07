@@ -8,6 +8,7 @@ import {
   LineString,
   MultiLineString,
 } from "geojson";
+import { RGBAColor } from "./col";
 
 // Enum for supported layer types
 export enum InputLayerType {
@@ -35,11 +36,11 @@ export interface ArcData extends LineData {}
 // Properties:
 interface StrokedProperties {
   lineWidth: number | null;
-  lineColor: string | null;
+  lineColor: RGBAColor | null;
   lineColorValue: number | null;
 }
 interface FilledProperties {
-  fillColor: string | null;
+  fillColor: RGBAColor | null;
   fillColorValue: number | null;
 }
 export interface LineProperties extends StrokedProperties {}
@@ -51,9 +52,9 @@ export interface ScatterProperties
   extends StrokedProperties, FilledProperties {}
 export interface ArcProperties {
   lineWidth: number | null;
-  sourceColor: string | null;
+  sourceColor: RGBAColor | null;
   sourceColorValue: number | null;
-  targetColor: string | null;
+  targetColor: RGBAColor | null;
   targetColorValue: number | null;
 }
 

@@ -57,7 +57,7 @@ export const parseLine = (
   data.lineData = geometryParsed;
   data.lineProperties = {
     lineWidth: getNumberFromValue(rowValues.lineLineWidth),
-    lineColor: lineColor.hexColor,
+    lineColor: lineColor.rgbaColor,
     lineColorValue: lineColor.numericValue,
   };
   return true;
@@ -83,9 +83,9 @@ export const parseArc = (
   data.arcData = geometryParsed;
   data.arcProperties = {
     lineWidth: getNumberFromValue(rowValues.arcLineWidth),
-    sourceColor: sourceColor.hexColor,
+    sourceColor: sourceColor.rgbaColor,
     sourceColorValue: sourceColor.numericValue,
-    targetColor: targetColor.hexColor,
+    targetColor: targetColor.rgbaColor,
     targetColorValue: targetColor.numericValue,
   };
   return true;

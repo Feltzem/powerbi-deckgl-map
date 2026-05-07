@@ -71,6 +71,7 @@ export class Visual implements IVisual {
   private geometryCache: GeometryCache;
   private classificationCache: NumericColorBinsCache;
   private selectedIds: Set<string>;
+  private rootElement: HTMLElement;
   private lastOptions: VisualUpdateOptions | null;
   private pendingOptions: VisualUpdateOptions | null;
   private hasInitialViewBeenSet: boolean;
@@ -105,6 +106,21 @@ export class Visual implements IVisual {
         container.remove();
       },
     };
+  }
+
+  private isDarkBaseMap(baseMap: string): boolean {
+    const normalizedBaseMap = baseMap.toLowerCase();
+    return (
+      normalizedBaseMap.startsWith("dark") ||
+      normalizedBaseMap.includes("/dark")
+    );
+  }
+
+  private syncBaseMapTheme(baseMap: string) {
+    this.rootElement.classList.toggle(
+      "deckgl-map-visual--dark-basemap",
+      this.isDarkBaseMap(baseMap),
+    );
   }
 
   private resetViewToAllData() {
@@ -155,6 +171,7 @@ export class Visual implements IVisual {
     this.lastLegendSignature = null;
     this.lastDataSignature = null;
     this.dataVersionCounter = 0;
+    this.rootElement = options.element;
 
     const settings =
       this.formattingSettingsService.populateFormattingSettingsModel(
@@ -163,11 +180,12 @@ export class Visual implements IVisual {
       );
     this.formattingSettings = settings;
     this.currentBaseMap = settings.map.baseMap.value.value as string;
+    this.syncBaseMapTheme(this.currentBaseMap);
 
     if (document) {
-      options.element.classList.add("deckgl-map-visual");
+      this.rootElement.classList.add("deckgl-map-visual");
       this.map = new MapLibreMap({
-        container: options.element,
+        container: this.rootElement,
         style: this.getMapStyle(settings.map.baseMap.value.value as string),
         canvasContextAttributes: { antialias: true },
         maxZoom: 20,
@@ -175,7 +193,7 @@ export class Visual implements IVisual {
       this.legendContainer = document.createElement("div");
       this.legendContainer.className =
         "deckgl-gradient-legend deckgl-gradient-legend--hidden";
-      options.element.appendChild(this.legendContainer);
+      this.rootElement.appendChild(this.legendContainer);
       this.map.on("error", (error) => {
         console.warn("MapLibre error", error);
       });
@@ -360,6 +378,7 @@ export class Visual implements IVisual {
 
   private updateBaseMap() {
     const newBaseMap = this.formattingSettings.map.baseMap.value.value as string;
+    this.syncBaseMapTheme(newBaseMap);
     if (newBaseMap !== this.currentBaseMap) {
       this.map?.setStyle?.(this.getMapStyle(newBaseMap));
       this.currentBaseMap = newBaseMap;

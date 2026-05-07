@@ -86,9 +86,9 @@ export const parsePolygon = (
   data.polygonData = geometry;
   data.polygonProperties = {
     lineWidth: getNumberFromValue(rowValues.polygonLineWidth),
-    lineColor: lineColor.hexColor,
+    lineColor: lineColor.rgbaColor,
     lineColorValue: lineColor.numericValue,
-    fillColor: fillColor.hexColor,
+    fillColor: fillColor.rgbaColor,
     fillColorValue: fillColor.numericValue,
     elevation: getNumberFromValue(rowValues.polygonExtrudeElevation),
   };

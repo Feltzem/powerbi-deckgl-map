@@ -110,38 +110,56 @@ const parseRgbFunction = (value: string): RGBAColor | null => {
   return [rgb[0]!, rgb[1]!, rgb[2]!, alpha];
 };
 
+export function parseColorString(
+  value: string | null | undefined,
+): RGBAColor | null {
+  if (!value || typeof value !== "string") {
+    return null;
+  }
+
+  const color = value.trim().replace(/^(['"])(.*)\1$/, "$2");
+  if (!color) {
+    return null;
+  }
+
+  const rgbFunctionColor = parseRgbFunction(color);
+  if (rgbFunctionColor) {
+    return rgbFunctionColor;
+  }
+
+  if (!/^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(color)) {
+    return null;
+  }
+
+  let normalized = color;
+  if (normalized.length === 4 || normalized.length === 5) {
+    const alpha = normalized.length === 5 ? normalized[4] + normalized[4] : "FF";
+    normalized =
+      "#" +
+      normalized[1] +
+      normalized[1] +
+      normalized[2] +
+      normalized[2] +
+      normalized[3] +
+      normalized[3] +
+      alpha;
+  } else if (normalized.length === 7) {
+    normalized += "FF";
+  }
+
+  return [
+    parseInt(normalized.substring(1, 3), 16),
+    parseInt(normalized.substring(3, 5), 16),
+    parseInt(normalized.substring(5, 7), 16),
+    parseInt(normalized.substring(7, 9), 16),
+  ];
+}
+
 export function decodeHex(
   hex: string | null | undefined,
   defaultColor: RGBAColor,
 ): RGBAColor {
-  if (!hex) {
-    return defaultColor;
-  }
-
-  if (typeof hex !== "string") {
-    return defaultColor;
-  }
-  const rgbFunctionColor = parseRgbFunction(hex);
-  if (rgbFunctionColor) {
-    return rgbFunctionColor;
-  }
-  if (hex[0] !== "#") {
-    return defaultColor;
-  }
-  if (hex.length == 5) {
-    hex = "#" + hex[1] + hex[1] + hex[2] + hex[2] + hex[3] + hex[3] + "FF";
-  } else if (hex.length == 7) {
-    hex = hex + "FF";
-  }
-  if (hex.length != 9) {
-    return defaultColor;
-  }
-  return [
-    parseInt(hex.substring(1, 3), 16),
-    parseInt(hex.substring(3, 5), 16),
-    parseInt(hex.substring(5, 7), 16),
-    parseInt(hex.substring(7, 9), 16),
-  ];
+  return parseColorString(hex) ?? defaultColor;
 }
 
 export function withOpacity(col: RGBAColor, opacity: number): RGBAColor {
