@@ -3,20 +3,93 @@ import VisualUpdateOptions = powerbi.extensibility.visual.VisualUpdateOptions;
 import ISelectionId = powerbi.visuals.ISelectionId;
 import IVisualHost = powerbi.extensibility.visual.IVisualHost;
 import { decodeAsGeometry } from "./encoding";
-import { InputLayerType, LineData, OurData, RowValues } from "./dataTypes";
+import {
+  DatasetSnapshot,
+  GeometryCache,
+  InputLayerType,
+  LayerDataStore,
+  LineData,
+  OurData,
+  RowValues,
+} from "./dataTypes";
 import { VisualFormattingSettingsModel } from "./settings";
 import { WKTLoader } from "@loaders.gl/wkt";
 import { parseSync } from "@loaders.gl/core";
-import { Geometry, Polygon, MultiPolygon } from "geojson";
+import { Geometry } from "geojson";
 import { parsePath } from "./parsers/path";
 import { parsePolygon } from "./parsers/polygon";
 import { parseScatter } from "./parsers/scatter";
 import { parseLine, parseArc } from "./parsers/lineArc";
-import { validateData } from "./geom";
+import { getDataBoundingBox, validateData } from "./geom";
+
+const roleMappings: Array<[keyof RowValues, string]> = [
+  ["layerType", "layerType"],
+  ["wkp", "wkp"],
+  ["wkt", "wkt"],
+  ["point1Latitude", "point1Latitude"],
+  ["point1Longitude", "point1Longitude"],
+  ["point2Latitude", "point2Latitude"],
+  ["point2Longitude", "point2Longitude"],
+  ["scatterRadius", "scatterRadius"],
+  ["scatterLineColor", "scatterLineColor"],
+  ["scatterLineWidth", "scatterLineWidth"],
+  ["scatterFillColor", "scatterFillColor"],
+  ["lineLineWidth", "lineLineWidth"],
+  ["lineLineColor", "lineLineColor"],
+  ["pathWidth", "pathWidth"],
+  ["pathColor", "pathColor"],
+  ["polygonLineColor", "polygonLineColor"],
+  ["polygonLineWidth", "polygonLineWidth"],
+  ["polygonFillColor", "polygonFillColor"],
+  ["polygonExtrudeElevation", "polygonExtrudeElevation"],
+  ["arcLineWidth", "arcLineWidth"],
+  ["arcSourceColor", "arcSourceColor"],
+  ["arcTargetColor", "arcTargetColor"],
+  ["tooltip", "tooltipHtml"],
+];
+
+const tooltipHtmlMaxLength = 4000;
+
+const createEmptyLayerDataStore = (): LayerDataStore => ({
+  all: [],
+  scatter: [],
+  line: [],
+  arc: [],
+  path: [],
+  polygon: [],
+});
+
+const sanitizeTooltipHtml = (value: unknown): string | null => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  return value
+    .toString()
+    .slice(0, tooltipHtmlMaxLength)
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+    .replace(/\son\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+};
+
+const hashString = (value: string): string => {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+};
+
+const getGeometryCacheKey = (
+  encoding: "wkt" | "wkp",
+  geometryId: unknown,
+  encoded: string,
+): string =>
+  `${encoding}:${String(geometryId)}:${encoded.length}:${hashString(encoded)}`;
 
 const parseWkt = (
   wkt: string,
-  geometryId: any,
+  geometryId: unknown,
   errorMessages: string[],
 ): Geometry | null => {
   if (!wkt || wkt.trim() === "") {
@@ -37,7 +110,7 @@ const parseWkt = (
 
 const parseWkp = (
   wkp: string,
-  geometryId: any,
+  geometryId: unknown,
   errorMessages: string[],
 ): Geometry | null => {
   if (!wkp) {
@@ -45,10 +118,6 @@ const parseWkp = (
   }
   try {
     const geom = decodeAsGeometry(wkp);
-    if (geometryId === "path-02152a887c290ecc491c8a276ba82367") {
-      console.log(wkp);
-      console.log(geom);
-    }
     if (!geom) {
       errorMessages.push(`Geometry ${geometryId}: invalid encoded geometry.`);
       return null;
@@ -62,17 +131,178 @@ const parseWkp = (
   }
 };
 
-export function createSelectorDataPoints(
+const parseCachedGeometry = (
+  encoding: "wkt" | "wkp",
+  encodedValue: unknown,
+  geometryId: unknown,
+  errorMessages: string[],
+  geometryCache: GeometryCache,
+): Geometry | null => {
+  if (encodedValue === null || encodedValue === undefined) {
+    return null;
+  }
+
+  const encoded = encodedValue.toString();
+  const cacheKey = getGeometryCacheKey(encoding, geometryId, encoded);
+  const cached = geometryCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  const geometry =
+    encoding === "wkt"
+      ? parseWkt(encoded, geometryId, errorMessages)
+      : parseWkp(encoded, geometryId, errorMessages);
+
+  if (geometry) {
+    geometryCache.set(cacheKey, geometry);
+  }
+  return geometry;
+};
+
+const getRoleColumns = (
+  values: powerbi.DataViewValueColumns,
+): Partial<Record<keyof RowValues, powerbi.DataViewValueColumn>> => {
+  const roleColumns: Partial<Record<keyof RowValues, powerbi.DataViewValueColumn>> =
+    {};
+
+  for (const column of values) {
+    const roles = column.source?.roles;
+    if (!roles) {
+      continue;
+    }
+
+    for (const [fieldName, roleName] of roleMappings) {
+      if (roles[roleName] && !roleColumns[fieldName]) {
+        roleColumns[fieldName] = column;
+      }
+    }
+  }
+
+  return roleColumns;
+};
+
+const getColumnValues = (
+  column: powerbi.DataViewValueColumn | powerbi.DataViewCategoryColumn | null,
+): powerbi.PrimitiveValue[] | null => column?.values ?? null;
+
+const getRowValues = (
+  rowValueArrays: RowValues,
+  index: number,
+): RowValues => ({
+  geometryId: rowValueArrays.geometryId?.[index] ?? null,
+  layerType: rowValueArrays.layerType?.[index] ?? null,
+  wkp: rowValueArrays.wkp?.[index] ?? null,
+  wkt: rowValueArrays.wkt?.[index] ?? null,
+  point1Latitude: rowValueArrays.point1Latitude?.[index] ?? null,
+  point1Longitude: rowValueArrays.point1Longitude?.[index] ?? null,
+  point2Latitude: rowValueArrays.point2Latitude?.[index] ?? null,
+  point2Longitude: rowValueArrays.point2Longitude?.[index] ?? null,
+  scatterRadius: rowValueArrays.scatterRadius?.[index] ?? null,
+  scatterLineColor: rowValueArrays.scatterLineColor?.[index] ?? null,
+  scatterLineWidth: rowValueArrays.scatterLineWidth?.[index] ?? null,
+  scatterFillColor: rowValueArrays.scatterFillColor?.[index] ?? null,
+  lineLineWidth: rowValueArrays.lineLineWidth?.[index] ?? null,
+  lineLineColor: rowValueArrays.lineLineColor?.[index] ?? null,
+  pathWidth: rowValueArrays.pathWidth?.[index] ?? null,
+  pathColor: rowValueArrays.pathColor?.[index] ?? null,
+  polygonLineColor: rowValueArrays.polygonLineColor?.[index] ?? null,
+  polygonLineWidth: rowValueArrays.polygonLineWidth?.[index] ?? null,
+  polygonFillColor: rowValueArrays.polygonFillColor?.[index] ?? null,
+  polygonExtrudeElevation:
+    rowValueArrays.polygonExtrudeElevation?.[index] ?? null,
+  arcLineWidth: rowValueArrays.arcLineWidth?.[index] ?? null,
+  arcSourceColor: rowValueArrays.arcSourceColor?.[index] ?? null,
+  arcTargetColor: rowValueArrays.arcTargetColor?.[index] ?? null,
+  tooltip: rowValueArrays.tooltip?.[index] ?? null,
+});
+
+const getDataPointType = (
+  geomType: string | null,
+  scatterString: string,
+  lineString: string,
+  arcString: string,
+  pathString: string,
+  polygonString: string,
+): InputLayerType | null => {
+  if (geomType === scatterString) {
+    return InputLayerType.Scatter;
+  }
+  if (geomType === lineString) {
+    return InputLayerType.Line;
+  }
+  if (geomType === arcString) {
+    return InputLayerType.Arc;
+  }
+  if (geomType === pathString) {
+    return InputLayerType.Path;
+  }
+  if (geomType === polygonString) {
+    return InputLayerType.Polygon;
+  }
+  return null;
+};
+
+const addDataPointToLayerStore = (
+  layerData: LayerDataStore,
+  data: OurData,
+) => {
+  layerData.all.push(data);
+
+  if (data.type === InputLayerType.Scatter) {
+    layerData.scatter.push(data);
+  } else if (data.type === InputLayerType.Line) {
+    layerData.line.push(data);
+  } else if (data.type === InputLayerType.Arc) {
+    layerData.arc.push(data);
+  } else if (data.type === InputLayerType.Path && data.pathData && data.pathProperties) {
+    layerData.path.push({
+      type: "Feature",
+      geometry: data.pathData,
+      properties: data.pathProperties,
+      selectionId: data.selectionId,
+      tooltipHtml: data.tooltipHtml,
+      id: String(data.id),
+    });
+  } else if (
+    data.type === InputLayerType.Polygon &&
+    data.polygonData &&
+    data.polygonProperties
+  ) {
+    layerData.polygon.push({
+      type: "Feature",
+      geometry: data.polygonData,
+      properties: data.polygonProperties,
+      selectionId: data.selectionId,
+      tooltipHtml: data.tooltipHtml,
+      id: String(data.id),
+    });
+  }
+};
+
+export function createDatasetSnapshot(
   options: VisualUpdateOptions,
   settings: VisualFormattingSettingsModel,
   host: IVisualHost,
-  decodeCache: object,
-): OurData[] {
-  const dataPoints: OurData[] = [];
-  const dataViews = options.dataViews;
+  geometryCache: GeometryCache,
+  version: string,
+): DatasetSnapshot {
+  const layerData = createEmptyLayerDataStore();
+  const idToDataPoint = new Map<string, OurData>();
+  const idToSelectionId = new Map<string, ISelectionId>();
+  const dataHighlightedIds: string[] = [];
+  const emptySnapshot = (): DatasetSnapshot => ({
+    layers: layerData,
+    idToDataPoint,
+    idToSelectionId,
+    dataHighlightedIds,
+    bounds: null,
+    version,
+  });
 
+  const dataViews = options.dataViews;
   if (!dataViews || !dataViews[0]) {
-    return dataPoints;
+    return emptySnapshot();
   }
   if (dataViews.length > 1) {
     host.displayWarningIcon(
@@ -82,135 +312,150 @@ export function createSelectorDataPoints(
   }
   const categorical = dataViews[0].categorical;
   if (!categorical || !categorical.categories || !categorical.values) {
-    return dataPoints;
+    return emptySnapshot();
   }
   const geometryIdValue = categorical.categories[0];
   if (!geometryIdValue) {
-    // No index (usually CTUID)
-    return dataPoints;
+    return emptySnapshot();
   }
-  console.log("Processing n rows of data:", geometryIdValue.values.length);
-  const layerTypeValue = categorical.values.filter(
-    (x) => x.source.roles.layerType,
-  )[0];
+
+  const roleColumns = getRoleColumns(categorical.values);
+  const layerTypeValue = roleColumns.layerType;
   if (!layerTypeValue) {
-    return dataPoints;
+    return emptySnapshot();
   }
 
-  const hasAnyDataHighlights = categorical.values.some((valueColumn: any) => {
-    const highlights = valueColumn?.highlights;
-    return (
-      Array.isArray(highlights) &&
-      highlights.some((v) => v !== null && v !== undefined)
-    );
-  });
-
-  const categoricalValues: RowValues = {
-    geometryId: geometryIdValue,
-    layerType: layerTypeValue,
-    wkp: categorical.values.filter((x) => x.source.roles.wkp)[0],
-    wkt: categorical.values.filter((x) => x.source.roles.wkt)[0],
-    point1Latitude: categorical.values.filter(
-      (x) => x.source.roles.point1Latitude,
-    )[0],
-    point1Longitude: categorical.values.filter(
-      (x) => x.source.roles.point1Longitude,
-    )[0],
-    point2Latitude: categorical.values.filter(
-      (x) => x.source.roles.point2Latitude,
-    )[0],
-    point2Longitude: categorical.values.filter(
-      (x) => x.source.roles.point2Longitude,
-    )[0],
-    scatterRadius: categorical.values.filter(
-      (x) => x.source.roles.scatterRadius,
-    )[0],
-    scatterLineColor: categorical.values.filter(
-      (x) => x.source.roles.scatterLineColor,
-    )[0],
-    scatterLineWidth: categorical.values.filter(
-      (x) => x.source.roles.scatterLineWidth,
-    )[0],
-    scatterFillColor: categorical.values.filter(
-      (x) => x.source.roles.scatterFillColor,
-    )[0],
-    lineLineWidth: categorical.values.filter(
-      (x) => x.source.roles.lineLineWidth,
-    )[0],
-    lineLineColor: categorical.values.filter(
-      (x) => x.source.roles.lineLineColor,
-    )[0],
-    pathWidth: categorical.values.filter((x) => x.source.roles.pathWidth)[0],
-    pathColor: categorical.values.filter((x) => x.source.roles.pathColor)[0],
-    polygonLineColor: categorical.values.filter(
-      (x) => x.source.roles.polygonLineColor,
-    )[0],
-    polygonLineWidth: categorical.values.filter(
-      (x) => x.source.roles.polygonLineWidth,
-    )[0],
-    polygonFillColor: categorical.values.filter(
-      (x) => x.source.roles.polygonFillColor,
-    )[0],
-    polygonExtrudeElevation: categorical.values.filter(
-      (x) => x.source.roles.polygonExtrudeElevation,
-    )[0],
-    arcLineWidth: categorical.values.filter(
-      (x) => x.source.roles.arcLineWidth,
-    )[0],
-    arcSourceColor: categorical.values.filter(
-      (x) => x.source.roles.arcSourceColor,
-    )[0],
-    arcTargetColor: categorical.values.filter(
-      (x) => x.source.roles.arcTargetColor,
-    )[0],
-    tooltip: categorical.values.filter((x) => x.source.roles.tooltipHtml)[0],
+  const rowValueArrays: RowValues = {
+    geometryId: getColumnValues(geometryIdValue),
+    layerType: getColumnValues(layerTypeValue),
+    wkp: getColumnValues(roleColumns.wkp ?? null),
+    wkt: getColumnValues(roleColumns.wkt ?? null),
+    point1Latitude: getColumnValues(roleColumns.point1Latitude ?? null),
+    point1Longitude: getColumnValues(roleColumns.point1Longitude ?? null),
+    point2Latitude: getColumnValues(roleColumns.point2Latitude ?? null),
+    point2Longitude: getColumnValues(roleColumns.point2Longitude ?? null),
+    scatterRadius: getColumnValues(roleColumns.scatterRadius ?? null),
+    scatterLineColor: getColumnValues(roleColumns.scatterLineColor ?? null),
+    scatterLineWidth: getColumnValues(roleColumns.scatterLineWidth ?? null),
+    scatterFillColor: getColumnValues(roleColumns.scatterFillColor ?? null),
+    lineLineWidth: getColumnValues(roleColumns.lineLineWidth ?? null),
+    lineLineColor: getColumnValues(roleColumns.lineLineColor ?? null),
+    pathWidth: getColumnValues(roleColumns.pathWidth ?? null),
+    pathColor: getColumnValues(roleColumns.pathColor ?? null),
+    polygonLineColor: getColumnValues(roleColumns.polygonLineColor ?? null),
+    polygonLineWidth: getColumnValues(roleColumns.polygonLineWidth ?? null),
+    polygonFillColor: getColumnValues(roleColumns.polygonFillColor ?? null),
+    polygonExtrudeElevation: getColumnValues(
+      roleColumns.polygonExtrudeElevation ?? null,
+    ),
+    arcLineWidth: getColumnValues(roleColumns.arcLineWidth ?? null),
+    arcSourceColor: getColumnValues(roleColumns.arcSourceColor ?? null),
+    arcTargetColor: getColumnValues(roleColumns.arcTargetColor ?? null),
+    tooltip: getColumnValues(roleColumns.tooltip ?? null),
   };
 
-  const rowValueArrays: RowValues = Object.fromEntries(
-    Object.entries(categoricalValues).map(([key, value]) => [
-      key,
-      value ? value.values : null,
-    ]),
-  ) as RowValues;
+  if (!rowValueArrays.geometryId || !rowValueArrays.layerType) {
+    return emptySnapshot();
+  }
 
-  const isProvided: RowValues = Object.fromEntries(
-    Object.entries(rowValueArrays).map(([key, value]) => [key, !!value as any]),
-  ) as RowValues;
+  const isProvided: RowValues = {
+    geometryId: !!rowValueArrays.geometryId,
+    layerType: !!rowValueArrays.layerType,
+    wkp: !!rowValueArrays.wkp,
+    wkt: !!rowValueArrays.wkt,
+    point1Latitude: !!rowValueArrays.point1Latitude,
+    point1Longitude: !!rowValueArrays.point1Longitude,
+    point2Latitude: !!rowValueArrays.point2Latitude,
+    point2Longitude: !!rowValueArrays.point2Longitude,
+    scatterRadius: !!rowValueArrays.scatterRadius,
+    scatterLineColor: !!rowValueArrays.scatterLineColor,
+    scatterLineWidth: !!rowValueArrays.scatterLineWidth,
+    scatterFillColor: !!rowValueArrays.scatterFillColor,
+    lineLineWidth: !!rowValueArrays.lineLineWidth,
+    lineLineColor: !!rowValueArrays.lineLineColor,
+    pathWidth: !!rowValueArrays.pathWidth,
+    pathColor: !!rowValueArrays.pathColor,
+    polygonLineColor: !!rowValueArrays.polygonLineColor,
+    polygonLineWidth: !!rowValueArrays.polygonLineWidth,
+    polygonFillColor: !!rowValueArrays.polygonFillColor,
+    polygonExtrudeElevation: !!rowValueArrays.polygonExtrudeElevation,
+    arcLineWidth: !!rowValueArrays.arcLineWidth,
+    arcSourceColor: !!rowValueArrays.arcSourceColor,
+    arcTargetColor: !!rowValueArrays.arcTargetColor,
+    tooltip: !!rowValueArrays.tooltip,
+  };
 
-  const errorMessages = [];
+  const errorMessages: string[] = [];
   const scatterString = settings.scatter.layerType.value.trim().toLowerCase();
   const lineString = settings.line.layerType.value.trim().toLowerCase();
   const arcString = settings.arc.layerType.value.trim().toLowerCase();
   const pathString = settings.path.layerType.value.trim().toLowerCase();
   const polygonString = settings.polygon.layerType.value.trim().toLowerCase();
   const validateGeometries = settings.validation.validateGeometries.value;
+  const highlightColumns = categorical.values.filter((valueColumn: any) =>
+    Array.isArray(valueColumn?.highlights),
+  );
+  const hasAnyDataHighlights = highlightColumns.some((valueColumn: any) =>
+    valueColumn.highlights.some((v) => v !== null && v !== undefined),
+  );
 
-  console.log(`[validation] validateGeometries is ${validateGeometries}`);
-
-  for (let i = 0, len = rowValueArrays.geometryId.length; i < len; i++) {
-    const rowValues: RowValues = Object.fromEntries(
-      Object.entries(rowValueArrays).map(([key, value]) => [
-        key,
-        value ? value[i] : null,
-      ]),
-    ) as RowValues;
+  for (let index = 0, len = rowValueArrays.geometryId.length; index < len; index += 1) {
+    const rowValues = getRowValues(rowValueArrays, index);
     const id = rowValues.geometryId;
     const selectionId: ISelectionId = host
       .createSelectionIdBuilder()
-      .withCategory(geometryIdValue, i)
+      .withCategory(geometryIdValue, index)
       .createSelectionId();
     const geomType = rowValues.layerType
       ? rowValues.layerType.toString().trim().toLowerCase()
       : null;
-    const wktGeometry = isProvided.wkt
-      ? parseWkt(rowValues.wkt, rowValues.geometryId, errorMessages)
-      : null;
-    const wkpGeometry = isProvided.wkp
-      ? parseWkp(rowValues.wkp, rowValues.geometryId, errorMessages)
-      : null;
+    const dataType = getDataPointType(
+      geomType,
+      scatterString,
+      lineString,
+      arcString,
+      pathString,
+      polygonString,
+    );
 
+    if (!dataType) {
+      errorMessages.push(`Geometry ${id}: unknown layer type ${geomType}`);
+      continue;
+    }
+
+    const needsComplexGeometry =
+      dataType === InputLayerType.Path || dataType === InputLayerType.Polygon;
+    let wktGeometry: Geometry | null = null;
+    let wkpGeometry: Geometry | null = null;
+    if (needsComplexGeometry) {
+      if (isProvided.wkt && rowValues.wkt?.toString().trim()) {
+        wktGeometry = parseCachedGeometry(
+          "wkt",
+          rowValues.wkt,
+          rowValues.geometryId,
+          errorMessages,
+          geometryCache,
+        );
+      } else if (isProvided.wkp && rowValues.wkp) {
+        wkpGeometry = parseCachedGeometry(
+          "wkp",
+          rowValues.wkp,
+          rowValues.geometryId,
+          errorMessages,
+          geometryCache,
+        );
+      }
+    }
+
+    const isHighlightedFromData =
+      hasAnyDataHighlights &&
+      highlightColumns.some(
+        (valueColumn: any) =>
+          valueColumn.highlights[index] !== null &&
+          valueColumn.highlights[index] !== undefined,
+      );
     const data: OurData = {
-      id: rowValues.geometryId,
+      id: String(rowValues.geometryId),
       type: null,
       lineData: null,
       lineProperties: null,
@@ -222,52 +467,37 @@ export function createSelectorDataPoints(
       pathProperties: null,
       polygonData: null,
       polygonProperties: null,
-      isHighlightedFromData:
-        hasAnyDataHighlights &&
-        categorical.values.some((valueColumn: any) => {
-          const highlights = valueColumn?.highlights;
-          return (
-            Array.isArray(highlights) &&
-            highlights[i] !== null &&
-            highlights[i] !== undefined
-          );
-        }),
+      isHighlightedFromData,
       selectionId: selectionId,
-      tooltipHtml: rowValues.tooltip?.toString(),
+      tooltipHtml: sanitizeTooltipHtml(rowValues.tooltip),
     };
-    if (geomType === scatterString) {
+
+    if (dataType === InputLayerType.Scatter) {
       if (!parseScatter(isProvided, rowValues, errorMessages, data)) {
         continue;
       }
-    } else if (geomType === lineString) {
+    } else if (dataType === InputLayerType.Line) {
       if (!parseLine(isProvided, rowValues, errorMessages, data)) {
-        console.log(
-          `Failed to parse line geometry with id ${id}, skipping this geometry.`,
-        );
         continue;
       }
-    } else if (geomType === arcString) {
+    } else if (dataType === InputLayerType.Arc) {
       if (!parseArc(isProvided, rowValues, errorMessages, data)) {
         continue;
       }
-    } else if (geomType === pathString) {
+    } else if (dataType === InputLayerType.Path) {
       if (
         !parsePath(wktGeometry, wkpGeometry, rowValues, errorMessages, data)
       ) {
         continue;
       }
-    } else if (geomType === polygonString) {
+    } else if (dataType === InputLayerType.Polygon) {
       if (
         !parsePolygon(wktGeometry, wkpGeometry, rowValues, errorMessages, data)
       ) {
         continue;
       }
-    } else {
-      errorMessages.push(`Geometry ${id}: unknown layer type ${geomType}`);
-      continue;
     }
 
-    // Bail if no geometry defined:
     if (data.type === null) {
       errorMessages.push(
         `Geometry ${id}: no geometry defined. Check that the layer type is correct and that WKT/WKP or point coordinates are provided as needed.`,
@@ -282,7 +512,13 @@ export function createSelectorDataPoints(
       continue;
     }
 
-    dataPoints.push(data);
+    const stringId = String(data.id);
+    idToDataPoint.set(stringId, data);
+    idToSelectionId.set(stringId, selectionId);
+    if (isHighlightedFromData) {
+      dataHighlightedIds.push(stringId);
+    }
+    addDataPointToLayerStore(layerData, data);
   }
 
   if (host && errorMessages.length > 0) {
@@ -292,5 +528,27 @@ export function createSelectorDataPoints(
     );
   }
 
-  return dataPoints;
+  return {
+    layers: layerData,
+    idToDataPoint,
+    idToSelectionId,
+    dataHighlightedIds,
+    bounds: getDataBoundingBox(layerData.all),
+    version,
+  };
+}
+
+export function createSelectorDataPoints(
+  options: VisualUpdateOptions,
+  settings: VisualFormattingSettingsModel,
+  host: IVisualHost,
+  geometryCache: GeometryCache,
+): OurData[] {
+  return createDatasetSnapshot(
+    options,
+    settings,
+    host,
+    geometryCache,
+    "compat",
+  ).layers.all;
 }

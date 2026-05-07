@@ -35,10 +35,13 @@ export interface NumericGradientClassificationSettings {
   definedInterval: number;
 }
 
+export type NumericColorBinsCache = Map<string, NumericColorBins>;
+
 export const defaultGradientBinningMethod: GradientBinningMethod =
   "equal-interval";
 export const defaultGradientClassCount = 5;
 export const defaultGradientDefinedInterval = 10;
+const naturalBreaksMaxValues = 5000;
 
 export const gradientBinningMethodItems = [
   {
@@ -100,6 +103,19 @@ const getFiniteNumericValues = <T>(
       (value): value is number => typeof value === "number" && isFinite(value),
     )
     .sort((left, right) => left - right);
+
+const sampleSortedValues = (values: number[], maxValues: number): number[] => {
+  if (values.length <= maxValues) {
+    return values;
+  }
+
+  const sampled: number[] = [];
+  const lastIndex = values.length - 1;
+  for (let index = 0; index < maxValues; index += 1) {
+    sampled.push(values[Math.round((index / (maxValues - 1)) * lastIndex)]);
+  }
+  return sampled;
+};
 
 const clampClassCount = (classCount: number, fallback: number): number => {
   if (!Number.isFinite(classCount)) {
@@ -260,6 +276,52 @@ export const getNumericColorBins = <T>(
   getNumericValue: (item: T) => number | null | undefined,
   settings: NumericGradientClassificationSettings,
 ): NumericColorBins => {
+  const method = settings.method ?? defaultGradientBinningMethod;
+  const canUseRangeOnly =
+    method === "equal-interval" || method === "defined-interval";
+
+  if (canUseRangeOnly) {
+    const { minValue, maxValue } = getNumericColorRange(items, getNumericValue);
+    if (minValue === null || maxValue === null) {
+      return {
+        minValue: null,
+        maxValue: null,
+        breaks: [],
+        classCount: 0,
+      };
+    }
+
+    if (minValue === maxValue) {
+      return {
+        minValue,
+        maxValue,
+        breaks: [minValue, maxValue],
+        classCount: 1,
+      };
+    }
+
+    const classCount = clampClassCount(
+      settings.classCount,
+      defaultGradientClassCount,
+    );
+
+    const breaks =
+      method === "defined-interval"
+        ? buildDefinedIntervalBreaks(
+            minValue,
+            maxValue,
+            settings.definedInterval,
+          )
+        : buildEqualIntervalBreaks(minValue, maxValue, classCount);
+
+    return {
+      minValue,
+      maxValue,
+      breaks,
+      classCount: Math.max(1, breaks.length - 1),
+    };
+  }
+
   const values = getFiniteNumericValues(items, getNumericValue);
 
   if (values.length === 0) {
@@ -287,26 +349,13 @@ export const getNumericColorBins = <T>(
     defaultGradientClassCount,
   );
 
-  let breaks: number[];
-  switch (settings.method) {
-    case "natural-breaks":
-      breaks = buildNaturalBreaks(values, classCount);
-      break;
-    case "quantile":
-      breaks = buildQuantileBreaks(values, Math.min(classCount, values.length));
-      break;
-    case "defined-interval":
-      breaks = buildDefinedIntervalBreaks(
-        minValue,
-        maxValue,
-        settings.definedInterval,
-      );
-      break;
-    case "equal-interval":
-    default:
-      breaks = buildEqualIntervalBreaks(minValue, maxValue, classCount);
-      break;
-  }
+  const breaks =
+    method === "natural-breaks"
+      ? buildNaturalBreaks(
+          sampleSortedValues(values, naturalBreaksMaxValues),
+          classCount,
+        )
+      : buildQuantileBreaks(values, Math.min(classCount, values.length));
 
   return {
     minValue,
@@ -376,3 +425,26 @@ export const getGradientLegendClasses = (
 
 export const getNumericColorBinsSignature = (bins: NumericColorBins): string =>
   bins.breaks.map((value) => value.toPrecision(12)).join("|");
+
+export const getCachedNumericColorBins = <T>(
+  cache: NumericColorBinsCache,
+  cacheKey: string,
+  items: T[],
+  getNumericValue: (item: T) => number | null | undefined,
+  settings: NumericGradientClassificationSettings,
+): NumericColorBins => {
+  const key = [
+    cacheKey,
+    settings.method,
+    settings.classCount,
+    settings.definedInterval,
+  ].join("|");
+  const cached = cache.get(key);
+  if (cached) {
+    return cached;
+  }
+
+  const bins = getNumericColorBins(items, getNumericValue, settings);
+  cache.set(key, bins);
+  return bins;
+};

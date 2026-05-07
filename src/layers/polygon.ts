@@ -1,20 +1,24 @@
 import { GeoJsonLayer } from "@deck.gl/layers";
-import { InputLayerType, OurData } from "../dataTypes";
+import { PolygonFeature } from "../dataTypes";
 import { withOpacity, decodeHex } from "../col";
 import {
   GradientBinningMethod,
-  getNumericColorBins,
+  getCachedNumericColorBins,
   getNumericColorBinsSignature,
+  NumericColorBinsCache,
 } from "../gradientClassification";
 import { resolveGradientPresetColors } from "../gradientPresets";
 import { HighlightingCardSettings, PolygonCardSettings } from "../settings";
 import { getLayerColorWithGradient } from "./col";
 
 export default function getPolygonLayer(
-  dataPoints: OurData[],
+  data: PolygonFeature[],
   settings: PolygonCardSettings,
   highlighting: HighlightingCardSettings,
   selectedIds: Set<string>,
+  selectedSignature: string,
+  classificationCache: NumericColorBinsCache,
+  dataVersion: string,
   onClick: (info: any, event: any) => void,
 ) {
   const defaultLineColor = withOpacity(
@@ -43,10 +47,11 @@ export default function getPolygonLayer(
     decodeHex(highlighting.autoHighlightColor.value.value, [255, 153, 0, 255]),
     highlighting.autoHighlightOpacity.value,
   );
-  const data = dataPoints.filter((x) => x.type === InputLayerType.Polygon);
-  const lineColorBins = getNumericColorBins(
+  const lineColorBins = getCachedNumericColorBins(
+    classificationCache,
+    `${dataVersion}:polygon-line`,
     data,
-    (d) => d.polygonProperties?.lineColorValue,
+    (d) => d.properties?.lineColorValue,
     {
       method: settings.lineGradient.binningMethod.value
         .value as GradientBinningMethod,
@@ -54,9 +59,11 @@ export default function getPolygonLayer(
       definedInterval: settings.lineGradient.definedInterval.value,
     },
   );
-  const fillColorBins = getNumericColorBins(
+  const fillColorBins = getCachedNumericColorBins(
+    classificationCache,
+    `${dataVersion}:polygon-fill`,
     data,
-    (d) => d.polygonProperties?.fillColorValue,
+    (d) => d.properties?.fillColorValue,
     {
       method: settings.fillGradient.binningMethod.value
         .value as GradientBinningMethod,
@@ -65,18 +72,9 @@ export default function getPolygonLayer(
     },
   );
 
-  const featureCollection = data.map((d) => ({
-    type: "Feature" as const,
-    geometry: d.polygonData,
-    properties: d.polygonProperties,
-    selectionId: d.selectionId,
-    tooltipHtml: d.tooltipHtml,
-    id: d.id,
-  }));
-
   return new GeoJsonLayer({
     id: `polygon-layer-base`,
-    data: featureCollection,
+    data,
     pickable: true,
     stroked: settings.stroked.value,
     getLineColor: (d) =>
@@ -122,7 +120,7 @@ export default function getPolygonLayer(
     highlightColor: autoHighlightColor,
     onClick: (info, event) => onClick(info, event),
     updateTriggers: {
-      getLineWidth: [settings.line.width.defaultLineWidth.value, selectedIds],
+      getLineWidth: [settings.line.width.defaultLineWidth.value],
       getLineColor: [
         settings.line.color.defaultLineColor.value.value,
         settings.line.color.defaultLineOpacity.value,
@@ -133,7 +131,7 @@ export default function getPolygonLayer(
         getNumericColorBinsSignature(lineColorBins),
         highlighting.highlightOnClick.value,
         highlighting.unselectedFadeOpacity.value,
-        selectedIds,
+        selectedSignature,
       ],
       getFillColor: [
         settings.fill.defaultFillColor.value.value,
@@ -145,7 +143,7 @@ export default function getPolygonLayer(
         getNumericColorBinsSignature(fillColorBins),
         highlighting.highlightOnClick.value,
         highlighting.unselectedFadeOpacity.value,
-        selectedIds,
+        selectedSignature,
       ],
       getCapRounded: [settings.path.lineCapRounded.value],
       getJointRounded: [settings.path.lineJointRounded.value],

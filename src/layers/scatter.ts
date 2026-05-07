@@ -1,20 +1,24 @@
 import { ScatterplotLayer } from "@deck.gl/layers";
-import { InputLayerType, OurData } from "../dataTypes";
+import { OurData } from "../dataTypes";
 import { decodeHex, withOpacity } from "../col";
 import {
   GradientBinningMethod,
-  getNumericColorBins,
+  getCachedNumericColorBins,
   getNumericColorBinsSignature,
+  NumericColorBinsCache,
 } from "../gradientClassification";
 import { resolveGradientPresetColors } from "../gradientPresets";
 import { HighlightingCardSettings, ScatterCardSettings } from "../settings";
 import { getLayerColorWithGradient } from "./col";
 
 export default function getScatterLayer(
-  dataPoints: OurData[],
+  data: OurData[],
   settings: ScatterCardSettings,
   highlighting: HighlightingCardSettings,
   selectedIds: Set<string>,
+  selectedSignature: string,
+  classificationCache: NumericColorBinsCache,
+  dataVersion: string,
   onClick: (info: any, event: any) => void,
 ) {
   const defaultFillColor = withOpacity(
@@ -43,8 +47,9 @@ export default function getScatterLayer(
     decodeHex(highlighting.autoHighlightColor.value.value, [255, 153, 0, 255]),
     highlighting.autoHighlightOpacity.value,
   );
-  const data = dataPoints.filter((x) => x.type === InputLayerType.Scatter);
-  const fillColorBins = getNumericColorBins(
+  const fillColorBins = getCachedNumericColorBins(
+    classificationCache,
+    `${dataVersion}:scatter-fill`,
     data,
     (d) => d.scatterProperties?.fillColorValue,
     {
@@ -54,7 +59,9 @@ export default function getScatterLayer(
       definedInterval: settings.fillGradient.definedInterval.value,
     },
   );
-  const lineColorBins = getNumericColorBins(
+  const lineColorBins = getCachedNumericColorBins(
+    classificationCache,
+    `${dataVersion}:scatter-line`,
     data,
     (d) => d.scatterProperties?.lineColorValue,
     {
@@ -119,8 +126,8 @@ export default function getScatterLayer(
     highlightColor: autoHighlightColor,
     onClick: (info, event) => onClick(info, event),
     updateTriggers: {
-      getLineWidth: [settings.line.width.defaultLineWidth.value, selectedIds],
-      getRadius: [settings.defaultRadius.value, selectedIds],
+      getLineWidth: [settings.line.width.defaultLineWidth.value],
+      getRadius: [settings.defaultRadius.value],
       getFillColor: [
         settings.fill.defaultFillColor.value.value,
         settings.fill.defaultFillOpacity.value,
@@ -131,7 +138,7 @@ export default function getScatterLayer(
         getNumericColorBinsSignature(fillColorBins),
         highlighting.highlightOnClick.value,
         highlighting.unselectedFadeOpacity.value,
-        selectedIds,
+        selectedSignature,
       ],
       getLineColor: [
         settings.line.color.defaultLineColor.value.value,
@@ -143,7 +150,7 @@ export default function getScatterLayer(
         getNumericColorBinsSignature(lineColorBins),
         highlighting.highlightOnClick.value,
         highlighting.unselectedFadeOpacity.value,
-        selectedIds,
+        selectedSignature,
       ],
       highlightColor: [
         highlighting.autoHighlightColor.value.value,

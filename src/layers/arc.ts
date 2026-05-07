@@ -1,20 +1,24 @@
 import { ArcLayer } from "@deck.gl/layers";
-import { InputLayerType, OurData } from "../dataTypes";
+import { OurData } from "../dataTypes";
 import { withOpacity, decodeHex } from "../col";
 import {
   GradientBinningMethod,
-  getNumericColorBins,
+  getCachedNumericColorBins,
   getNumericColorBinsSignature,
+  NumericColorBinsCache,
 } from "../gradientClassification";
 import { resolveGradientPresetColors } from "../gradientPresets";
 import { ArcCardSettings, HighlightingCardSettings } from "../settings";
 import { getLayerColorWithGradient } from "./col";
 
 export default function getArcLayer(
-  dataPoints: OurData[],
+  data: OurData[],
   settings: ArcCardSettings,
   highlighting: HighlightingCardSettings,
   selectedIds: Set<string>,
+  selectedSignature: string,
+  classificationCache: NumericColorBinsCache,
+  dataVersion: string,
   onClick: (info: any, event: any) => void,
 ) {
   const defaultSourceColor = withOpacity(
@@ -43,8 +47,9 @@ export default function getArcLayer(
     decodeHex(highlighting.autoHighlightColor.value.value, [255, 153, 0, 255]),
     highlighting.autoHighlightOpacity.value,
   );
-  const data = dataPoints.filter((x) => x.type === InputLayerType.Arc);
-  const sourceColorBins = getNumericColorBins(
+  const sourceColorBins = getCachedNumericColorBins(
+    classificationCache,
+    `${dataVersion}:arc-source`,
     data,
     (d) => d.arcProperties?.sourceColorValue,
     {
@@ -54,7 +59,9 @@ export default function getArcLayer(
       definedInterval: settings.sourceGradient.definedInterval.value,
     },
   );
-  const targetColorBins = getNumericColorBins(
+  const targetColorBins = getCachedNumericColorBins(
+    classificationCache,
+    `${dataVersion}:arc-target`,
     data,
     (d) => d.arcProperties?.targetColorValue,
     {
@@ -107,7 +114,7 @@ export default function getArcLayer(
     highlightColor: autoHighlightColor,
     onClick: (info, event) => onClick(info, event),
     updateTriggers: {
-      getWidth: [settings.strokeWidth.defaultLineWidth.value, selectedIds],
+      getWidth: [settings.strokeWidth.defaultLineWidth.value],
       getSourceColor: [
         settings.defaultSourceColor.value.value,
         settings.defaultSourceOpacity.value,
@@ -118,7 +125,7 @@ export default function getArcLayer(
         getNumericColorBinsSignature(sourceColorBins),
         highlighting.highlightOnClick.value,
         highlighting.unselectedFadeOpacity.value,
-        selectedIds,
+        selectedSignature,
       ],
       getTargetColor: [
         settings.defaultTargetColor.value.value,
@@ -130,7 +137,7 @@ export default function getArcLayer(
         getNumericColorBinsSignature(targetColorBins),
         highlighting.highlightOnClick.value,
         highlighting.unselectedFadeOpacity.value,
-        selectedIds,
+        selectedSignature,
       ],
       highlightColor: [
         highlighting.autoHighlightColor.value.value,

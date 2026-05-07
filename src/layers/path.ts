@@ -1,20 +1,24 @@
 import { GeoJsonLayer } from "@deck.gl/layers";
-import { InputLayerType, OurData } from "../dataTypes";
+import { PathFeature } from "../dataTypes";
 import { withOpacity, decodeHex } from "../col";
 import {
   GradientBinningMethod,
-  getNumericColorBins,
+  getCachedNumericColorBins,
   getNumericColorBinsSignature,
+  NumericColorBinsCache,
 } from "../gradientClassification";
 import { resolveGradientPresetColors } from "../gradientPresets";
 import { HighlightingCardSettings, PathCardSettings } from "../settings";
 import { getLayerColorWithGradient } from "./col";
 
 export default function getPathLayer(
-  dataPoints: OurData[],
+  data: PathFeature[],
   settings: PathCardSettings,
   highlighting: HighlightingCardSettings,
   selectedIds: Set<string>,
+  selectedSignature: string,
+  classificationCache: NumericColorBinsCache,
+  dataVersion: string,
   onClick: (info: any, event: any) => void,
 ) {
   const defaultLineColor = withOpacity(
@@ -35,17 +39,11 @@ export default function getPathLayer(
     decodeHex(highlighting.autoHighlightColor.value.value, [255, 153, 0, 255]),
     highlighting.autoHighlightOpacity.value,
   );
-  const data = dataPoints.filter(
-    (
-      x,
-    ): x is OurData & {
-      pathData: NonNullable<OurData["pathData"]>;
-      pathProperties: NonNullable<OurData["pathProperties"]>;
-    } => x.type === InputLayerType.Path && !!x.pathData && !!x.pathProperties,
-  );
-  const lineColorBins = getNumericColorBins(
+  const lineColorBins = getCachedNumericColorBins(
+    classificationCache,
+    `${dataVersion}:path`,
     data,
-    (d) => d.pathProperties?.lineColorValue,
+    (d) => d.properties?.lineColorValue,
     {
       method: settings.gradient.binningMethod.value
         .value as GradientBinningMethod,
@@ -53,15 +51,6 @@ export default function getPathLayer(
       definedInterval: settings.gradient.definedInterval.value,
     },
   );
-
-  const featureCollection = data.map((d) => ({
-    type: "Feature" as const,
-    geometry: d.pathData,
-    properties: d.pathProperties,
-    selectionId: d.selectionId,
-    tooltipHtml: d.tooltipHtml,
-    id: d.id,
-  }));
 
   const getFeatureLineColor = (d: any) =>
     getLayerColorWithGradient(
@@ -78,7 +67,7 @@ export default function getPathLayer(
 
   return new GeoJsonLayer({
     id: `path-layer-base`,
-    data: featureCollection,
+    data,
     pickable: true,
     getLineWidth: (d) => {
       const w = d.properties?.lineWidth;
@@ -98,7 +87,7 @@ export default function getPathLayer(
     highlightColor: autoHighlightColor,
     onClick: (info, event) => onClick(info, event),
     updateTriggers: {
-      getLineWidth: [settings.line.width.defaultLineWidth.value, selectedIds],
+      getLineWidth: [settings.line.width.defaultLineWidth.value],
       getLineColor: [
         settings.line.color.defaultLineColor.value.value,
         settings.line.color.defaultLineOpacity.value,
@@ -109,7 +98,7 @@ export default function getPathLayer(
         getNumericColorBinsSignature(lineColorBins),
         highlighting.highlightOnClick.value,
         highlighting.unselectedFadeOpacity.value,
-        selectedIds,
+        selectedSignature,
       ],
       getLineCapRounded: [settings.path.lineCapRounded.value],
       getLineJointRounded: [settings.path.lineJointRounded.value],

@@ -1,7 +1,13 @@
 import powerbi from "powerbi-visuals-api";
 
 import ISelectionId = powerbi.visuals.ISelectionId;
-import { Polygon, MultiPolygon, LineString, MultiLineString } from "geojson";
+import {
+  Geometry,
+  Polygon,
+  MultiPolygon,
+  LineString,
+  MultiLineString,
+} from "geojson";
 
 // Enum for supported layer types
 export enum InputLayerType {
@@ -68,6 +74,44 @@ export interface OurData {
   selectionId: ISelectionId;
   tooltipHtml: string | null;
 }
+
+export interface PathFeature {
+  type: "Feature";
+  geometry: LineString | MultiLineString;
+  properties: PathProperties;
+  selectionId: ISelectionId;
+  tooltipHtml: string | null;
+  id: string;
+}
+
+export interface PolygonFeature {
+  type: "Feature";
+  geometry: Polygon | MultiPolygon;
+  properties: PolygonProperties;
+  selectionId: ISelectionId;
+  tooltipHtml: string | null;
+  id: string;
+}
+
+export interface LayerDataStore {
+  all: OurData[];
+  scatter: OurData[];
+  line: OurData[];
+  arc: OurData[];
+  path: PathFeature[];
+  polygon: PolygonFeature[];
+}
+
+export interface DatasetSnapshot {
+  layers: LayerDataStore;
+  idToDataPoint: Map<string, OurData>;
+  idToSelectionId: Map<string, ISelectionId>;
+  dataHighlightedIds: string[];
+  bounds: BoundingBox | null;
+  version: string;
+}
+
+export type GeometryCache = Map<string, Geometry>;
 
 export interface RowValues {
   geometryId: any | null;

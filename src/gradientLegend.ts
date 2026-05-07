@@ -1,13 +1,14 @@
 import powerbi from "powerbi-visuals-api";
 import { interpolateGradientColor, RGBAColor } from "./col";
-import { InputLayerType, OurData } from "./dataTypes";
+import { LayerDataStore } from "./dataTypes";
 import {
   GradientBinningMethod,
   getGradientBinningMethodDisplayName,
   getGradientLegendClasses,
-  getNumericColorBins,
+  getCachedNumericColorBins,
   GradientLegendClass,
   NumericColorBins,
+  NumericColorBinsCache,
 } from "./gradientClassification";
 import { resolveGradientPresetColors } from "./gradientPresets";
 import { NumericColorGradient } from "./layers/col";
@@ -193,21 +194,19 @@ export const formatLegendValue = (value: number): string => {
 };
 
 export const getGradientLegendSpecs = (
-  dataPoints: OurData[],
+  layerData: LayerDataStore,
   settings: VisualFormattingSettingsModel,
   dataView?: powerbi.DataView,
+  classificationCache: NumericColorBinsCache = new Map(),
+  dataVersion = "legend",
 ): GradientLegendSpec[] => {
   const specs: GradientLegendSpec[] = [];
   const roleTitles = getLegendRoleTitles(dataView);
-  const scatterData = dataPoints.filter(
-    (d) => d.type === InputLayerType.Scatter,
-  );
-  const lineData = dataPoints.filter((d) => d.type === InputLayerType.Line);
-  const pathData = dataPoints.filter((d) => d.type === InputLayerType.Path);
-  const polygonData = dataPoints.filter(
-    (d) => d.type === InputLayerType.Polygon,
-  );
-  const arcData = dataPoints.filter((d) => d.type === InputLayerType.Arc);
+  const scatterData = layerData.scatter;
+  const lineData = layerData.line;
+  const pathData = layerData.path;
+  const polygonData = layerData.polygon;
+  const arcData = layerData.arc;
 
   if (settings.scatter.filled.value) {
     appendLegendSpec(
@@ -215,7 +214,9 @@ export const getGradientLegendSpecs = (
       createLegendSpec(
         "scatter-fill",
         getLegendTitle(roleTitles, "scatterFillColor", "Scatter fill"),
-        getNumericColorBins(
+        getCachedNumericColorBins(
+          classificationCache,
+          `${dataVersion}:scatter-fill`,
           scatterData,
           (d) => d.scatterProperties?.fillColorValue,
           {
@@ -241,7 +242,9 @@ export const getGradientLegendSpecs = (
       createLegendSpec(
         "scatter-line",
         getLegendTitle(roleTitles, "scatterLineColor", "Scatter line"),
-        getNumericColorBins(
+        getCachedNumericColorBins(
+          classificationCache,
+          `${dataVersion}:scatter-line`,
           scatterData,
           (d) => d.scatterProperties?.lineColorValue,
           {
@@ -266,12 +269,18 @@ export const getGradientLegendSpecs = (
     createLegendSpec(
       "line",
       getLegendTitle(roleTitles, "lineLineColor", "Line"),
-      getNumericColorBins(lineData, (d) => d.lineProperties?.lineColorValue, {
-        method: settings.line.gradient.binningMethod.value
-          .value as GradientBinningMethod,
-        classCount: settings.line.gradient.classCount.value,
-        definedInterval: settings.line.gradient.definedInterval.value,
-      }),
+      getCachedNumericColorBins(
+        classificationCache,
+        `${dataVersion}:line`,
+        lineData,
+        (d) => d.lineProperties?.lineColorValue,
+        {
+          method: settings.line.gradient.binningMethod.value
+            .value as GradientBinningMethod,
+          classCount: settings.line.gradient.classCount.value,
+          definedInterval: settings.line.gradient.definedInterval.value,
+        },
+      ),
       getLegendGradient(
         settings.line.gradient,
         settings.line.line.color.defaultLineOpacity.value,
@@ -285,12 +294,18 @@ export const getGradientLegendSpecs = (
     createLegendSpec(
       "path",
       getLegendTitle(roleTitles, "pathColor", "Path"),
-      getNumericColorBins(pathData, (d) => d.pathProperties?.lineColorValue, {
-        method: settings.path.gradient.binningMethod.value
-          .value as GradientBinningMethod,
-        classCount: settings.path.gradient.classCount.value,
-        definedInterval: settings.path.gradient.definedInterval.value,
-      }),
+      getCachedNumericColorBins(
+        classificationCache,
+        `${dataVersion}:path`,
+        pathData,
+        (d) => d.properties?.lineColorValue,
+        {
+          method: settings.path.gradient.binningMethod.value
+            .value as GradientBinningMethod,
+          classCount: settings.path.gradient.classCount.value,
+          definedInterval: settings.path.gradient.definedInterval.value,
+        },
+      ),
       getLegendGradient(
         settings.path.gradient,
         settings.path.line.color.defaultLineOpacity.value,
@@ -305,9 +320,11 @@ export const getGradientLegendSpecs = (
       createLegendSpec(
         "polygon-fill",
         getLegendTitle(roleTitles, "polygonFillColor", "Polygon fill"),
-        getNumericColorBins(
+        getCachedNumericColorBins(
+          classificationCache,
+          `${dataVersion}:polygon-fill`,
           polygonData,
-          (d) => d.polygonProperties?.fillColorValue,
+          (d) => d.properties?.fillColorValue,
           {
             method: settings.polygon.fillGradient.binningMethod.value
               .value as GradientBinningMethod,
@@ -331,9 +348,11 @@ export const getGradientLegendSpecs = (
       createLegendSpec(
         "polygon-line",
         getLegendTitle(roleTitles, "polygonLineColor", "Polygon line"),
-        getNumericColorBins(
+        getCachedNumericColorBins(
+          classificationCache,
+          `${dataVersion}:polygon-line`,
           polygonData,
-          (d) => d.polygonProperties?.lineColorValue,
+          (d) => d.properties?.lineColorValue,
           {
             method: settings.polygon.lineGradient.binningMethod.value
               .value as GradientBinningMethod,
@@ -356,12 +375,18 @@ export const getGradientLegendSpecs = (
     createLegendSpec(
       "arc-source",
       getLegendTitle(roleTitles, "arcSourceColor", "Arc source"),
-      getNumericColorBins(arcData, (d) => d.arcProperties?.sourceColorValue, {
-        method: settings.arc.sourceGradient.binningMethod.value
-          .value as GradientBinningMethod,
-        classCount: settings.arc.sourceGradient.classCount.value,
-        definedInterval: settings.arc.sourceGradient.definedInterval.value,
-      }),
+      getCachedNumericColorBins(
+        classificationCache,
+        `${dataVersion}:arc-source`,
+        arcData,
+        (d) => d.arcProperties?.sourceColorValue,
+        {
+          method: settings.arc.sourceGradient.binningMethod.value
+            .value as GradientBinningMethod,
+          classCount: settings.arc.sourceGradient.classCount.value,
+          definedInterval: settings.arc.sourceGradient.definedInterval.value,
+        },
+      ),
       getLegendGradient(
         settings.arc.sourceGradient,
         settings.arc.defaultSourceOpacity.value,
@@ -375,12 +400,18 @@ export const getGradientLegendSpecs = (
     createLegendSpec(
       "arc-target",
       getLegendTitle(roleTitles, "arcTargetColor", "Arc target"),
-      getNumericColorBins(arcData, (d) => d.arcProperties?.targetColorValue, {
-        method: settings.arc.targetGradient.binningMethod.value
-          .value as GradientBinningMethod,
-        classCount: settings.arc.targetGradient.classCount.value,
-        definedInterval: settings.arc.targetGradient.definedInterval.value,
-      }),
+      getCachedNumericColorBins(
+        classificationCache,
+        `${dataVersion}:arc-target`,
+        arcData,
+        (d) => d.arcProperties?.targetColorValue,
+        {
+          method: settings.arc.targetGradient.binningMethod.value
+            .value as GradientBinningMethod,
+          classCount: settings.arc.targetGradient.classCount.value,
+          definedInterval: settings.arc.targetGradient.definedInterval.value,
+        },
+      ),
       getLegendGradient(
         settings.arc.targetGradient,
         settings.arc.defaultTargetOpacity.value,
@@ -413,6 +444,21 @@ const createLegendClassRow = (
   row.appendChild(label);
   return row;
 };
+
+export const getGradientLegendSignature = (
+  specs: GradientLegendSpec[],
+): string =>
+  specs
+    .map(
+      (spec) =>
+        `${spec.key}:${spec.title}:${spec.subtitle}:${spec.gradientCss}:${spec.classes
+          .map(
+            (legendClass) =>
+              `${legendClass.lowValue}:${legendClass.highValue}:${legendClass.color.join(",")}`,
+          )
+          .join(";")}`,
+    )
+    .join("|");
 
 export const renderGradientLegend = (
   container: HTMLDivElement,

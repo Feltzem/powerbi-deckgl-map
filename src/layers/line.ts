@@ -1,20 +1,24 @@
 import { LineLayer } from "@deck.gl/layers";
-import { InputLayerType, OurData } from "../dataTypes";
+import { OurData } from "../dataTypes";
 import { withOpacity, decodeHex } from "../col";
 import {
   GradientBinningMethod,
-  getNumericColorBins,
+  getCachedNumericColorBins,
   getNumericColorBinsSignature,
+  NumericColorBinsCache,
 } from "../gradientClassification";
 import { resolveGradientPresetColors } from "../gradientPresets";
 import { HighlightingCardSettings, LineCardSettings } from "../settings";
 import { getLayerColorWithGradient } from "./col";
 
 export default function getLineLayer(
-  dataPoints: OurData[],
+  data: OurData[],
   settings: LineCardSettings,
   highlighting: HighlightingCardSettings,
   selectedIds: Set<string>,
+  selectedSignature: string,
+  classificationCache: NumericColorBinsCache,
+  dataVersion: string,
   onClick: (info: any, event: any) => void,
 ) {
   const defaultLineColor = withOpacity(
@@ -35,8 +39,9 @@ export default function getLineLayer(
     decodeHex(highlighting.autoHighlightColor.value.value, [255, 153, 0, 255]),
     highlighting.autoHighlightOpacity.value,
   );
-  const data = dataPoints.filter((x) => x.type === InputLayerType.Line);
-  const lineColorBins = getNumericColorBins(
+  const lineColorBins = getCachedNumericColorBins(
+    classificationCache,
+    `${dataVersion}:line`,
     data,
     (d) => d.lineProperties?.lineColorValue,
     {
@@ -86,7 +91,7 @@ export default function getLineLayer(
     highlightColor: autoHighlightColor,
     onClick: (info, event) => onClick(info, event),
     updateTriggers: {
-      getWidth: [settings.line.width.defaultLineWidth.value, selectedIds],
+      getWidth: [settings.line.width.defaultLineWidth.value],
       getColor: [
         settings.line.color.defaultLineColor.value.value,
         settings.line.color.defaultLineOpacity.value,
@@ -97,7 +102,7 @@ export default function getLineLayer(
         getNumericColorBinsSignature(lineColorBins),
         highlighting.highlightOnClick.value,
         highlighting.unselectedFadeOpacity.value,
-        selectedIds,
+        selectedSignature,
       ],
       highlightColor: [
         highlighting.autoHighlightColor.value.value,
