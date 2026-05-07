@@ -5,13 +5,17 @@ import IVisualHost = powerbi.extensibility.visual.IVisualHost;
 import { decodeAsGeometry } from "./encoding";
 import {
   DatasetSnapshot,
+  ColorRoleStatsStore,
   GeometryCache,
   InputLayerType,
   LayerDataStore,
-  LineData,
   OurData,
   RowValues,
 } from "./dataTypes";
+import {
+  createEmptyColorRoleStatsStore,
+  updateColorRoleStats,
+} from "./colorRoles";
 import { VisualFormattingSettingsModel } from "./settings";
 import { WKTLoader } from "@loaders.gl/wkt";
 import { parseSync } from "@loaders.gl/core";
@@ -280,6 +284,74 @@ const addDataPointToLayerStore = (
   }
 };
 
+const updateDataPointColorRoleStats = (
+  colorRoles: ColorRoleStatsStore,
+  data: OurData,
+) => {
+  if (data.scatterProperties) {
+    updateColorRoleStats(
+      colorRoles,
+      "scatterFillColor",
+      data.scatterProperties.fillColor,
+      data.scatterProperties.fillColorValue,
+    );
+    updateColorRoleStats(
+      colorRoles,
+      "scatterLineColor",
+      data.scatterProperties.lineColor,
+      data.scatterProperties.lineColorValue,
+    );
+  }
+
+  if (data.lineProperties) {
+    updateColorRoleStats(
+      colorRoles,
+      "lineLineColor",
+      data.lineProperties.lineColor,
+      data.lineProperties.lineColorValue,
+    );
+  }
+
+  if (data.pathProperties) {
+    updateColorRoleStats(
+      colorRoles,
+      "pathColor",
+      data.pathProperties.lineColor,
+      data.pathProperties.lineColorValue,
+    );
+  }
+
+  if (data.polygonProperties) {
+    updateColorRoleStats(
+      colorRoles,
+      "polygonFillColor",
+      data.polygonProperties.fillColor,
+      data.polygonProperties.fillColorValue,
+    );
+    updateColorRoleStats(
+      colorRoles,
+      "polygonLineColor",
+      data.polygonProperties.lineColor,
+      data.polygonProperties.lineColorValue,
+    );
+  }
+
+  if (data.arcProperties) {
+    updateColorRoleStats(
+      colorRoles,
+      "arcSourceColor",
+      data.arcProperties.sourceColor,
+      data.arcProperties.sourceColorValue,
+    );
+    updateColorRoleStats(
+      colorRoles,
+      "arcTargetColor",
+      data.arcProperties.targetColor,
+      data.arcProperties.targetColorValue,
+    );
+  }
+};
+
 export function createDatasetSnapshot(
   options: VisualUpdateOptions,
   settings: VisualFormattingSettingsModel,
@@ -288,11 +360,13 @@ export function createDatasetSnapshot(
   version: string,
 ): DatasetSnapshot {
   const layerData = createEmptyLayerDataStore();
+  const colorRoles = createEmptyColorRoleStatsStore();
   const idToDataPoint = new Map<string, OurData>();
   const idToSelectionId = new Map<string, ISelectionId>();
   const dataHighlightedIds: string[] = [];
   const emptySnapshot = (): DatasetSnapshot => ({
     layers: layerData,
+    colorRoles,
     idToDataPoint,
     idToSelectionId,
     dataHighlightedIds,
@@ -518,6 +592,7 @@ export function createDatasetSnapshot(
     if (isHighlightedFromData) {
       dataHighlightedIds.push(stringId);
     }
+    updateDataPointColorRoleStats(colorRoles, data);
     addDataPointToLayerStore(layerData, data);
   }
 
@@ -530,6 +605,7 @@ export function createDatasetSnapshot(
 
   return {
     layers: layerData,
+    colorRoles,
     idToDataPoint,
     idToSelectionId,
     dataHighlightedIds,

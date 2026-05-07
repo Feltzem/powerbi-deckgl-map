@@ -1,6 +1,6 @@
 import powerbi from "powerbi-visuals-api";
 import { interpolateGradientColor, RGBAColor } from "./col";
-import { LayerDataStore } from "./dataTypes";
+import { ColorRoleStatsStore, LayerDataStore } from "./dataTypes";
 import {
   GradientBinningMethod,
   getGradientBinningMethodDisplayName,
@@ -134,11 +134,12 @@ const getLegendTitle = (
 const createLegendSpec = (
   key: string,
   title: string,
-  bins: NumericColorBins,
+  bins: NumericColorBins | null,
   gradient: NumericColorGradient,
   classificationMethod: string,
 ): GradientLegendSpec | null => {
   if (
+    !bins ||
     bins.minValue === null ||
     bins.maxValue === null ||
     bins.classCount <= 0
@@ -199,6 +200,7 @@ export const getGradientLegendSpecs = (
   dataView?: powerbi.DataView,
   classificationCache: NumericColorBinsCache = new Map(),
   dataVersion = "legend",
+  colorRoles?: ColorRoleStatsStore,
 ): GradientLegendSpec[] => {
   const specs: GradientLegendSpec[] = [];
   const roleTitles = getLegendRoleTitles(dataView);
@@ -207,6 +209,31 @@ export const getGradientLegendSpecs = (
   const pathData = layerData.path;
   const polygonData = layerData.polygon;
   const arcData = layerData.arc;
+  const getBins = <T>(
+    roleName: LegendRoleName,
+    cacheKey: string,
+    items: T[],
+    getNumericValue: (item: T) => number | null | undefined,
+    binSettings: {
+      method: GradientBinningMethod;
+      classCount: number;
+      definedInterval: number;
+    },
+  ): NumericColorBins | null => {
+    const stats = colorRoles?.[roleName];
+    if (stats && !stats.hasNumericColor) {
+      return null;
+    }
+
+    return getCachedNumericColorBins(
+      classificationCache,
+      cacheKey,
+      items,
+      getNumericValue,
+      binSettings,
+      stats,
+    );
+  };
 
   if (settings.scatter.filled.value) {
     appendLegendSpec(
@@ -214,8 +241,8 @@ export const getGradientLegendSpecs = (
       createLegendSpec(
         "scatter-fill",
         getLegendTitle(roleTitles, "scatterFillColor", "Scatter fill"),
-        getCachedNumericColorBins(
-          classificationCache,
+        getBins(
+          "scatterFillColor",
           `${dataVersion}:scatter-fill`,
           scatterData,
           (d) => d.scatterProperties?.fillColorValue,
@@ -242,8 +269,8 @@ export const getGradientLegendSpecs = (
       createLegendSpec(
         "scatter-line",
         getLegendTitle(roleTitles, "scatterLineColor", "Scatter line"),
-        getCachedNumericColorBins(
-          classificationCache,
+        getBins(
+          "scatterLineColor",
           `${dataVersion}:scatter-line`,
           scatterData,
           (d) => d.scatterProperties?.lineColorValue,
@@ -269,8 +296,8 @@ export const getGradientLegendSpecs = (
     createLegendSpec(
       "line",
       getLegendTitle(roleTitles, "lineLineColor", "Line"),
-      getCachedNumericColorBins(
-        classificationCache,
+      getBins(
+        "lineLineColor",
         `${dataVersion}:line`,
         lineData,
         (d) => d.lineProperties?.lineColorValue,
@@ -294,8 +321,8 @@ export const getGradientLegendSpecs = (
     createLegendSpec(
       "path",
       getLegendTitle(roleTitles, "pathColor", "Path"),
-      getCachedNumericColorBins(
-        classificationCache,
+      getBins(
+        "pathColor",
         `${dataVersion}:path`,
         pathData,
         (d) => d.properties?.lineColorValue,
@@ -320,8 +347,8 @@ export const getGradientLegendSpecs = (
       createLegendSpec(
         "polygon-fill",
         getLegendTitle(roleTitles, "polygonFillColor", "Polygon fill"),
-        getCachedNumericColorBins(
-          classificationCache,
+        getBins(
+          "polygonFillColor",
           `${dataVersion}:polygon-fill`,
           polygonData,
           (d) => d.properties?.fillColorValue,
@@ -348,8 +375,8 @@ export const getGradientLegendSpecs = (
       createLegendSpec(
         "polygon-line",
         getLegendTitle(roleTitles, "polygonLineColor", "Polygon line"),
-        getCachedNumericColorBins(
-          classificationCache,
+        getBins(
+          "polygonLineColor",
           `${dataVersion}:polygon-line`,
           polygonData,
           (d) => d.properties?.lineColorValue,
@@ -375,8 +402,8 @@ export const getGradientLegendSpecs = (
     createLegendSpec(
       "arc-source",
       getLegendTitle(roleTitles, "arcSourceColor", "Arc source"),
-      getCachedNumericColorBins(
-        classificationCache,
+      getBins(
+        "arcSourceColor",
         `${dataVersion}:arc-source`,
         arcData,
         (d) => d.arcProperties?.sourceColorValue,
@@ -400,8 +427,8 @@ export const getGradientLegendSpecs = (
     createLegendSpec(
       "arc-target",
       getLegendTitle(roleTitles, "arcTargetColor", "Arc target"),
-      getCachedNumericColorBins(
-        classificationCache,
+      getBins(
+        "arcTargetColor",
         `${dataVersion}:arc-target`,
         arcData,
         (d) => d.arcProperties?.targetColorValue,

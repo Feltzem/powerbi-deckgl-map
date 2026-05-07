@@ -1,15 +1,17 @@
 import { ArcLayer } from "@deck.gl/layers";
-import { OurData } from "../dataTypes";
+import { ColorRoleStatsStore, OurData } from "../dataTypes";
 import { withOpacity, decodeHex } from "../col";
 import {
   GradientBinningMethod,
-  getCachedNumericColorBins,
   getNumericColorBinsSignature,
   NumericColorBinsCache,
 } from "../gradientClassification";
 import { resolveGradientPresetColors } from "../gradientPresets";
 import { ArcCardSettings, HighlightingCardSettings } from "../settings";
-import { getLayerColorWithGradient } from "./col";
+import {
+  createLayerColorAccessor,
+  getLayerColorUpdateTriggers,
+} from "./col";
 
 export default function getArcLayer(
   data: OurData[],
@@ -17,6 +19,7 @@ export default function getArcLayer(
   highlighting: HighlightingCardSettings,
   selectedIds: Set<string>,
   selectedSignature: string,
+  colorRoles: ColorRoleStatsStore,
   classificationCache: NumericColorBinsCache,
   dataVersion: string,
   onClick: (info: any, event: any) => void,
@@ -29,14 +32,6 @@ export default function getArcLayer(
     decodeHex(settings.defaultTargetColor.value.value, [0, 0, 0, 100]),
     settings.defaultTargetOpacity.value,
   );
-  const sourceGradient = resolveGradientPresetColors(
-    settings.sourceGradient.preset.value.value as string,
-    settings.defaultSourceOpacity.value,
-  );
-  const targetGradient = resolveGradientPresetColors(
-    settings.targetGradient.preset.value.value as string,
-    settings.defaultTargetOpacity.value,
-  );
   const fadeFactor = Math.max(
     0,
     Math.min(1, highlighting.unselectedFadeOpacity.value / 100),
@@ -47,30 +42,57 @@ export default function getArcLayer(
     decodeHex(highlighting.autoHighlightColor.value.value, [255, 153, 0, 255]),
     highlighting.autoHighlightOpacity.value,
   );
-  const sourceColorBins = getCachedNumericColorBins(
+  const sourceGradientSettings = {
+    method: settings.sourceGradient.binningMethod.value
+      .value as GradientBinningMethod,
+    classCount: settings.sourceGradient.classCount.value,
+    definedInterval: settings.sourceGradient.definedInterval.value,
+  };
+  const targetGradientSettings = {
+    method: settings.targetGradient.binningMethod.value
+      .value as GradientBinningMethod,
+    classCount: settings.targetGradient.classCount.value,
+    definedInterval: settings.targetGradient.definedInterval.value,
+  };
+  const sourceColor = createLayerColorAccessor<OurData>({
+    items: data,
+    colorStats: colorRoles.arcSourceColor,
     classificationCache,
-    `${dataVersion}:arc-source`,
-    data,
-    (d) => d.arcProperties?.sourceColorValue,
-    {
-      method: settings.sourceGradient.binningMethod.value
-        .value as GradientBinningMethod,
-      classCount: settings.sourceGradient.classCount.value,
-      definedInterval: settings.sourceGradient.definedInterval.value,
-    },
-  );
-  const targetColorBins = getCachedNumericColorBins(
+    cacheKey: `${dataVersion}:arc-source`,
+    getColorValue: (d) => d.arcProperties?.sourceColor,
+    getNumericColorValue: (d) => d.arcProperties?.sourceColorValue,
+    getId: (d) => String(d.id),
+    defaultColor: defaultSourceColor,
+    getGradient: () =>
+      resolveGradientPresetColors(
+        settings.sourceGradient.preset.value.value as string,
+        settings.defaultSourceOpacity.value,
+      ),
+    gradientSettings: sourceGradientSettings,
+    shouldFade: shouldFadeUnselected,
+    fadeFactor,
+    selectedIds,
+  });
+  const targetColor = createLayerColorAccessor<OurData>({
+    items: data,
+    colorStats: colorRoles.arcTargetColor,
     classificationCache,
-    `${dataVersion}:arc-target`,
-    data,
-    (d) => d.arcProperties?.targetColorValue,
-    {
-      method: settings.targetGradient.binningMethod.value
-        .value as GradientBinningMethod,
-      classCount: settings.targetGradient.classCount.value,
-      definedInterval: settings.targetGradient.definedInterval.value,
-    },
-  );
+    cacheKey: `${dataVersion}:arc-target`,
+    getColorValue: (d) => d.arcProperties?.targetColor,
+    getNumericColorValue: (d) => d.arcProperties?.targetColorValue,
+    getId: (d) => String(d.id),
+    defaultColor: defaultTargetColor,
+    getGradient: () =>
+      resolveGradientPresetColors(
+        settings.targetGradient.preset.value.value as string,
+        settings.defaultTargetOpacity.value,
+      ),
+    gradientSettings: targetGradientSettings,
+    shouldFade: shouldFadeUnselected,
+    fadeFactor,
+    selectedIds,
+  });
+
   return new ArcLayer<OurData>({
     id: `arc-layer-base`,
     data: data,
@@ -84,30 +106,8 @@ export default function getArcLayer(
       }
       return settings.strokeWidth.defaultLineWidth.value;
     },
-    getSourceColor: (d) =>
-      getLayerColorWithGradient(
-        d.arcProperties?.sourceColor,
-        d.arcProperties?.sourceColorValue,
-        defaultSourceColor,
-        sourceGradient,
-        sourceColorBins,
-        shouldFadeUnselected,
-        fadeFactor,
-        selectedIds,
-        String(d.id),
-      ),
-    getTargetColor: (d) =>
-      getLayerColorWithGradient(
-        d.arcProperties?.targetColor,
-        d.arcProperties?.targetColorValue,
-        defaultTargetColor,
-        targetGradient,
-        targetColorBins,
-        shouldFadeUnselected,
-        fadeFactor,
-        selectedIds,
-        String(d.id),
-      ),
+    getSourceColor: sourceColor.accessor,
+    getTargetColor: targetColor.accessor,
     widthMinPixels: settings.strokeWidth.lineWidthMinPixels.value,
     widthMaxPixels: settings.strokeWidth.lineWidthMaxPixels.value,
     autoHighlight: highlighting.autoHighlight.value,
@@ -115,30 +115,40 @@ export default function getArcLayer(
     onClick: (info, event) => onClick(info, event),
     updateTriggers: {
       getWidth: [settings.strokeWidth.defaultLineWidth.value],
-      getSourceColor: [
-        settings.defaultSourceColor.value.value,
-        settings.defaultSourceOpacity.value,
-        settings.sourceGradient.preset.value.value,
-        settings.sourceGradient.binningMethod.value.value,
-        settings.sourceGradient.classCount.value,
-        settings.sourceGradient.definedInterval.value,
-        getNumericColorBinsSignature(sourceColorBins),
+      getSourceColor: getLayerColorUpdateTriggers(
+        [
+          settings.defaultSourceColor.value.value,
+          settings.defaultSourceOpacity.value,
+        ],
+        [
+          settings.sourceGradient.preset.value.value,
+          settings.sourceGradient.binningMethod.value.value,
+          settings.sourceGradient.classCount.value,
+          settings.sourceGradient.definedInterval.value,
+          getNumericColorBinsSignature(sourceColor.bins),
+        ],
+        sourceColor,
         highlighting.highlightOnClick.value,
         highlighting.unselectedFadeOpacity.value,
         selectedSignature,
-      ],
-      getTargetColor: [
-        settings.defaultTargetColor.value.value,
-        settings.defaultTargetOpacity.value,
-        settings.targetGradient.preset.value.value,
-        settings.targetGradient.binningMethod.value.value,
-        settings.targetGradient.classCount.value,
-        settings.targetGradient.definedInterval.value,
-        getNumericColorBinsSignature(targetColorBins),
+      ),
+      getTargetColor: getLayerColorUpdateTriggers(
+        [
+          settings.defaultTargetColor.value.value,
+          settings.defaultTargetOpacity.value,
+        ],
+        [
+          settings.targetGradient.preset.value.value,
+          settings.targetGradient.binningMethod.value.value,
+          settings.targetGradient.classCount.value,
+          settings.targetGradient.definedInterval.value,
+          getNumericColorBinsSignature(targetColor.bins),
+        ],
+        targetColor,
         highlighting.highlightOnClick.value,
         highlighting.unselectedFadeOpacity.value,
         selectedSignature,
-      ],
+      ),
       highlightColor: [
         highlighting.autoHighlightColor.value.value,
         highlighting.autoHighlightOpacity.value,

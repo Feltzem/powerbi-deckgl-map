@@ -1,15 +1,17 @@
 import { GeoJsonLayer } from "@deck.gl/layers";
-import { PolygonFeature } from "../dataTypes";
+import { ColorRoleStatsStore, PolygonFeature } from "../dataTypes";
 import { withOpacity, decodeHex } from "../col";
 import {
   GradientBinningMethod,
-  getCachedNumericColorBins,
   getNumericColorBinsSignature,
   NumericColorBinsCache,
 } from "../gradientClassification";
 import { resolveGradientPresetColors } from "../gradientPresets";
 import { HighlightingCardSettings, PolygonCardSettings } from "../settings";
-import { getLayerColorWithGradient } from "./col";
+import {
+  createLayerColorAccessor,
+  getLayerColorUpdateTriggers,
+} from "./col";
 
 export default function getPolygonLayer(
   data: PolygonFeature[],
@@ -17,6 +19,7 @@ export default function getPolygonLayer(
   highlighting: HighlightingCardSettings,
   selectedIds: Set<string>,
   selectedSignature: string,
+  colorRoles: ColorRoleStatsStore,
   classificationCache: NumericColorBinsCache,
   dataVersion: string,
   onClick: (info: any, event: any) => void,
@@ -29,66 +32,73 @@ export default function getPolygonLayer(
     decodeHex(settings.fill.defaultFillColor.value.value, [0, 0, 0, 100]),
     settings.fill.defaultFillOpacity.value,
   );
-  const lineGradient = resolveGradientPresetColors(
-    settings.lineGradient.preset.value.value as string,
-    settings.line.color.defaultLineOpacity.value,
-  );
-  const fillGradient = resolveGradientPresetColors(
-    settings.fillGradient.preset.value.value as string,
-    settings.fill.defaultFillOpacity.value,
-  );
   const fadeFactor = Math.max(
     0,
     Math.min(1, highlighting.unselectedFadeOpacity.value / 100),
-  ); // convert percentage to 0-1 range and clamp
+  );
   const shouldFadeUnselected =
     highlighting.highlightOnClick.value && selectedIds.size > 0;
   const autoHighlightColor = withOpacity(
     decodeHex(highlighting.autoHighlightColor.value.value, [255, 153, 0, 255]),
     highlighting.autoHighlightOpacity.value,
   );
-  const lineColorBins = getCachedNumericColorBins(
+  const lineGradientSettings = {
+    method: settings.lineGradient.binningMethod.value
+      .value as GradientBinningMethod,
+    classCount: settings.lineGradient.classCount.value,
+    definedInterval: settings.lineGradient.definedInterval.value,
+  };
+  const fillGradientSettings = {
+    method: settings.fillGradient.binningMethod.value
+      .value as GradientBinningMethod,
+    classCount: settings.fillGradient.classCount.value,
+    definedInterval: settings.fillGradient.definedInterval.value,
+  };
+  const lineColor = createLayerColorAccessor<PolygonFeature>({
+    items: data,
+    colorStats: colorRoles.polygonLineColor,
     classificationCache,
-    `${dataVersion}:polygon-line`,
-    data,
-    (d) => d.properties?.lineColorValue,
-    {
-      method: settings.lineGradient.binningMethod.value
-        .value as GradientBinningMethod,
-      classCount: settings.lineGradient.classCount.value,
-      definedInterval: settings.lineGradient.definedInterval.value,
-    },
-  );
-  const fillColorBins = getCachedNumericColorBins(
+    cacheKey: `${dataVersion}:polygon-line`,
+    getColorValue: (d) => d.properties?.lineColor,
+    getNumericColorValue: (d) => d.properties?.lineColorValue,
+    getId: (d) => String(d.id),
+    defaultColor: defaultLineColor,
+    getGradient: () =>
+      resolveGradientPresetColors(
+        settings.lineGradient.preset.value.value as string,
+        settings.line.color.defaultLineOpacity.value,
+      ),
+    gradientSettings: lineGradientSettings,
+    shouldFade: shouldFadeUnselected,
+    fadeFactor,
+    selectedIds,
+  });
+  const fillColor = createLayerColorAccessor<PolygonFeature>({
+    items: data,
+    colorStats: colorRoles.polygonFillColor,
     classificationCache,
-    `${dataVersion}:polygon-fill`,
-    data,
-    (d) => d.properties?.fillColorValue,
-    {
-      method: settings.fillGradient.binningMethod.value
-        .value as GradientBinningMethod,
-      classCount: settings.fillGradient.classCount.value,
-      definedInterval: settings.fillGradient.definedInterval.value,
-    },
-  );
+    cacheKey: `${dataVersion}:polygon-fill`,
+    getColorValue: (d) => d.properties?.fillColor,
+    getNumericColorValue: (d) => d.properties?.fillColorValue,
+    getId: (d) => String(d.id),
+    defaultColor: defaultFillColor,
+    getGradient: () =>
+      resolveGradientPresetColors(
+        settings.fillGradient.preset.value.value as string,
+        settings.fill.defaultFillOpacity.value,
+      ),
+    gradientSettings: fillGradientSettings,
+    shouldFade: shouldFadeUnselected,
+    fadeFactor,
+    selectedIds,
+  });
 
   return new GeoJsonLayer({
     id: `polygon-layer-base`,
     data,
     pickable: true,
     stroked: settings.stroked.value,
-    getLineColor: (d) =>
-      getLayerColorWithGradient(
-        d.properties?.lineColor,
-        d.properties?.lineColorValue,
-        defaultLineColor,
-        lineGradient,
-        lineColorBins,
-        shouldFadeUnselected,
-        fadeFactor,
-        selectedIds,
-        String(d.id),
-      ),
+    getLineColor: lineColor.accessor,
     getLineWidth: (d) => {
       const w = d.properties?.lineWidth;
       if (typeof w === "number" && isFinite(w) && w > 0) {
@@ -99,18 +109,7 @@ export default function getPolygonLayer(
     lineWidthMinPixels: settings.line.width.lineWidthMinPixels.value,
     lineWidthMaxPixels: settings.line.width.lineWidthMaxPixels.value,
     filled: settings.filled.value,
-    getFillColor: (d) =>
-      getLayerColorWithGradient(
-        d.properties?.fillColor,
-        d.properties?.fillColorValue,
-        defaultFillColor,
-        fillGradient,
-        fillColorBins,
-        shouldFadeUnselected,
-        fadeFactor,
-        selectedIds,
-        String(d.id),
-      ),
+    getFillColor: fillColor.accessor,
     extruded: settings.extruded.value,
     getElevation: (d) => d.properties?.elevation,
     wireframe: settings.wireframe.value,
@@ -121,30 +120,40 @@ export default function getPolygonLayer(
     onClick: (info, event) => onClick(info, event),
     updateTriggers: {
       getLineWidth: [settings.line.width.defaultLineWidth.value],
-      getLineColor: [
-        settings.line.color.defaultLineColor.value.value,
-        settings.line.color.defaultLineOpacity.value,
-        settings.lineGradient.preset.value.value,
-        settings.lineGradient.binningMethod.value.value,
-        settings.lineGradient.classCount.value,
-        settings.lineGradient.definedInterval.value,
-        getNumericColorBinsSignature(lineColorBins),
+      getLineColor: getLayerColorUpdateTriggers(
+        [
+          settings.line.color.defaultLineColor.value.value,
+          settings.line.color.defaultLineOpacity.value,
+        ],
+        [
+          settings.lineGradient.preset.value.value,
+          settings.lineGradient.binningMethod.value.value,
+          settings.lineGradient.classCount.value,
+          settings.lineGradient.definedInterval.value,
+          getNumericColorBinsSignature(lineColor.bins),
+        ],
+        lineColor,
         highlighting.highlightOnClick.value,
         highlighting.unselectedFadeOpacity.value,
         selectedSignature,
-      ],
-      getFillColor: [
-        settings.fill.defaultFillColor.value.value,
-        settings.fill.defaultFillOpacity.value,
-        settings.fillGradient.preset.value.value,
-        settings.fillGradient.binningMethod.value.value,
-        settings.fillGradient.classCount.value,
-        settings.fillGradient.definedInterval.value,
-        getNumericColorBinsSignature(fillColorBins),
+      ),
+      getFillColor: getLayerColorUpdateTriggers(
+        [
+          settings.fill.defaultFillColor.value.value,
+          settings.fill.defaultFillOpacity.value,
+        ],
+        [
+          settings.fillGradient.preset.value.value,
+          settings.fillGradient.binningMethod.value.value,
+          settings.fillGradient.classCount.value,
+          settings.fillGradient.definedInterval.value,
+          getNumericColorBinsSignature(fillColor.bins),
+        ],
+        fillColor,
         highlighting.highlightOnClick.value,
         highlighting.unselectedFadeOpacity.value,
         selectedSignature,
-      ],
+      ),
       getCapRounded: [settings.path.lineCapRounded.value],
       getJointRounded: [settings.path.lineJointRounded.value],
       getMiterLimit: [settings.path.lineMiterLimit.value],

@@ -102,8 +102,28 @@ export interface LayerDataStore {
   polygon: PolygonFeature[];
 }
 
+export type ColorRoleKey =
+  | "scatterFillColor"
+  | "scatterLineColor"
+  | "lineLineColor"
+  | "pathColor"
+  | "polygonFillColor"
+  | "polygonLineColor"
+  | "arcSourceColor"
+  | "arcTargetColor";
+
+export interface ColorRoleStats {
+  hasTextColor: boolean;
+  hasNumericColor: boolean;
+  minValue: number | null;
+  maxValue: number | null;
+}
+
+export type ColorRoleStatsStore = Record<ColorRoleKey, ColorRoleStats>;
+
 export interface DatasetSnapshot {
   layers: LayerDataStore;
+  colorRoles: ColorRoleStatsStore;
   idToDataPoint: Map<string, OurData>;
   idToSelectionId: Map<string, ISelectionId>;
   dataHighlightedIds: string[];

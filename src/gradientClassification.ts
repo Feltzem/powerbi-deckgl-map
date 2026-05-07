@@ -275,13 +275,20 @@ export const getNumericColorBins = <T>(
   items: T[],
   getNumericValue: (item: T) => number | null | undefined,
   settings: NumericGradientClassificationSettings,
+  rangeHint?: NumericColorRange | null,
 ): NumericColorBins => {
   const method = settings.method ?? defaultGradientBinningMethod;
   const canUseRangeOnly =
     method === "equal-interval" || method === "defined-interval";
 
   if (canUseRangeOnly) {
-    const { minValue, maxValue } = getNumericColorRange(items, getNumericValue);
+    const { minValue, maxValue } =
+      rangeHint?.minValue !== null &&
+      rangeHint?.maxValue !== null &&
+      rangeHint?.minValue !== undefined &&
+      rangeHint?.maxValue !== undefined
+        ? rangeHint
+        : getNumericColorRange(items, getNumericValue);
     if (minValue === null || maxValue === null) {
       return {
         minValue: null,
@@ -423,8 +430,9 @@ export const getGradientLegendClasses = (
   }));
 };
 
-export const getNumericColorBinsSignature = (bins: NumericColorBins): string =>
-  bins.breaks.map((value) => value.toPrecision(12)).join("|");
+export const getNumericColorBinsSignature = (
+  bins: NumericColorBins | null,
+): string => bins?.breaks.map((value) => value.toPrecision(12)).join("|") ?? "";
 
 export const getCachedNumericColorBins = <T>(
   cache: NumericColorBinsCache,
@@ -432,19 +440,22 @@ export const getCachedNumericColorBins = <T>(
   items: T[],
   getNumericValue: (item: T) => number | null | undefined,
   settings: NumericGradientClassificationSettings,
+  rangeHint?: NumericColorRange | null,
 ): NumericColorBins => {
   const key = [
     cacheKey,
     settings.method,
     settings.classCount,
     settings.definedInterval,
+    rangeHint?.minValue ?? "",
+    rangeHint?.maxValue ?? "",
   ].join("|");
   const cached = cache.get(key);
   if (cached) {
     return cached;
   }
 
-  const bins = getNumericColorBins(items, getNumericValue, settings);
+  const bins = getNumericColorBins(items, getNumericValue, settings, rangeHint);
   cache.set(key, bins);
   return bins;
 };

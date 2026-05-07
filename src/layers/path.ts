@@ -1,15 +1,17 @@
 import { GeoJsonLayer } from "@deck.gl/layers";
-import { PathFeature } from "../dataTypes";
+import { ColorRoleStatsStore, PathFeature } from "../dataTypes";
 import { withOpacity, decodeHex } from "../col";
 import {
   GradientBinningMethod,
-  getCachedNumericColorBins,
   getNumericColorBinsSignature,
   NumericColorBinsCache,
 } from "../gradientClassification";
 import { resolveGradientPresetColors } from "../gradientPresets";
 import { HighlightingCardSettings, PathCardSettings } from "../settings";
-import { getLayerColorWithGradient } from "./col";
+import {
+  createLayerColorAccessor,
+  getLayerColorUpdateTriggers,
+} from "./col";
 
 export default function getPathLayer(
   data: PathFeature[],
@@ -17,16 +19,13 @@ export default function getPathLayer(
   highlighting: HighlightingCardSettings,
   selectedIds: Set<string>,
   selectedSignature: string,
+  colorRoles: ColorRoleStatsStore,
   classificationCache: NumericColorBinsCache,
   dataVersion: string,
   onClick: (info: any, event: any) => void,
 ) {
   const defaultLineColor = withOpacity(
     decodeHex(settings.line.color.defaultLineColor.value.value, [0, 0, 0, 100]),
-    settings.line.color.defaultLineOpacity.value,
-  );
-  const gradient = resolveGradientPresetColors(
-    settings.gradient.preset.value.value as string,
     settings.line.color.defaultLineOpacity.value,
   );
   const fadeFactor = Math.max(
@@ -39,31 +38,31 @@ export default function getPathLayer(
     decodeHex(highlighting.autoHighlightColor.value.value, [255, 153, 0, 255]),
     highlighting.autoHighlightOpacity.value,
   );
-  const lineColorBins = getCachedNumericColorBins(
+  const gradientSettings = {
+    method: settings.gradient.binningMethod.value
+      .value as GradientBinningMethod,
+    classCount: settings.gradient.classCount.value,
+    definedInterval: settings.gradient.definedInterval.value,
+  };
+  const lineColor = createLayerColorAccessor<PathFeature>({
+    items: data,
+    colorStats: colorRoles.pathColor,
     classificationCache,
-    `${dataVersion}:path`,
-    data,
-    (d) => d.properties?.lineColorValue,
-    {
-      method: settings.gradient.binningMethod.value
-        .value as GradientBinningMethod,
-      classCount: settings.gradient.classCount.value,
-      definedInterval: settings.gradient.definedInterval.value,
-    },
-  );
-
-  const getFeatureLineColor = (d: any) =>
-    getLayerColorWithGradient(
-      d.properties?.lineColor,
-      d.properties?.lineColorValue,
-      defaultLineColor,
-      gradient,
-      lineColorBins,
-      shouldFadeUnselected,
-      fadeFactor,
-      selectedIds,
-      String(d.id),
-    );
+    cacheKey: `${dataVersion}:path`,
+    getColorValue: (d) => d.properties?.lineColor,
+    getNumericColorValue: (d) => d.properties?.lineColorValue,
+    getId: (d) => String(d.id),
+    defaultColor: defaultLineColor,
+    getGradient: () =>
+      resolveGradientPresetColors(
+        settings.gradient.preset.value.value as string,
+        settings.line.color.defaultLineOpacity.value,
+      ),
+    gradientSettings,
+    shouldFade: shouldFadeUnselected,
+    fadeFactor,
+    selectedIds,
+  });
 
   return new GeoJsonLayer({
     id: `path-layer-base`,
@@ -76,7 +75,7 @@ export default function getPathLayer(
       }
       return settings.line.width.defaultLineWidth.value;
     },
-    getLineColor: getFeatureLineColor,
+    getLineColor: lineColor.accessor,
     lineWidthMinPixels: settings.line.width.lineWidthMinPixels.value,
     lineWidthMaxPixels: settings.line.width.lineWidthMaxPixels.value,
     lineCapRounded: settings.path.lineCapRounded.value,
@@ -88,18 +87,23 @@ export default function getPathLayer(
     onClick: (info, event) => onClick(info, event),
     updateTriggers: {
       getLineWidth: [settings.line.width.defaultLineWidth.value],
-      getLineColor: [
-        settings.line.color.defaultLineColor.value.value,
-        settings.line.color.defaultLineOpacity.value,
-        settings.gradient.preset.value.value,
-        settings.gradient.binningMethod.value.value,
-        settings.gradient.classCount.value,
-        settings.gradient.definedInterval.value,
-        getNumericColorBinsSignature(lineColorBins),
+      getLineColor: getLayerColorUpdateTriggers(
+        [
+          settings.line.color.defaultLineColor.value.value,
+          settings.line.color.defaultLineOpacity.value,
+        ],
+        [
+          settings.gradient.preset.value.value,
+          settings.gradient.binningMethod.value.value,
+          settings.gradient.classCount.value,
+          settings.gradient.definedInterval.value,
+          getNumericColorBinsSignature(lineColor.bins),
+        ],
+        lineColor,
         highlighting.highlightOnClick.value,
         highlighting.unselectedFadeOpacity.value,
         selectedSignature,
-      ],
+      ),
       getLineCapRounded: [settings.path.lineCapRounded.value],
       getLineJointRounded: [settings.path.lineJointRounded.value],
       getLineMiterLimit: [settings.path.lineMiterLimit.value],

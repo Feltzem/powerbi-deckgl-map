@@ -38,6 +38,7 @@ import getLineLayer from "./layers/line";
 import getArcLayer from "./layers/arc";
 import getPathLayer from "./layers/path";
 import getPolygonLayer from "./layers/polygon";
+import { createEmptyColorRoleStatsStore } from "./colorRoles";
 
 const createEmptyLayerDataStore = (): LayerDataStore => ({
   all: [],
@@ -50,6 +51,7 @@ const createEmptyLayerDataStore = (): LayerDataStore => ({
 
 const createEmptyDatasetSnapshot = (version = "0"): DatasetSnapshot => ({
   layers: createEmptyLayerDataStore(),
+  colorRoles: createEmptyColorRoleStatsStore(),
   idToDataPoint: new Map(),
   idToSelectionId: new Map(),
   dataHighlightedIds: [],
@@ -567,6 +569,7 @@ export class Visual implements IVisual {
       dataView,
       this.classificationCache,
       this.dataset.version,
+      this.dataset.colorRoles,
     );
     const signature = getGradientLegendSignature(specs);
     if (signature === this.lastLegendSignature) {
@@ -594,6 +597,7 @@ export class Visual implements IVisual {
           settings.highlighting,
           visualSelectedIds,
           selectedSignature,
+          this.dataset.colorRoles,
           this.classificationCache,
           this.dataset.version,
           this.onClick,
@@ -604,6 +608,7 @@ export class Visual implements IVisual {
           settings.highlighting,
           visualSelectedIds,
           selectedSignature,
+          this.dataset.colorRoles,
           this.classificationCache,
           this.dataset.version,
           this.onClick,
@@ -614,6 +619,7 @@ export class Visual implements IVisual {
           settings.highlighting,
           visualSelectedIds,
           selectedSignature,
+          this.dataset.colorRoles,
           this.classificationCache,
           this.dataset.version,
           this.onClick,
@@ -624,6 +630,7 @@ export class Visual implements IVisual {
           settings.highlighting,
           visualSelectedIds,
           selectedSignature,
+          this.dataset.colorRoles,
           this.classificationCache,
           this.dataset.version,
           this.onClick,
@@ -634,6 +641,7 @@ export class Visual implements IVisual {
           settings.highlighting,
           visualSelectedIds,
           selectedSignature,
+          this.dataset.colorRoles,
           this.classificationCache,
           this.dataset.version,
           this.onClick,
