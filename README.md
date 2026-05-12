@@ -1,28 +1,53 @@
 # Power BI deck.gl map custom visual
 
-Designed to support points / lines / polygons from <https://deck.gl/docs/api-reference/layers/geojson-layer> (i.e. not text/icons yet).
+High-performance Power BI custom visual using [deck.gl](https://deck.gl/) and MapLibre for WebGL map rendering. It supports multiple geometry layers in one visual, row-level styling, numeric colour gradients, custom HTML tooltips, selection highlighting, polygon extrusion, and on-map layer ordering. It currently focuses on geometry layers rather than text or icon layers.
 
 ## Install
 
 - Download the latest `*.pbiviz` from <https://github.com/Feltzem/powerbi-deckgl-map/releases>
 - [Install a custom visual in Power BI](https://learn.microsoft.com/en-us/power-bi/developer/visuals/import-visual#import-a-visual-file-from-your-local-computer-into-power-bi).
 
+## Demo Dashboard
+
+- Download the latest Hamilton demo `.pbix` from <https://github.com/Feltzem/powerbi-deckgl-map/releases>.
+- Use the tracked sample CSVs in [`samples/hamilton`](samples/hamilton) if you want to rebuild or inspect the demo data.
+- Follow [`docs/demo-dashboard-publishing-guide.md`](docs/demo-dashboard-publishing-guide.md) when refreshing the demo dashboard or publishing a new release.
+
+The demo dashboard is intentionally Hamilton-sized so it opens quickly and stays below Power BI visual row-window limits, while still showing points, lines, arcs, paths, polygons, a combined multi-geometry map, WKP geometry, numeric gradients, and dynamic hex colour measures. Full New Zealand demo exports are generated from the City Transportation notebook and are not committed to this repo.
+
+## Current Capabilities
+
+- Geometry layers: scatter points, straight lines, arcs, paths, and polygons.
+- Mixed-geometry maps: use one Power BI table with a `Layer Type` field containing `scatter`, `line`, `arc`, `path`, or `polygon`. These layer identifiers can be changed in the Format pane.
+- Geometry inputs:
+  - Scatter uses `Point1 Latitude` and `Point1 Longitude`.
+  - Line and arc use `Point1` and `Point2` latitude/longitude pairs.
+  - Path uses WKT or WKP `LineString` / `MultiLineString` geometry.
+  - Polygon uses WKT or WKP `Polygon` / `MultiPolygon` geometry.
+- Per-row styling: bind width, radius, fill colour, line colour, arc source colour, arc target colour, and polygon extrusion height fields, with Format pane defaults as fallbacks.
+- Colour inputs: colour buckets accept `#RGB`, `#RRGGBB`, `#RRGGBBAA`, `rgb(...)`, `rgba(...)`, or numeric values.
+- Numeric gradients: numeric colour fields can be mapped through preset gradients with natural breaks, quantile, equal interval, or defined interval classification. Active numeric colour fields render scrollable gradient legends.
+- Polygon extrusion: polygons can be extruded using a height field or default settings. When extruded polygons are enabled, present, and visible, the map automatically tilts to 45 degrees.
+- Tooltips: bind `Tooltip HTML` for custom sanitized HTML tooltips. Multi-layer tooltips follow the current visual layer order.
+- Interaction: click selection/highlighting, hover highlighting, configurable fade for unselected polygons, reset view, fly-to, and selectable base maps.
+- Layer ordering: multi-geometry visuals can reorder layer stacking directly on the map. The compact on-map layer order pane is off by default; turn on `Layer controls` > `Show layer order control` to use it. The visual persists the order with the report.
+- Validation: geometry validation is enabled by default and can be turned off in the Format pane once data quality is known.
+
 ## Usage
 
-For now, the main things to know:
+At minimum, add `Geometry ID`, `Layer Type`, and the geometry fields required by the layer type you are drawing. Add optional style fields when you want row-level control; otherwise the visual uses the relevant Format pane defaults.
 
-- Terminology and variables closely match those from [deck.gl](https://deck.gl/)
-- We support the following layers:
-  - Scatter - for scatters/points. See [ScatterplotLayer](https://deck.gl/docs/api-reference/layers/scatterplot-layer).
-  - Line - for a straight line from one point to another. See [LineLayer](https://deck.gl/docs/api-reference/layers/line-layer).
-  - Arc - for an arc from one point to another. See [ArcLayer](https://deck.gl/docs/api-reference/layers/arc-layer).
-  - Path - for a sequence of points making a 2D path/linestring. See [PathLayer](https://deck.gl/docs/api-reference/layers/path-layer). Note, this supports `MultiLineString`s, and hence uses `GeoJsonLayer` under the hood (as it takes care of splitting into individual `LineString`s but keeping highlighting/picking still being tied to the main row.)
-  - Polygon - for a sequence of points making a polygon. See [PolygonLayer](https://deck.gl/docs/api-reference/layers/polygon-layer). Note, this supports `MultiPolygon`s as well - see above.
-- We can only (?) have a single input to a visual, which means if we want multiple layer types on each visual, they all need to be in the same table. Therefore:
-  - We specify a layer type column which contains either `'scatter'`, `'arc'`, `'line'`, `'path'`, or `'polygon'` to specify which type to draw. (These strings can be customised in the options.)
-  - Individual columns/values/defaults for each of the different attributes. E.g. you can have a column for the scatter fill color or polygon fill color (which can be the same).
-- To support e.g. custom colors/widths per line/row, we allow the user to provide their own `#RGB`, `#RRGGBB`, `#RRGGBBAA`, `rgb(...)`, or `rgba(...)` string (for color and opacity) or float (for width). In Javascript we could let the user just provide a custom function (as deck.gl does), but that's trickier in Power BI.
-- All color fields can also take numeric values. When a numeric field is bound, the relevant format pane section maps the visible range onto a preset gradient scale for that geometry and color channel. You can classify the values using natural breaks, quantile, equal interval, or defined interval binning, and the visual shows a matching legend for the active classes. Note that opacity can not be set based on numeric field - an explicit alpha-bearing color such as `#RRGGBBAA` or `rgba(...)` must be used to style both color and opacity.
+Because Power BI custom visuals receive one categorical data view, multi-layer maps should be modelled as one combined table. Each row identifies its geometry type with `Layer Type`, and only the fields relevant to that geometry need to be populated.
+
+Terminology and options closely match deck.gl:
+
+- Scatter - for points. See [ScatterplotLayer](https://deck.gl/docs/api-reference/layers/scatterplot-layer).
+- Line - for a straight line from one point to another. See [LineLayer](https://deck.gl/docs/api-reference/layers/line-layer).
+- Arc - for an arc from one point to another. See [ArcLayer](https://deck.gl/docs/api-reference/layers/arc-layer).
+- Path - for WKT/WKP line strings and multi-line strings. See [PathLayer](https://deck.gl/docs/api-reference/layers/path-layer).
+- Polygon - for WKT/WKP polygons and multi-polygons. See [PolygonLayer](https://deck.gl/docs/api-reference/layers/polygon-layer).
+
+All colour fields can take either a direct colour string or a numeric value. Numeric values are styled through the matching gradient settings for that geometry and colour channel. Opacity can not be inferred from numeric values; use an alpha-bearing colour such as `#RRGGBBAA` or `rgba(...)` when data-driven opacity is required.
 
 ### Arc styling notes
 
@@ -43,6 +68,10 @@ Secondly, you can filter the selected shapes by click. This is two way:
 
 ## Sample Data
 
+- Public Hamilton demo CSVs: `samples/hamilton/*.csv`
+- Hamilton sample manifest: `samples/hamilton/manifest.json`
+- Hamilton TLA boundary artifact: `samples/hamilton/statsnz_hamilton_territorial_authority_2023_generalised.geojson`
+- Combined Hamilton map table: `samples/hamilton/hamilton_multigeometry_road_density_map.csv`
 - Diagnostic sample CSV: `data_samples/data.csv`
 - Matching Power Query / Advanced Editor script: `data_samples/data.powerquery.m`
 - Matching Python transform script: `scripts/build_powerbi_table.py`
@@ -52,10 +81,8 @@ Secondly, you can filter the selected shapes by click. This is two way:
 ## TODO
 
 - Allow Z in polygon and path layer.
-- Add example pbix.
 - Add screenshots to readme.
 - Add satellite layer?
-- Add icon to reset the map tilt/bearing.
 - highlight this way: <https://learn.microsoft.com/en-us/power-bi/developer/visuals/highlight?tabs=Standard>
 - extra layers:
   - <https://deck.gl/docs/api-reference/layers/column-layer>
@@ -86,6 +113,7 @@ To create a new release:
 1. Update the version in `pbiviz.json` and `package.json`.
 2. Push a new tag: `git tag v1.x.x && git push origin v1.x.x`.
 3. The GitHub Action will automatically build and create a GitHub Release with the `.pbiviz` asset.
+4. Refresh `powerbi-deckgl-map-demo-hamilton.pbix` manually in Power BI Desktop and attach it to the same release.
 
 # Power BI Colour Measures And Numeric Gradients
 
@@ -115,10 +143,10 @@ For numeric gradients, opacity comes from the default opacity setting in the sam
 
 | Geometry type | Use this bucket for a custom colour measure                           | Use this bucket for a numeric gradient             | Format pane card     |
 | ------------- | --------------------------------------------------------------------- | -------------------------------------------------- | -------------------- |
-| Scatter       | `Scatter fill (Hex)` for point fill, `Scatter line color` for outline | Same buckets; bind a numeric field instead of text | `Scatter properties` |
+| Scatter       | `Scatter fill` for point fill, `Scatter line color` for outline       | Same buckets; bind a numeric field instead of text | `Scatter properties` |
 | Line          | `(Line) line color`                                                   | Same bucket; bind a numeric field instead of text  | `Line properties`    |
 | Path          | `Path color`                                                          | Same bucket; bind a numeric field instead of text  | `Path properties`    |
-| Polygon       | `Polygon fill (Hex)` for fill, `Polygon line color` for outline       | Same buckets; bind a numeric field instead of text | `Polygon properties` |
+| Polygon       | `Polygon fill` for fill, `Polygon line color` for outline             | Same buckets; bind a numeric field instead of text | `Polygon properties` |
 | Arc           | `Arc Source color` and `Arc Target color`                             | Same buckets; bind numeric fields instead of text  | `Arc properties`     |
 
 When a geometry exposes both fill and line colours, you can drive them independently. For arcs, source and target colours are also independent, so you can bind one measure to `Arc Source color` and a different measure to `Arc Target color`.
@@ -157,10 +185,10 @@ RETURN
 
 Bind `Custom Colour Hex` to the relevant colour bucket for the geometry you are drawing:
 
-- `Scatter fill (Hex)` or `Scatter line color`
+- `Scatter fill` or `Scatter line color`
 - `(Line) line color`
 - `Path color`
-- `Polygon fill (Hex)` or `Polygon line color`
+- `Polygon fill` or `Polygon line color`
 - `Arc Source color` or `Arc Target color`
 
 ## Simple Numeric Measure Example
@@ -186,7 +214,7 @@ This is the easier option when you want a legend and want to tune classification
 
 ### Scatter
 
-For points, use `Scatter fill (Hex)` for the point body and `Scatter line color` for the outline. Each can take either a text colour measure or a numeric measure. If you use numeric values, configure the matching `Fill ...` or `Line ...` gradient settings in `Scatter properties`.
+For points, use `Scatter fill` for the point body and `Scatter line color` for the outline. Each can take either a text colour measure or a numeric measure. If you use numeric values, configure the matching `Fill ...` or `Line ...` gradient settings in `Scatter properties`.
 
 ### Line
 
@@ -198,7 +226,7 @@ For `LineString` and `MultiLineString` paths, bind either a text colour measure 
 
 ### Polygon
 
-For polygons, use `Polygon fill (Hex)` for fill colour and `Polygon line color` for the border. You can mix approaches, for example a direct hex fill measure with a numeric outline measure. If a bucket is numeric, configure the matching `Fill ...` or `Line ...` gradient settings in `Polygon properties`.
+For polygons, use `Polygon fill` for fill colour and `Polygon line color` for the border. You can mix approaches, for example a direct hex fill measure with a numeric outline measure. If a bucket is numeric, configure the matching `Fill ...` or `Line ...` gradient settings in `Polygon properties`.
 
 ### Arc
 
@@ -348,8 +376,8 @@ RETURN
 
 The same pattern works for other geometry types as well:
 
-- Scatter: bind the final measure to `Scatter fill (Hex)` or `Scatter line color`.
+- Scatter: bind the final measure to `Scatter fill` or `Scatter line color`.
 - Line: bind the final measure to `(Line) line color`.
 - Path: bind the final measure to `Path color`.
-- Polygon: bind the final measure to `Polygon fill (Hex)` or `Polygon line color`.
+- Polygon: bind the final measure to `Polygon fill` or `Polygon line color`.
 - Arc: bind separate measures to `Arc Source color` and `Arc Target color` when you want different colours at each end.

@@ -8,6 +8,7 @@ import {
 } from "../gradientClassification";
 import { resolveGradientPresetColors } from "../gradientPresets";
 import { HighlightingCardSettings, LineCardSettings } from "../settings";
+import { LAYER_IDS } from "../layerState";
 import {
   createLayerColorAccessor,
   getLayerColorUpdateTriggers,
@@ -65,7 +66,7 @@ export default function getLineLayer(
   });
 
   return new LineLayer<OurData>({
-    id: `line-layer-base`,
+    id: LAYER_IDS.line,
     data: data,
     pickable: true,
     getSourcePosition: (d) => [

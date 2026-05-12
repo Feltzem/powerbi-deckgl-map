@@ -8,6 +8,7 @@ import {
 } from "../gradientClassification";
 import { resolveGradientPresetColors } from "../gradientPresets";
 import { HighlightingCardSettings, ScatterCardSettings } from "../settings";
+import { LAYER_IDS } from "../layerState";
 import {
   createLayerColorAccessor,
   getLayerColorUpdateTriggers,
@@ -94,7 +95,7 @@ export default function getScatterLayer(
   });
 
   return new ScatterplotLayer<OurData>({
-    id: `scatterplot-layer-base`,
+    id: LAYER_IDS.scatter,
     data: data,
     pickable: true,
     stroked: settings.stroked.value,

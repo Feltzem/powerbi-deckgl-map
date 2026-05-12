@@ -39,6 +39,14 @@ import getArcLayer from "./layers/arc";
 import getPathLayer from "./layers/path";
 import getPolygonLayer from "./layers/polygon";
 import { createEmptyColorRoleStatsStore } from "./colorRoles";
+import {
+  DEFAULT_LAYER_DRAW_ORDER,
+  GEOMETRY_TYPE_LABELS,
+  LAYER_IDS,
+  RenderableGeometryType,
+  parseLayerDrawOrder,
+} from "./layerState";
+import { getAggregatedTooltipHtml } from "./tooltip";
 
 const createEmptyLayerDataStore = (): LayerDataStore => ({
   all: [],
@@ -58,6 +66,24 @@ const createEmptyDatasetSnapshot = (version = "0"): DatasetSnapshot => ({
   bounds: null,
   version,
 });
+
+const EXTRUDED_POLYGON_PITCH = 45;
+const FLAT_MAP_PITCH = 0;
+const PITCH_EPSILON = 0.5;
+const MAPLIBRE_CONTROL_MARGIN_PX = 10;
+
+interface CameraAnimationOptions {
+  duration: number;
+  pitch?: number;
+}
+
+type LayerOrderDirection = "up" | "down";
+
+interface LayerOrderControl {
+  onAdd: () => HTMLElement;
+  onRemove: () => void;
+  render: () => void;
+}
 
 export class Visual implements IVisual {
   private host: IVisualHost;
@@ -81,6 +107,11 @@ export class Visual implements IVisual {
   private lastLegendSignature: string | null;
   private lastDataSignature: string | null;
   private dataVersionCounter: number;
+  private currentActiveGeometryTypes: Set<RenderableGeometryType>;
+  private currentLayerDrawOrder: RenderableGeometryType[];
+  private layerOrderControl: LayerOrderControl | null;
+  private lastExtrudedPolygonLayerShown: boolean | null;
+  private automaticPitchOwned: boolean;
 
   private createResetViewControl() {
     const container = document.createElement("div");
@@ -108,6 +139,127 @@ export class Visual implements IVisual {
     };
   }
 
+  private getPresentGeometryTypesInDrawOrder(
+    drawOrder = this.currentLayerDrawOrder,
+  ): RenderableGeometryType[] {
+    return drawOrder.filter(
+      (geometryType) => this.dataset.layers[geometryType].length > 0,
+    );
+  }
+
+  private createLayerOrderMoveButton(
+    geometryType: RenderableGeometryType,
+    direction: LayerOrderDirection,
+    disabled: boolean,
+  ): HTMLButtonElement {
+    const label = GEOMETRY_TYPE_LABELS[geometryType];
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = [
+      "deckgl-layer-order-control__move",
+      `deckgl-layer-order-control__move--${direction}`,
+    ].join(" ");
+    button.title = `Move ${label} ${direction}`;
+    button.setAttribute("aria-label", `Move ${label} ${direction}`);
+    button.disabled = disabled;
+    button.onclick = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.moveLayerInDrawOrder(geometryType, direction);
+    };
+
+    return button;
+  }
+
+  private createLayerOrderControl(): LayerOrderControl {
+    const container = document.createElement("div");
+    container.className =
+      "maplibregl-ctrl deckgl-layer-order-control deckgl-layer-order-control--hidden";
+    container.setAttribute("aria-label", "Layer order");
+
+    const stopPropagation = (event: Event) => event.stopPropagation();
+    let listenersAttached = false;
+    const attachListeners = () => {
+      if (listenersAttached) {
+        return;
+      }
+
+      container.addEventListener("mousedown", stopPropagation);
+      container.addEventListener("dblclick", stopPropagation);
+      container.addEventListener("wheel", stopPropagation);
+      listenersAttached = true;
+    };
+    const detachListeners = () => {
+      if (!listenersAttached) {
+        return;
+      }
+
+      container.removeEventListener("mousedown", stopPropagation);
+      container.removeEventListener("dblclick", stopPropagation);
+      container.removeEventListener("wheel", stopPropagation);
+      listenersAttached = false;
+    };
+
+    const render = () => {
+      const presentTypes = this.getPresentGeometryTypesInDrawOrder();
+      const shouldShow =
+        this.formattingSettings.layerControls.showLayerOrderControl.value ===
+          true && presentTypes.length > 1;
+
+      container.classList.toggle(
+        "deckgl-layer-order-control--hidden",
+        !shouldShow,
+      );
+      container.replaceChildren();
+
+      if (!shouldShow) {
+        return;
+      }
+
+      const visualStackOrder = [...presentTypes].reverse();
+      for (const [index, geometryType] of visualStackOrder.entries()) {
+        const label = GEOMETRY_TYPE_LABELS[geometryType];
+        const row = document.createElement("div");
+        row.className = "deckgl-layer-order-control__row";
+
+        const labelElement = document.createElement("span");
+        labelElement.className = "deckgl-layer-order-control__label";
+        labelElement.textContent = label;
+
+        const buttons = document.createElement("div");
+        buttons.className = "deckgl-layer-order-control__buttons";
+        buttons.appendChild(
+          this.createLayerOrderMoveButton(geometryType, "up", index === 0),
+        );
+        buttons.appendChild(
+          this.createLayerOrderMoveButton(
+            geometryType,
+            "down",
+            index === visualStackOrder.length - 1,
+          ),
+        );
+
+        row.appendChild(labelElement);
+        row.appendChild(buttons);
+        container.appendChild(row);
+      }
+    };
+
+    return {
+      onAdd: () => {
+        attachListeners();
+        render();
+        return container;
+      },
+      onRemove: () => {
+        detachListeners();
+        container.replaceChildren();
+        container.remove();
+      },
+      render,
+    };
+  }
+
   private isDarkBaseMap(baseMap: string): boolean {
     const normalizedBaseMap = baseMap.toLowerCase();
     return (
@@ -123,12 +275,113 @@ export class Visual implements IVisual {
     );
   }
 
+  private getVisibleGeometryTypes(): Set<RenderableGeometryType> {
+    return new Set(this.currentActiveGeometryTypes);
+  }
+
+  private isExtrudedPolygonLayerShown(): boolean {
+    return (
+      this.formattingSettings.polygon.extruded.value === true &&
+      this.dataset.layers.polygon.length > 0 &&
+      this.getVisibleGeometryTypes().has("polygon")
+    );
+  }
+
+  private getMapPitch(): number | null {
+    const pitch = this.map?.getPitch?.();
+    return typeof pitch === "number" && isFinite(pitch) ? pitch : null;
+  }
+
+  private isPitchClose(targetPitch: number): boolean {
+    const pitch = this.getMapPitch();
+    return pitch !== null && Math.abs(pitch - targetPitch) <= PITCH_EPSILON;
+  }
+
+  private shouldReturnToFlatPitch(): boolean {
+    return (
+      this.automaticPitchOwned && this.isPitchClose(EXTRUDED_POLYGON_PITCH)
+    );
+  }
+
+  private getTargetPitch(forceFlatWhenInactive = false): number | null {
+    if (this.isExtrudedPolygonLayerShown()) {
+      return EXTRUDED_POLYGON_PITCH;
+    }
+
+    if (forceFlatWhenInactive) {
+      return FLAT_MAP_PITCH;
+    }
+
+    if (
+      this.lastExtrudedPolygonLayerShown === true &&
+      this.shouldReturnToFlatPitch()
+    ) {
+      return FLAT_MAP_PITCH;
+    }
+
+    return null;
+  }
+
+  private getCameraOptionsForCurrentState(
+    duration: number,
+    forceFlatWhenInactive = false,
+  ): CameraAnimationOptions {
+    const options: CameraAnimationOptions = { duration };
+    const targetPitch = this.getTargetPitch(forceFlatWhenInactive);
+
+    if (targetPitch !== null) {
+      options.pitch = targetPitch;
+    }
+
+    return options;
+  }
+
+  private recordAutomaticPitchState(cameraOptions: CameraAnimationOptions) {
+    if (cameraOptions.pitch === EXTRUDED_POLYGON_PITCH) {
+      this.automaticPitchOwned = true;
+    } else if (cameraOptions.pitch === FLAT_MAP_PITCH) {
+      this.automaticPitchOwned = false;
+    }
+
+    this.lastExtrudedPolygonLayerShown = this.isExtrudedPolygonLayerShown();
+  }
+
+  private applyAutomaticPitch(): boolean {
+    if (!this.map) {
+      return false;
+    }
+
+    const extrudedPolygonLayerShown = this.isExtrudedPolygonLayerShown();
+    const previouslyShown = this.lastExtrudedPolygonLayerShown;
+    const duration = this.formattingSettings.map.flyToDuration.value;
+    let didUpdatePitch = false;
+
+    if (extrudedPolygonLayerShown && previouslyShown !== true) {
+      if (!this.isPitchClose(EXTRUDED_POLYGON_PITCH)) {
+        this.map.easeTo({ pitch: EXTRUDED_POLYGON_PITCH, duration });
+        didUpdatePitch = true;
+      }
+      this.automaticPitchOwned = didUpdatePitch;
+    } else if (!extrudedPolygonLayerShown && previouslyShown === true) {
+      if (this.shouldReturnToFlatPitch()) {
+        if (!this.isPitchClose(FLAT_MAP_PITCH)) {
+          this.map.easeTo({ pitch: FLAT_MAP_PITCH, duration });
+          didUpdatePitch = true;
+        }
+      }
+      this.automaticPitchOwned = false;
+    }
+
+    this.lastExtrudedPolygonLayerShown = extrudedPolygonLayerShown;
+    return didUpdatePitch;
+  }
+
   private resetViewToAllData() {
     if (!this.map) {
       return;
     }
 
-    this.handleFlyTo(this.formattingSettings.map);
+    this.handleFlyTo(this.formattingSettings.map, undefined, true);
     this.hasInitialViewBeenSet = true;
     this.suppressNextFlyTo = true;
     this.selectedIds.clear();
@@ -171,6 +424,11 @@ export class Visual implements IVisual {
     this.lastLegendSignature = null;
     this.lastDataSignature = null;
     this.dataVersionCounter = 0;
+    this.currentActiveGeometryTypes = new Set();
+    this.currentLayerDrawOrder = [...DEFAULT_LAYER_DRAW_ORDER];
+    this.layerOrderControl = null;
+    this.lastExtrudedPolygonLayerShown = null;
+    this.automaticPitchOwned = false;
     this.rootElement = options.element;
 
     const settings =
@@ -220,21 +478,32 @@ export class Visual implements IVisual {
           },
           pickingRadius: 5,
           getTooltip: (hoverInfo) => {
-            if (!hoverInfo.object || !hoverInfo.object.tooltipHtml) {
+            const tooltipHtml = getAggregatedTooltipHtml({
+              hoverInfo,
+              deckOverlay: this.deckOverlay,
+              drawOrder: this.currentLayerDrawOrder,
+              activeTypes: this.currentActiveGeometryTypes,
+              layerIds: this.getActiveLayerIds(),
+              radius: 5,
+              depth: 25,
+            });
+
+            if (!tooltipHtml) {
               return null;
             }
 
             return {
-              html: "<div>" + hoverInfo.object.tooltipHtml + "</div>",
+              html: tooltipHtml,
               style: {
                 "z-index": 2,
                 color: "#a0a7b4",
                 "background-color": "#29323c",
-                padding: "2px 5px",
-                "border-radius": "3px",
+                padding: "0px",
+                "border-radius": "4px",
                 margin: "0px",
                 "font-size": "12px",
                 "margin-left": "25px",
+                "max-width": "340px",
               },
             };
           },
@@ -242,6 +511,8 @@ export class Visual implements IVisual {
         this.map.addControl(this.deckOverlay);
         this.map.addControl(new NavigationControl());
         this.map.addControl(this.createResetViewControl(), "top-left");
+        this.layerOrderControl = this.createLayerOrderControl();
+        this.map.addControl(this.layerOrderControl, "bottom-right");
 
         const pendingOptions = this.pendingOptions;
         this.pendingOptions = null;
@@ -374,6 +645,7 @@ export class Visual implements IVisual {
 
   private resizeMap() {
     this.map?.resize?.();
+    this.updateOverlayLayout();
   }
 
   private updateBaseMap() {
@@ -383,6 +655,26 @@ export class Visual implements IVisual {
       this.map?.setStyle?.(this.getMapStyle(newBaseMap));
       this.currentBaseMap = newBaseMap;
     }
+  }
+
+  private updateOverlayLayout() {
+    const rootRect = this.rootElement.getBoundingClientRect();
+    if (rootRect.width <= 0 || rootRect.height <= 0) {
+      return;
+    }
+
+    const maxControlHeight = Math.max(
+      0,
+      rootRect.height - MAPLIBRE_CONTROL_MARGIN_PX * 2,
+    );
+    this.rootElement.style.setProperty(
+      "--deckgl-layer-order-control-max-height",
+      `${Math.floor(maxControlHeight)}px`,
+    );
+    this.rootElement.style.setProperty(
+      "--deckgl-layer-order-control-max-width",
+      `${Math.floor(Math.max(0, rootRect.width - MAPLIBRE_CONTROL_MARGIN_PX * 2))}px`,
+    );
   }
 
   private measureTask<T>(name: string, task: () => T): T {
@@ -447,10 +739,15 @@ export class Visual implements IVisual {
     this.lastDataSignature = null;
     this.lastLegendSignature = null;
     this.hasInitialViewBeenSet = false;
+    this.currentActiveGeometryTypes = new Set();
+    this.currentLayerDrawOrder = [...DEFAULT_LAYER_DRAW_ORDER];
     this.deckOverlay?.setProps({ layers: [] });
     if (this.legendContainer) {
       renderGradientLegend(this.legendContainer, []);
     }
+    this.renderLayerOrderControl();
+    this.updateOverlayLayout();
+    this.applyAutomaticPitch();
   }
 
   private processData(options: VisualUpdateOptions, dataView: powerbi.DataView) {
@@ -512,11 +809,16 @@ export class Visual implements IVisual {
   public handleFlyTo(
     settings: MapCardSettings,
     selectedIdsOverride?: Set<string>,
-  ) {
+    forceFlatPitchWhenInactive = false,
+  ): boolean {
     if (!this.map) {
-      return;
+      return false;
     }
 
+    const cameraOptions = this.getCameraOptionsForCurrentState(
+      settings.flyToDuration.value,
+      forceFlatPitchWhenInactive,
+    );
     const activeSelectedIds =
       selectedIdsOverride && selectedIdsOverride.size > 0
         ? selectedIdsOverride
@@ -538,7 +840,7 @@ export class Visual implements IVisual {
           [defaultMinLon, defaultMinLat],
           [defaultMaxLon, defaultMaxLat],
         ],
-        { duration: settings.flyToDuration.value },
+        cameraOptions,
       );
     } else {
       const ll500 = 500 * 1e-5;
@@ -552,29 +854,109 @@ export class Visual implements IVisual {
           [dataBounds.minLon - dLon, dataBounds.minLat - dLat],
           [dataBounds.maxLon + dLon, dataBounds.maxLat + dLat],
         ],
-        { duration: settings.flyToDuration.value },
+        cameraOptions,
       );
     }
+
+    this.recordAutomaticPitchState(cameraOptions);
+    return true;
   }
 
-  private applyFlyTo(dataView: powerbi.DataView) {
+  private applyFlyTo(dataView: powerbi.DataView): boolean {
     const suppressFlyTo = this.suppressNextFlyTo;
     this.suppressNextFlyTo = false;
     if (!this.formattingSettings.map.flyTo.value || suppressFlyTo) {
-      return;
+      return false;
     }
 
     const highlightedIds = new Set(this.dataset.dataHighlightedIds);
     if (highlightedIds.size > 0) {
-      this.handleFlyTo(this.formattingSettings.map, highlightedIds);
+      const didFlyTo = this.handleFlyTo(
+        this.formattingSettings.map,
+        highlightedIds,
+      );
       this.hasInitialViewBeenSet = true;
-      return;
+      return didFlyTo;
     }
 
     if (this.isDataFilterApplied(dataView) || !this.hasInitialViewBeenSet) {
-      this.handleFlyTo(this.formattingSettings.map);
+      const didFlyTo = this.handleFlyTo(this.formattingSettings.map);
       this.hasInitialViewBeenSet = true;
+      return didFlyTo;
     }
+
+    return false;
+  }
+
+  private getLayerDrawOrder(): RenderableGeometryType[] {
+    return parseLayerDrawOrder(
+      this.formattingSettings.layerControls.layerDrawOrder.value,
+    );
+  }
+
+  private getActiveLayerIds(): string[] {
+    return this.currentLayerDrawOrder
+      .filter((geometryType) => this.currentActiveGeometryTypes.has(geometryType))
+      .map((geometryType) => LAYER_IDS[geometryType]);
+  }
+
+  private renderLayerOrderControl() {
+    this.layerOrderControl?.render();
+  }
+
+  private persistLayerDrawOrder(layerDrawOrder: RenderableGeometryType[]) {
+    const serializedLayerDrawOrder = layerDrawOrder.join(",");
+    this.formattingSettings.layerControls.layerDrawOrder.value =
+      serializedLayerDrawOrder;
+    this.host.persistProperties({
+      merge: [
+        {
+          objectName: "layerControls",
+          selector: null,
+          properties: {
+            layerDrawOrder: serializedLayerDrawOrder,
+          },
+        },
+      ],
+    });
+  }
+
+  private moveLayerInDrawOrder(
+    geometryType: RenderableGeometryType,
+    direction: LayerOrderDirection,
+  ) {
+    const layerDrawOrder = this.getLayerDrawOrder();
+    const presentTypes = new Set(
+      this.getPresentGeometryTypesInDrawOrder(layerDrawOrder),
+    );
+    const currentIndex = layerDrawOrder.indexOf(geometryType);
+    const step = direction === "up" ? 1 : -1;
+    let swapIndex = currentIndex + step;
+
+    if (currentIndex < 0 || !presentTypes.has(geometryType)) {
+      return;
+    }
+
+    while (
+      swapIndex >= 0 &&
+      swapIndex < layerDrawOrder.length &&
+      !presentTypes.has(layerDrawOrder[swapIndex])
+    ) {
+      swapIndex += step;
+    }
+
+    if (swapIndex < 0 || swapIndex >= layerDrawOrder.length) {
+      return;
+    }
+
+    const nextLayerDrawOrder = [...layerDrawOrder];
+    [nextLayerDrawOrder[currentIndex], nextLayerDrawOrder[swapIndex]] = [
+      nextLayerDrawOrder[swapIndex],
+      nextLayerDrawOrder[currentIndex],
+    ];
+    this.currentLayerDrawOrder = nextLayerDrawOrder;
+    this.persistLayerDrawOrder(nextLayerDrawOrder);
+    this.renderCurrentState();
   }
 
   private renderLegend(dataView?: powerbi.DataView) {
@@ -609,65 +991,96 @@ export class Visual implements IVisual {
       const selectedSignature = this.getSetSignature(visualSelectedIds);
       const settings = this.formattingSettings;
       const layerData = this.dataset.layers;
-      const layers = [
-        getScatterLayer(
-          layerData.scatter,
-          settings.scatter,
-          settings.highlighting,
-          visualSelectedIds,
-          selectedSignature,
-          this.dataset.colorRoles,
-          this.classificationCache,
-          this.dataset.version,
-          this.onClick,
-        ),
-        getLineLayer(
-          layerData.line,
-          settings.line,
-          settings.highlighting,
-          visualSelectedIds,
-          selectedSignature,
-          this.dataset.colorRoles,
-          this.classificationCache,
-          this.dataset.version,
-          this.onClick,
-        ),
-        getArcLayer(
-          layerData.arc,
-          settings.arc,
-          settings.highlighting,
-          visualSelectedIds,
-          selectedSignature,
-          this.dataset.colorRoles,
-          this.classificationCache,
-          this.dataset.version,
-          this.onClick,
-        ),
-        getPathLayer(
-          layerData.path,
-          settings.path,
-          settings.highlighting,
-          visualSelectedIds,
-          selectedSignature,
-          this.dataset.colorRoles,
-          this.classificationCache,
-          this.dataset.version,
-          this.onClick,
-        ),
-        getPolygonLayer(
-          layerData.polygon,
-          settings.polygon,
-          settings.highlighting,
-          visualSelectedIds,
-          selectedSignature,
-          this.dataset.colorRoles,
-          this.classificationCache,
-          this.dataset.version,
-          this.onClick,
-        ),
-      ];
+      const layerDrawOrder = this.getLayerDrawOrder();
+      const activeGeometryTypes = new Set<RenderableGeometryType>();
+      const layers = [];
+
+      for (const geometryType of layerDrawOrder) {
+        if (layerData[geometryType].length === 0) {
+          continue;
+        }
+
+        activeGeometryTypes.add(geometryType);
+
+        if (geometryType === "scatter") {
+          layers.push(
+            getScatterLayer(
+              layerData.scatter,
+              settings.scatter,
+              settings.highlighting,
+              visualSelectedIds,
+              selectedSignature,
+              this.dataset.colorRoles,
+              this.classificationCache,
+              this.dataset.version,
+              this.onClick,
+            ),
+          );
+        } else if (geometryType === "line") {
+          layers.push(
+            getLineLayer(
+              layerData.line,
+              settings.line,
+              settings.highlighting,
+              visualSelectedIds,
+              selectedSignature,
+              this.dataset.colorRoles,
+              this.classificationCache,
+              this.dataset.version,
+              this.onClick,
+            ),
+          );
+        } else if (geometryType === "arc") {
+          layers.push(
+            getArcLayer(
+              layerData.arc,
+              settings.arc,
+              settings.highlighting,
+              visualSelectedIds,
+              selectedSignature,
+              this.dataset.colorRoles,
+              this.classificationCache,
+              this.dataset.version,
+              this.onClick,
+            ),
+          );
+        } else if (geometryType === "path") {
+          layers.push(
+            getPathLayer(
+              layerData.path,
+              settings.path,
+              settings.highlighting,
+              visualSelectedIds,
+              selectedSignature,
+              this.dataset.colorRoles,
+              this.classificationCache,
+              this.dataset.version,
+              this.onClick,
+            ),
+          );
+        } else if (geometryType === "polygon") {
+          layers.push(
+            getPolygonLayer(
+              layerData.polygon,
+              settings.polygon,
+              settings.highlighting,
+              visualSelectedIds,
+              selectedSignature,
+              this.dataset.colorRoles,
+              this.classificationCache,
+              this.dataset.version,
+              this.onClick,
+            ),
+          );
+        }
+      }
+
+      this.currentLayerDrawOrder = layerDrawOrder;
+      this.currentActiveGeometryTypes = activeGeometryTypes;
       this.deckOverlay.setProps({ layers });
+      this.renderLayerOrderControl();
       this.renderLegend(dataView);
+      this.updateOverlayLayout();
     });
   }
 
@@ -691,6 +1104,8 @@ export class Visual implements IVisual {
         );
     }
     this.updateBaseMap();
+    this.renderLayerOrderControl();
+    this.updateOverlayLayout();
 
     if (!dataView) {
       this.clearData();
@@ -705,8 +1120,11 @@ export class Visual implements IVisual {
     const parseData = this.shouldParseData(options, dataView);
     if (parseData) {
       this.processData(options, dataView);
-      this.applyFlyTo(dataView);
       this.renderCurrentState(dataView);
+      const didFlyTo = this.applyFlyTo(dataView);
+      if (!didFlyTo) {
+        this.applyAutomaticPitch();
+      }
       return;
     }
 
@@ -715,6 +1133,7 @@ export class Visual implements IVisual {
     }
 
     this.renderCurrentState(dataView);
+    this.applyAutomaticPitch();
   }
 
   public getFormattingModel(): powerbi.visuals.FormattingModel {
@@ -734,6 +1153,7 @@ export class Visual implements IVisual {
       // Best-effort cleanup; MapLibre will also release controls during remove().
     }
     this.deckOverlay = null;
+    this.layerOrderControl = null;
     try {
       this.map?.remove?.();
     } catch {

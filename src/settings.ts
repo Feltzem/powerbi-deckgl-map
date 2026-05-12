@@ -15,6 +15,7 @@ import {
   GradientPresetKey,
   gradientPresetItems,
 } from "./gradientPresets";
+import { DEFAULT_LAYER_DRAW_ORDER } from "./layerState";
 
 import FormattingSettingsCard = formattingSettings.SimpleCard;
 import FormattingSettingsSlice = formattingSettings.Slice;
@@ -893,6 +894,32 @@ export class MapCardSettings extends FormattingSettingsCard {
   ];
 }
 
+export class LayerControlsCardSettings extends FormattingSettingsCard {
+  showLayerOrderControl = new formattingSettings.ToggleSwitch({
+    name: "showLayerOrderControl",
+    displayName: "Show layer order control",
+    description: "Show the on-map control for changing geometry layer order",
+    value: false,
+  });
+
+  layerDrawOrder = new formattingSettings.TextInput({
+    name: "layerDrawOrder",
+    displayName: "Layer draw order (bottom to top)",
+    description:
+      "Comma-separated geometry types drawn from bottom to top. Valid values are scatter, line, arc, path, polygon.",
+    value: DEFAULT_LAYER_DRAW_ORDER.join(","),
+    placeholder: DEFAULT_LAYER_DRAW_ORDER.join(","),
+    visible: false,
+  });
+
+  name: string = "layerControls";
+  displayName: string = "Layer controls";
+  slices: Array<FormattingSettingsSlice> = [
+    this.showLayerOrderControl,
+    this.layerDrawOrder,
+  ];
+}
+
 export class ValidationPropertiesCardSettings extends FormattingSettingsCard {
   validateGeometries = new formattingSettings.ToggleSwitch({
     name: "validateGeometries",
@@ -912,12 +939,14 @@ export class VisualFormattingSettingsModel extends FormattingSettingsModel {
   line = new LineCardSettings();
   arc = new ArcCardSettings();
   map = new MapCardSettings();
+  layerControls = new LayerControlsCardSettings();
   path = new PathCardSettings();
   polygon = new PolygonCardSettings();
   highlighting = new HighlightingCardSettings();
   validation = new ValidationPropertiesCardSettings();
   cards = [
     this.map,
+    this.layerControls,
     this.validation,
     this.highlighting,
     this.scatter,

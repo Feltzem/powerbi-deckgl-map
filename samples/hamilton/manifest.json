@@ -1,0 +1,203 @@
+{
+  "generated_at_utc": "2026-05-12T05:09:35+00:00",
+  "demo_area": "Hamilton City",
+  "source_mode": "legacy_power_bi_exports",
+  "public_source_mode": "prepared_public_artifacts",
+  "source_note": "Small demo tables are derived from the generated full-NZ CSV tables and public ferry line sample.",
+  "geometry": {
+    "output_crs": "EPSG:4326",
+    "wkp_precision": 6,
+    "ferry_line_geometry_note": "Ferry route lines are exported as straight A-to-B endpoints from first and last ordered GTFS shape points."
+  },
+  "power_bi": {
+    "visual_row_window": 10000,
+    "field_mappings": [
+      {
+        "table": "nz_place_polygon",
+        "visual_layer": "polygon",
+        "geometry_id": "geometry_id",
+        "layer_type": "layer_type",
+        "wkp": "wkp",
+        "polygonFillColor": "polygon_fill_color_value or road_density_km_per_km2",
+        "polygonLineColor": "polygon_line_color_hex",
+        "polygonLineWidth": "polygon_line_width_m",
+        "polygonExtrudeElevation": "polygon_extrude_elevation_m",
+        "tooltipHtml": "tooltip_html",
+        "recommended_filter": "none; current full-NZ place rows fit under the visual window"
+      },
+      {
+        "table": "nz_road_path",
+        "visual_layer": "path",
+        "geometry_id": "geometry_id",
+        "layer_type": "layer_type",
+        "wkp": "wkp",
+        "pathColor": "path_color_value or path_color_hex; both are road-surface hex colors",
+        "pathWidth": "path_width_m",
+        "tooltipHtml": "tooltip_html",
+        "recommended_filter": "road_length_rank <= 10000"
+      },
+      {
+        "table": "nz_sa2_travel_to_work_od_2023_arc",
+        "visual_layer": "arc",
+        "geometry_id": "geometry_id",
+        "layer_type": "layer_type",
+        "point1Latitude": "point1_latitude",
+        "point1Longitude": "point1_longitude",
+        "point2Latitude": "point2_latitude",
+        "point2Longitude": "point2_longitude",
+        "arcLineWidth": "arc_line_width_m",
+        "arcSourceColor": "arc_source_color_value for numeric gradient, or arc_source_color_rgba for direct color/opacity",
+        "arcTargetColor": "arc_target_color_value for numeric gradient, or arc_target_color_rgba for direct color/opacity",
+        "tooltipHtml": "tooltip_html",
+        "recommended_filter": "arc_is_valid = TRUE and people_count_rank <= 10000"
+      },
+      {
+        "table": "nzta_traffic_count_site_point",
+        "visual_layer": "point",
+        "geometry_id": "geometry_id",
+        "layer_type": "layer_type",
+        "pointLatitude": "latitude",
+        "pointLongitude": "longitude",
+        "pointRadius": "point_radius_m",
+        "pointFillColor": "point_fill_color_hex for Magma by latest AADT, or point_fill_color_value for numeric gradient",
+        "pointLineColor": "point_line_color_hex for Magma by latest AADT, or point_line_color_value for numeric gradient",
+        "pointLineWidth": "point_line_width_m",
+        "tooltipHtml": "tooltip_html",
+        "recommended_filter": "none; current NZTA site rows fit under the visual window"
+      },
+      {
+        "table": "nz_ferry_route_line",
+        "visual_layer": "line",
+        "geometry_id": "geometry_id",
+        "layer_type": "layer_type",
+        "point1Latitude": "point1_latitude",
+        "point1Longitude": "point1_longitude",
+        "point2Latitude": "point2_latitude",
+        "point2Longitude": "point2_longitude",
+        "lineWidth": "line_width_m",
+        "lineColor": "line_color_value for numeric gradient, or line_color_hex for GTFS/provider colors",
+        "tooltipHtml": "tooltip_html",
+        "recommended_filter": "line_is_valid = TRUE"
+      },
+      {
+        "table": "nz_multigeometry_road_density_map",
+        "visual_layer": "polygon + path + point",
+        "geometry_id": "geometry_id",
+        "layer_type": "layer_type",
+        "wkp": "wkp for polygon and path rows",
+        "pointLatitude": "point1_latitude for point rows",
+        "pointLongitude": "point1_longitude for point rows",
+        "polygonFillColor": "road_density_km_per_km2 or polygon_fill_color_value",
+        "polygonLineColor": "polygon_line_color_hex",
+        "pathColor": "path_color_value or path_color_hex; both are road-surface hex colors",
+        "pathWidth": "path_width_m",
+        "pointRadius": "point_radius_m",
+        "pointFillColor": "point_fill_color_hex or point_fill_color_value",
+        "pointLineColor": "point_line_color_hex or point_line_color_value",
+        "tooltipHtml": "tooltip_html",
+        "recommended_filter": "already limited to fit the visual row window by keeping all areas and points, then the longest roads up to 10000 total rows"
+      }
+    ],
+    "recommended_filters": {
+      "hamilton_ferry_route_line": "line_is_valid = TRUE",
+      "hamilton_multigeometry_road_density_map": "none; current Hamilton rows fit under the visual window"
+    }
+  },
+  "row_counts": {
+    "hamilton_place_polygon": 33,
+    "hamilton_road_path": 2206,
+    "hamilton_sa2_travel_to_work_od_2023_arc": 2324,
+    "hamilton_nzta_traffic_count_site_point": 39,
+    "hamilton_ferry_route_line": 47,
+    "hamilton_multigeometry_road_density_map": 2278,
+    "hamilton_place_surface_density_fact": 132,
+    "hamilton_place_road_bridge": 1483,
+    "hamilton_road_surface_dimension": 4,
+    "hamilton_sa2_reference": 68
+  },
+  "output_files": [
+    {
+      "filename": "hamilton_place_polygon.csv",
+      "rows": 33,
+      "columns": 19,
+      "size_bytes": 22593
+    },
+    {
+      "filename": "hamilton_road_path.csv",
+      "rows": 2206,
+      "columns": 12,
+      "size_bytes": 666400
+    },
+    {
+      "filename": "hamilton_sa2_travel_to_work_od_2023_arc.csv",
+      "rows": 2324,
+      "columns": 44,
+      "size_bytes": 1752761
+    },
+    {
+      "filename": "hamilton_nzta_traffic_count_site_point.csv",
+      "rows": 39,
+      "columns": 32,
+      "size_bytes": 21419
+    },
+    {
+      "filename": "hamilton_ferry_route_line.csv",
+      "rows": 47,
+      "columns": 20,
+      "size_bytes": 21335
+    },
+    {
+      "filename": "hamilton_multigeometry_road_density_map.csv",
+      "rows": 2278,
+      "columns": 28,
+      "size_bytes": 801382
+    },
+    {
+      "filename": "hamilton_place_surface_density_fact.csv",
+      "rows": 132,
+      "columns": 5,
+      "size_bytes": 6625
+    },
+    {
+      "filename": "hamilton_place_road_bridge.csv",
+      "rows": 1483,
+      "columns": 6,
+      "size_bytes": 96125
+    },
+    {
+      "filename": "hamilton_road_surface_dimension.csv",
+      "rows": 4,
+      "columns": 2,
+      "size_bytes": 80
+    },
+    {
+      "filename": "hamilton_sa2_reference.csv",
+      "rows": 68,
+      "columns": 8,
+      "size_bytes": 7153
+    }
+  ],
+  "validation": {
+    "status": "passed",
+    "issues": []
+  },
+  "diagnostics": {
+    "demo_area": "Hamilton City",
+    "demo_area_filter": "nz_place_polygon[territorial_authority_name] = 'Hamilton City'",
+    "demo_boundary_note": "Hamilton demo boundary uses the Stats NZ Territorial Authority 2023 generalised Hamilton City polygon when the optional public boundary artifact is available; otherwise it falls back to the union of exported Hamilton place polygons.",
+    "demo_boundary_source": "statsnz_territorial_authority_2023_generalised",
+    "road_selection_method": "road_path.wkp intersects statsnz_territorial_authority_2023_generalised",
+    "ferry_line_note": "Ferry lines remain the official AT and Metlink A-to-B line sample so the Hamilton demo still covers the line geometry type.",
+    "map_bounds": {
+      "south": -37.8460389818785,
+      "west": 175.184300699849,
+      "north": -37.6993296485463,
+      "east": 175.344869683145
+    },
+    "hamilton_sa2_count": 68,
+    "hamilton_road_count": 2206,
+    "hamilton_road_count_from_place_bridge": 1341,
+    "hamilton_road_count_selected_by_boundary": 2206,
+    "hamilton_traffic_site_count": 39
+  }
+}

@@ -8,6 +8,7 @@ import {
 } from "../gradientClassification";
 import { resolveGradientPresetColors } from "../gradientPresets";
 import { HighlightingCardSettings, PolygonCardSettings } from "../settings";
+import { LAYER_IDS } from "../layerState";
 import {
   createLayerColorAccessor,
   getLayerColorUpdateTriggers,
@@ -94,7 +95,7 @@ export default function getPolygonLayer(
   });
 
   return new GeoJsonLayer({
-    id: `polygon-layer-base`,
+    id: LAYER_IDS.polygon,
     data,
     pickable: true,
     stroked: settings.stroked.value,

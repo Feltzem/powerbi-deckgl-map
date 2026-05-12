@@ -8,6 +8,7 @@ import {
 } from "../gradientClassification";
 import { resolveGradientPresetColors } from "../gradientPresets";
 import { HighlightingCardSettings, PathCardSettings } from "../settings";
+import { LAYER_IDS } from "../layerState";
 import {
   createLayerColorAccessor,
   getLayerColorUpdateTriggers,
@@ -65,7 +66,7 @@ export default function getPathLayer(
   });
 
   return new GeoJsonLayer({
-    id: `path-layer-base`,
+    id: LAYER_IDS.path,
     data,
     pickable: true,
     getLineWidth: (d) => {

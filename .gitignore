@@ -1,6 +1,7 @@
 node_modules/
 data_samples/
 dist/
+.tmp/benchmarks/
 .tmp/
 webpack*.html
 .ignore/

@@ -67,7 +67,7 @@
       "description": "The color of the scatter's lines in `#RGB`, `#RRGGBB`, `#RRGGBBAA`, `rgb(...)`, or `rgba(...)` format - or a numeric value to be mapped through the scatter line gradient settings"
     },
     {
-      "displayName": "Scatter fill (Hex)",
+      "displayName": "Scatter fill",
       "name": "scatterFillColor",
       "kind": "Measure",
       "description": "The fill color of the scatter in `#RGB`, `#RRGGBB`, `#RRGGBBAA`, `rgb(...)`, or `rgba(...)` format - or a numeric value to be mapped through the scatter fill gradient settings"
@@ -109,7 +109,7 @@
       "description": "The color of the polygon in `#RGB`, `#RRGGBB`, `#RRGGBBAA`, `rgb(...)`, or `rgba(...)` format - or a numeric value to be mapped through the polygon line gradient settings"
     },
     {
-      "displayName": "Polygon fill (Hex)",
+      "displayName": "Polygon fill",
       "name": "polygonFillColor",
       "kind": "Measure",
       "description": "The fill color of the polygon in `#RGB`, `#RRGGBB`, `#RRGGBBAA`, `rgb(...)`, or `rgba(...)` format - or a numeric value to be mapped through the polygon fill gradient settings"
@@ -188,6 +188,21 @@
         "flyToPadding": {
           "type": {
             "numeric": true
+          }
+        }
+      }
+    },
+    "layerControls": {
+      "displayName": "Layer controls",
+      "properties": {
+        "showLayerOrderControl": {
+          "type": {
+            "bool": true
+          }
+        },
+        "layerDrawOrder": {
+          "type": {
+            "text": true
           }
         }
       }

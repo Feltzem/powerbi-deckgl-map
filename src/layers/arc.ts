@@ -8,6 +8,7 @@ import {
 } from "../gradientClassification";
 import { resolveGradientPresetColors } from "../gradientPresets";
 import { ArcCardSettings, HighlightingCardSettings } from "../settings";
+import { LAYER_IDS } from "../layerState";
 import {
   createLayerColorAccessor,
   getLayerColorUpdateTriggers,
@@ -94,7 +95,7 @@ export default function getArcLayer(
   });
 
   return new ArcLayer<OurData>({
-    id: `arc-layer-base`,
+    id: LAYER_IDS.arc,
     data: data,
     pickable: true,
     getSourcePosition: (d) => [d.arcData!.point1.lon, d.arcData!.point1.lat],
