@@ -1,5 +1,6 @@
 import type { PickingInfo } from "@deck.gl/core";
 import {
+  GEOMETRY_TYPE_LABELS,
   getGeometryTypeForLayerId,
   isRenderableGeometryType,
   RenderableGeometryType,
@@ -50,6 +51,33 @@ const escapeAttributeValue = (value: string): string =>
     .replace(/"/g, "&quot;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+
+const getGeometryIconPaths = (geometryType: RenderableGeometryType): string => {
+  switch (geometryType) {
+    case "scatter":
+      return '<circle cx="10" cy="10" r="5.5" />';
+    case "line":
+      return '<line x1="4" y1="15" x2="16" y2="5" />';
+    case "arc":
+      return '<path d="M3.5 15.5 C6.5 4.5 13.5 4.5 16.5 15.5" />';
+    case "path":
+      return '<polyline points="3.5 14.5 7.5 7.5 11.5 12.5 16.5 5.5" />';
+    case "polygon":
+      return '<polygon points="10 3.5 16 7.5 14 15.5 6 15.5 4 7.5" />';
+  }
+};
+
+const getGeometryIconHtml = (geometryType: RenderableGeometryType): string => {
+  const label = GEOMETRY_TYPE_LABELS[geometryType];
+
+  return [
+    `<svg class="deckgl-multi-tooltip__geometry-icon deckgl-multi-tooltip__geometry-icon--${geometryType}"`,
+    `viewBox="0 0 20 20" role="img" aria-label="${label} geometry">`,
+    `<title>${label} geometry</title>`,
+    getGeometryIconPaths(geometryType),
+    "</svg>",
+  ].join("");
+};
 
 const getTooltipObject = (info: PickingInfo): TooltipObject | null =>
   info.object && typeof info.object === "object"
@@ -197,7 +225,7 @@ const buildTooltipHtml = (entries: TooltipEntry[]): string | null => {
 
   const sections = entries.map(
     (entry) =>
-      `<section class="deckgl-multi-tooltip__section" data-geometry-type="${entry.geometryType}" data-geometry-id="${escapeAttributeValue(entry.id)}">${entry.html}</section>`,
+      `<section class="deckgl-multi-tooltip__section" data-geometry-type="${entry.geometryType}" data-geometry-id="${escapeAttributeValue(entry.id)}">${getGeometryIconHtml(entry.geometryType)}${entry.html}</section>`,
   );
 
   return `<div class="deckgl-multi-tooltip">${sections.join("")}</div>`;

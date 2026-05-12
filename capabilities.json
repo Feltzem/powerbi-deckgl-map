@@ -207,6 +207,59 @@
         }
       }
     },
+    "legendProps": {
+      "displayName": "Legend",
+      "properties": {
+        "showLegend": {
+          "type": {
+            "bool": true
+          }
+        },
+        "legendOpacity": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "showClassificationType": {
+          "type": {
+            "bool": true
+          }
+        },
+        "showScale": {
+          "type": {
+            "bool": true
+          }
+        },
+        "headingFontFamily": {
+          "type": {
+            "formatting": {
+              "fontFamily": true
+            }
+          }
+        },
+        "headingFontSize": {
+          "type": {
+            "formatting": {
+              "fontSize": true
+            }
+          }
+        },
+        "valueFontFamily": {
+          "type": {
+            "formatting": {
+              "fontFamily": true
+            }
+          }
+        },
+        "valueFontSize": {
+          "type": {
+            "formatting": {
+              "fontSize": true
+            }
+          }
+        }
+      }
+    },
     "highlightingProps": {
       "displayName": "Highlighting",
       "properties": {

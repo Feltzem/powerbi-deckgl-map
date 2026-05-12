@@ -21,6 +21,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { createDatasetSnapshot } from "./mapper";
 import { getDataBoundingBox } from "./geom";
 import {
+  GradientLegendRenderOptions,
   getGradientLegendSignature,
   getGradientLegendSpecs,
   renderGradientLegend,
@@ -67,7 +68,7 @@ const createEmptyDatasetSnapshot = (version = "0"): DatasetSnapshot => ({
   version,
 });
 
-const EXTRUDED_POLYGON_PITCH = 45;
+const AUTO_3D_PITCH = 45;
 const FLAT_MAP_PITCH = 0;
 const PITCH_EPSILON = 0.5;
 const MAPLIBRE_CONTROL_MARGIN_PX = 10;
@@ -110,7 +111,7 @@ export class Visual implements IVisual {
   private currentActiveGeometryTypes: Set<RenderableGeometryType>;
   private currentLayerDrawOrder: RenderableGeometryType[];
   private layerOrderControl: LayerOrderControl | null;
-  private lastExtrudedPolygonLayerShown: boolean | null;
+  private lastPerspectiveLayerShown: boolean | null;
   private automaticPitchOwned: boolean;
 
   private createResetViewControl() {
@@ -279,12 +280,34 @@ export class Visual implements IVisual {
     return new Set(this.currentActiveGeometryTypes);
   }
 
-  private isExtrudedPolygonLayerShown(): boolean {
-    return (
+  private hasRenderableArcData(): boolean {
+    return this.dataset.layers.arc.some((dataPoint) => {
+      const point1 = dataPoint.arcData?.point1;
+      const point2 = dataPoint.arcData?.point2;
+
+      return [point1, point2].every(
+        (point) =>
+          point &&
+          Number.isFinite(point.lat) &&
+          point.lat >= -90 &&
+          point.lat <= 90 &&
+          Number.isFinite(point.lon) &&
+          point.lon >= -180 &&
+          point.lon <= 180,
+      );
+    });
+  }
+
+  private isPerspectiveLayerShown(): boolean {
+    const visibleGeometryTypes = this.getVisibleGeometryTypes();
+    const extrudedPolygonLayerShown =
       this.formattingSettings.polygon.extruded.value === true &&
       this.dataset.layers.polygon.length > 0 &&
-      this.getVisibleGeometryTypes().has("polygon")
-    );
+      visibleGeometryTypes.has("polygon");
+    const arcLayerShown =
+      visibleGeometryTypes.has("arc") && this.hasRenderableArcData();
+
+    return extrudedPolygonLayerShown || arcLayerShown;
   }
 
   private getMapPitch(): number | null {
@@ -298,14 +321,12 @@ export class Visual implements IVisual {
   }
 
   private shouldReturnToFlatPitch(): boolean {
-    return (
-      this.automaticPitchOwned && this.isPitchClose(EXTRUDED_POLYGON_PITCH)
-    );
+    return this.automaticPitchOwned && this.isPitchClose(AUTO_3D_PITCH);
   }
 
   private getTargetPitch(forceFlatWhenInactive = false): number | null {
-    if (this.isExtrudedPolygonLayerShown()) {
-      return EXTRUDED_POLYGON_PITCH;
+    if (this.isPerspectiveLayerShown()) {
+      return AUTO_3D_PITCH;
     }
 
     if (forceFlatWhenInactive) {
@@ -313,7 +334,7 @@ export class Visual implements IVisual {
     }
 
     if (
-      this.lastExtrudedPolygonLayerShown === true &&
+      this.lastPerspectiveLayerShown === true &&
       this.shouldReturnToFlatPitch()
     ) {
       return FLAT_MAP_PITCH;
@@ -337,13 +358,13 @@ export class Visual implements IVisual {
   }
 
   private recordAutomaticPitchState(cameraOptions: CameraAnimationOptions) {
-    if (cameraOptions.pitch === EXTRUDED_POLYGON_PITCH) {
+    if (cameraOptions.pitch === AUTO_3D_PITCH) {
       this.automaticPitchOwned = true;
     } else if (cameraOptions.pitch === FLAT_MAP_PITCH) {
       this.automaticPitchOwned = false;
     }
 
-    this.lastExtrudedPolygonLayerShown = this.isExtrudedPolygonLayerShown();
+    this.lastPerspectiveLayerShown = this.isPerspectiveLayerShown();
   }
 
   private applyAutomaticPitch(): boolean {
@@ -351,18 +372,18 @@ export class Visual implements IVisual {
       return false;
     }
 
-    const extrudedPolygonLayerShown = this.isExtrudedPolygonLayerShown();
-    const previouslyShown = this.lastExtrudedPolygonLayerShown;
+    const perspectiveLayerShown = this.isPerspectiveLayerShown();
+    const previouslyShown = this.lastPerspectiveLayerShown;
     const duration = this.formattingSettings.map.flyToDuration.value;
     let didUpdatePitch = false;
 
-    if (extrudedPolygonLayerShown && previouslyShown !== true) {
-      if (!this.isPitchClose(EXTRUDED_POLYGON_PITCH)) {
-        this.map.easeTo({ pitch: EXTRUDED_POLYGON_PITCH, duration });
+    if (perspectiveLayerShown && previouslyShown !== true) {
+      if (!this.isPitchClose(AUTO_3D_PITCH)) {
+        this.map.easeTo({ pitch: AUTO_3D_PITCH, duration });
         didUpdatePitch = true;
       }
       this.automaticPitchOwned = didUpdatePitch;
-    } else if (!extrudedPolygonLayerShown && previouslyShown === true) {
+    } else if (!perspectiveLayerShown && previouslyShown === true) {
       if (this.shouldReturnToFlatPitch()) {
         if (!this.isPitchClose(FLAT_MAP_PITCH)) {
           this.map.easeTo({ pitch: FLAT_MAP_PITCH, duration });
@@ -372,7 +393,7 @@ export class Visual implements IVisual {
       this.automaticPitchOwned = false;
     }
 
-    this.lastExtrudedPolygonLayerShown = extrudedPolygonLayerShown;
+    this.lastPerspectiveLayerShown = perspectiveLayerShown;
     return didUpdatePitch;
   }
 
@@ -427,7 +448,7 @@ export class Visual implements IVisual {
     this.currentActiveGeometryTypes = new Set();
     this.currentLayerDrawOrder = [...DEFAULT_LAYER_DRAW_ORDER];
     this.layerOrderControl = null;
-    this.lastExtrudedPolygonLayerShown = null;
+    this.lastPerspectiveLayerShown = null;
     this.automaticPitchOwned = false;
     this.rootElement = options.element;
 
@@ -743,7 +764,11 @@ export class Visual implements IVisual {
     this.currentLayerDrawOrder = [...DEFAULT_LAYER_DRAW_ORDER];
     this.deckOverlay?.setProps({ layers: [] });
     if (this.legendContainer) {
-      renderGradientLegend(this.legendContainer, []);
+      renderGradientLegend(
+        this.legendContainer,
+        [],
+        this.getGradientLegendRenderOptions(),
+      );
     }
     this.renderLayerOrderControl();
     this.updateOverlayLayout();
@@ -959,8 +984,37 @@ export class Visual implements IVisual {
     this.renderCurrentState();
   }
 
+  private getGradientLegendRenderOptions(): GradientLegendRenderOptions {
+    const legendSettings = this.formattingSettings.legend;
+
+    return {
+      showLegend: legendSettings.showLegend.value === true,
+      legendOpacity: legendSettings.legendOpacity.value,
+      showClassificationType:
+        legendSettings.showClassificationType.value === true,
+      showScale: legendSettings.showScale.value === true,
+      headingFontFamily:
+        legendSettings.headingFont.fontFamily.value || "Segoe UI",
+      headingFontSize: legendSettings.headingFont.fontSize.value,
+      valueFontFamily: legendSettings.valueFont.fontFamily.value || "Segoe UI",
+      valueFontSize: legendSettings.valueFont.fontSize.value,
+    };
+  }
+
   private renderLegend(dataView?: powerbi.DataView) {
     if (!this.legendContainer) {
+      return;
+    }
+
+    const renderOptions = this.getGradientLegendRenderOptions();
+    if (!renderOptions.showLegend) {
+      const signature = getGradientLegendSignature([], renderOptions);
+      if (signature === this.lastLegendSignature) {
+        return;
+      }
+
+      renderGradientLegend(this.legendContainer, [], renderOptions);
+      this.lastLegendSignature = signature;
       return;
     }
 
@@ -972,12 +1026,12 @@ export class Visual implements IVisual {
       this.dataset.version,
       this.dataset.colorRoles,
     );
-    const signature = getGradientLegendSignature(specs);
+    const signature = getGradientLegendSignature(specs, renderOptions);
     if (signature === this.lastLegendSignature) {
       return;
     }
 
-    renderGradientLegend(this.legendContainer, specs);
+    renderGradientLegend(this.legendContainer, specs, renderOptions);
     this.lastLegendSignature = signature;
   }
 

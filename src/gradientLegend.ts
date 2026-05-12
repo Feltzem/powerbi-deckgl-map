@@ -52,8 +52,102 @@ export interface GradientLegendSpec {
   gradientCss: string;
 }
 
+export interface GradientLegendRenderOptions {
+  showLegend: boolean;
+  legendOpacity: number;
+  showClassificationType: boolean;
+  showScale: boolean;
+  headingFontFamily: string;
+  headingFontSize: number;
+  valueFontFamily: string;
+  valueFontSize: number;
+}
+
+const defaultGradientLegendRenderOptions: GradientLegendRenderOptions = {
+  showLegend: true,
+  legendOpacity: 94,
+  showClassificationType: true,
+  showScale: true,
+  headingFontFamily: "Segoe UI",
+  headingFontSize: 10,
+  valueFontFamily: "Segoe UI",
+  valueFontSize: 9,
+};
+
 const rgbaToCss = (color: RGBAColor): string =>
   `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${(color[3] / 255).toFixed(3)})`;
+
+const clampNumber = (
+  value: number,
+  fallback: number,
+  minValue: number,
+  maxValue: number,
+): number => {
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+
+  return Math.max(minValue, Math.min(maxValue, value));
+};
+
+const resolveGradientLegendRenderOptions = (
+  options?: Partial<GradientLegendRenderOptions>,
+): GradientLegendRenderOptions => ({
+  ...defaultGradientLegendRenderOptions,
+  ...options,
+});
+
+const getFontFamily = (
+  fontFamily: string | null | undefined,
+  fallback: string,
+): string => {
+  const normalized = (fontFamily ?? "").trim();
+  return normalized.length > 0 ? normalized : fallback;
+};
+
+const getFontSizeCss = (fontSize: number, fallback: number): string =>
+  `${clampNumber(fontSize, fallback, 1, 60)}pt`;
+
+const getLegendOpacityCss = (legendOpacity: number): string =>
+  (clampNumber(legendOpacity, 94, 0, 100) / 100).toFixed(3);
+
+const applyLegendCssVariables = (
+  container: HTMLDivElement,
+  options: GradientLegendRenderOptions,
+) => {
+  container.style.setProperty(
+    "--deckgl-legend-heading-font-family",
+    getFontFamily(
+      options.headingFontFamily,
+      defaultGradientLegendRenderOptions.headingFontFamily,
+    ),
+  );
+  container.style.setProperty(
+    "--deckgl-legend-heading-font-size",
+    getFontSizeCss(
+      options.headingFontSize,
+      defaultGradientLegendRenderOptions.headingFontSize,
+    ),
+  );
+  container.style.setProperty(
+    "--deckgl-legend-value-font-family",
+    getFontFamily(
+      options.valueFontFamily,
+      defaultGradientLegendRenderOptions.valueFontFamily,
+    ),
+  );
+  container.style.setProperty(
+    "--deckgl-legend-value-font-size",
+    getFontSizeCss(
+      options.valueFontSize,
+      defaultGradientLegendRenderOptions.valueFontSize,
+    ),
+  );
+  container.style.setProperty(
+    "--deckgl-legend-background-opacity",
+    getLegendOpacityCss(options.legendOpacity),
+  );
+};
 
 const getLegendGradient = (
   settings: NumericGradientSettings,
@@ -474,8 +568,9 @@ const createLegendClassRow = (
 
 export const getGradientLegendSignature = (
   specs: GradientLegendSpec[],
-): string =>
-  specs
+  options?: Partial<GradientLegendRenderOptions>,
+): string => {
+  const specsSignature = specs
     .map(
       (spec) =>
         `${spec.key}:${spec.title}:${spec.subtitle}:${spec.gradientCss}:${spec.classes
@@ -487,17 +582,53 @@ export const getGradientLegendSignature = (
     )
     .join("|");
 
+  if (!options) {
+    return specsSignature;
+  }
+
+  const resolvedOptions = resolveGradientLegendRenderOptions(options);
+  const optionsSignature = [
+    resolvedOptions.showLegend ? "legend-on" : "legend-off",
+    getLegendOpacityCss(resolvedOptions.legendOpacity),
+    resolvedOptions.showClassificationType ? "type-on" : "type-off",
+    resolvedOptions.showScale ? "scale-on" : "scale-off",
+    getFontFamily(
+      resolvedOptions.headingFontFamily,
+      defaultGradientLegendRenderOptions.headingFontFamily,
+    ),
+    getFontSizeCss(
+      resolvedOptions.headingFontSize,
+      defaultGradientLegendRenderOptions.headingFontSize,
+    ),
+    getFontFamily(
+      resolvedOptions.valueFontFamily,
+      defaultGradientLegendRenderOptions.valueFontFamily,
+    ),
+    getFontSizeCss(
+      resolvedOptions.valueFontSize,
+      defaultGradientLegendRenderOptions.valueFontSize,
+    ),
+  ].join(":");
+
+  return `${optionsSignature}||${specsSignature}`;
+};
+
 export const renderGradientLegend = (
   container: HTMLDivElement,
   specs: GradientLegendSpec[],
+  options?: Partial<GradientLegendRenderOptions>,
 ) => {
+  const resolvedOptions = resolveGradientLegendRenderOptions(options);
+  applyLegendCssVariables(container, resolvedOptions);
+
   container.replaceChildren();
+  const hidden = !resolvedOptions.showLegend || specs.length === 0;
   container.classList.toggle(
     "deckgl-gradient-legend--hidden",
-    specs.length === 0,
+    hidden,
   );
 
-  if (specs.length === 0) {
+  if (hidden) {
     return;
   }
 
@@ -514,15 +645,19 @@ export const renderGradientLegend = (
     title.textContent = spec.title;
     item.appendChild(title);
 
-    const subtitle = document.createElement("div");
-    subtitle.className = "deckgl-gradient-legend__item-subtitle";
-    subtitle.textContent = spec.subtitle;
-    item.appendChild(subtitle);
+    if (resolvedOptions.showClassificationType) {
+      const subtitle = document.createElement("div");
+      subtitle.className = "deckgl-gradient-legend__item-subtitle";
+      subtitle.textContent = spec.subtitle;
+      item.appendChild(subtitle);
+    }
 
-    const bar = document.createElement("div");
-    bar.className = "deckgl-gradient-legend__bar";
-    bar.style.backgroundImage = spec.gradientCss;
-    item.appendChild(bar);
+    if (resolvedOptions.showScale) {
+      const bar = document.createElement("div");
+      bar.className = "deckgl-gradient-legend__bar";
+      bar.style.backgroundImage = spec.gradientCss;
+      item.appendChild(bar);
+    }
 
     const classes = document.createElement("div");
     classes.className = "deckgl-gradient-legend__classes";

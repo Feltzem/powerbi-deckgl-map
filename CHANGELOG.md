@@ -1,12 +1,24 @@
 # Changelog
 
+## 1.6.1.0 - 2026-05-13
+
+### Added
+
+- Added compact geometry-type icons to each tooltip section for scatter, line, arc, path, and polygon features.
+- Added a `Legend` Format pane card for numeric gradient legends, including show/hide, panel opacity, classification label visibility, color scale visibility, and heading/value font controls.
+
+### Changed
+
+- Updated release metadata to version `1.6.1.0`.
+- Documented tooltip geometry icons, legend settings, and included `package-lock.json` in the release version checklist.
+
 ## 1.6.0.0 - 2026-05-12
 
 ### Added
 
 - Added an optional on-map layer order control under `Layer controls` > `Show layer order control`; it is off by default and persists layer draw order with the report.
 - Added multi-layer tooltip ordering and picking support so tooltip results follow the current visual layer stacking.
-- Added automatic 45 degree camera pitch when extruded polygons are enabled, present, and visible.
+- Added automatic 45 degree camera pitch when extruded polygons or valid arcs are currently rendered.
 
 ### Changed
 
@@ -17,6 +29,6 @@
 
 ### Fixed
 
-- Reset view and fly-to now respect the active polygon extrusion pitch state.
+- Reset view and fly-to now respect the active 3D pitch state.
 - Gradient legends now keep their natural height and only become scrollable when the legend stack is too tall for the visual.
 - Legacy or invalid stored layer draw-order values continue to be sanitized before rendering.

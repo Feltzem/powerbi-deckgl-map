@@ -1,4 +1,4 @@
-.deckgl-reset-view-button {
+.maplibregl-ctrl .deckgl-reset-view-button {
   width: 29px;
   height: 29px;
   display: flex;
@@ -12,9 +12,10 @@
   cursor: pointer;
 }
 
-.deckgl-reset-view-button::before {
+.maplibregl-ctrl .deckgl-reset-view-button::before {
   content: "";
   display: block;
+  flex: 0 0 auto;
   width: 18px;
   height: 18px;
   background-color: currentcolor;
@@ -127,6 +128,11 @@
   left: 12px;
   bottom: 12px;
   z-index: 2;
+  --deckgl-legend-heading-font-family: "Segoe UI";
+  --deckgl-legend-heading-font-size: 10pt;
+  --deckgl-legend-value-font-family: "Segoe UI";
+  --deckgl-legend-value-font-size: 9pt;
+  --deckgl-legend-background-opacity: 0.94;
   max-width: min(320px, calc(100% - 24px));
   max-height: calc(100% - 24px);
   overflow-y: auto;
@@ -145,11 +151,37 @@
 }
 
 .deckgl-multi-tooltip__section {
-  padding: 6px 8px;
+  position: relative;
+  min-height: 20px;
+  padding: 6px 28px 6px 8px;
 }
 
 .deckgl-multi-tooltip__section + .deckgl-multi-tooltip__section {
   border-top: 1px solid rgba(219, 230, 239, 0.2);
+}
+
+.deckgl-multi-tooltip__geometry-icon {
+  position: absolute;
+  top: 7px;
+  right: 8px;
+  width: 14px;
+  height: 14px;
+  color: #dbe6ef;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.82;
+  pointer-events: none;
+}
+
+.deckgl-multi-tooltip__geometry-icon--scatter {
+  fill: rgba(219, 230, 239, 0.18);
+}
+
+.deckgl-multi-tooltip__geometry-icon--polygon {
+  fill: rgba(219, 230, 239, 0.14);
 }
 
 .deckgl-multi-tooltip :where(div, span, strong, p, table) {
@@ -163,14 +195,15 @@
   padding: 12px;
   border: 1px solid rgba(34, 49, 63, 0.14);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.94);
+  background: rgba(255, 255, 255, var(--deckgl-legend-background-opacity, 0.94));
   box-shadow: 0 12px 32px rgba(20, 31, 43, 0.18);
   backdrop-filter: blur(8px);
   color: #243341;
 }
 
 .deckgl-gradient-legend__heading {
-  font-size: 12px;
+  font-family: var(--deckgl-legend-heading-font-family, "Segoe UI");
+  font-size: var(--deckgl-legend-heading-font-size, 10pt);
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -189,7 +222,8 @@
 }
 
 .deckgl-gradient-legend__item-title {
-  font-size: 13px;
+  font-family: var(--deckgl-legend-heading-font-family, "Segoe UI");
+  font-size: var(--deckgl-legend-heading-font-size, 10pt);
   font-weight: 600;
   color: #243341;
 }
@@ -227,14 +261,15 @@
 }
 
 .deckgl-gradient-legend__class-label {
-  font-size: 12px;
+  font-family: var(--deckgl-legend-value-font-family, "Segoe UI");
+  font-size: var(--deckgl-legend-value-font-size, 9pt);
   font-variant-numeric: tabular-nums;
   color: #243341;
 }
 
 .deckgl-map-visual--dark-basemap .deckgl-gradient-legend__panel {
   border-color: rgba(151, 174, 195, 0.22);
-  background: rgba(15, 23, 31, 0.92);
+  background: rgba(15, 23, 31, var(--deckgl-legend-background-opacity, 0.92));
   box-shadow:
     0 14px 36px rgba(0, 0, 0, 0.34),
     0 0 0 1px rgba(255, 255, 255, 0.04);

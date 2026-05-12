@@ -920,6 +920,109 @@ export class LayerControlsCardSettings extends FormattingSettingsCard {
   ];
 }
 
+export class LegendCardSettings extends FormattingSettingsCard {
+  showLegend = new formattingSettings.ToggleSwitch({
+    name: "showLegend",
+    displayName: "Show legend",
+    description: "Show numeric color gradient legends on the map",
+    value: true,
+  });
+
+  legendOpacity = new formattingSettings.Slider({
+    name: "legendOpacity",
+    displayName: "Legend opacity",
+    description: "Background opacity for the legend panel",
+    value: 94,
+    options: {
+      minValue: {
+        type: powerbi.visuals.ValidatorType.Min,
+        value: 0,
+      },
+      maxValue: {
+        type: powerbi.visuals.ValidatorType.Max,
+        value: 100,
+      },
+    },
+  });
+
+  showClassificationType = new formattingSettings.ToggleSwitch({
+    name: "showClassificationType",
+    displayName: "Show classification type",
+    description: "Show the classification method under each legend title",
+    value: true,
+  });
+
+  showScale = new formattingSettings.ToggleSwitch({
+    name: "showScale",
+    displayName: "Show color scale",
+    description: "Show the color scale bar for each legend item",
+    value: true,
+  });
+
+  headingFont = new formattingSettings.FontControl({
+    name: "headingFont",
+    displayName: "Heading font",
+    description: "Font used for legend headings and item titles",
+    fontFamily: new formattingSettings.FontPicker({
+      name: "headingFontFamily",
+      displayName: "Heading font family",
+      value: "Segoe UI",
+    }),
+    fontSize: new formattingSettings.NumUpDown({
+      name: "headingFontSize",
+      displayName: "Heading font size",
+      value: 10,
+      options: {
+        minValue: {
+          type: powerbi.visuals.ValidatorType.Min,
+          value: 1,
+        },
+        maxValue: {
+          type: powerbi.visuals.ValidatorType.Max,
+          value: 60,
+        },
+      },
+    }),
+  });
+
+  valueFont = new formattingSettings.FontControl({
+    name: "valueFont",
+    displayName: "Value font",
+    description: "Font used for legend class labels",
+    fontFamily: new formattingSettings.FontPicker({
+      name: "valueFontFamily",
+      displayName: "Value font family",
+      value: "Segoe UI",
+    }),
+    fontSize: new formattingSettings.NumUpDown({
+      name: "valueFontSize",
+      displayName: "Value font size",
+      value: 9,
+      options: {
+        minValue: {
+          type: powerbi.visuals.ValidatorType.Min,
+          value: 1,
+        },
+        maxValue: {
+          type: powerbi.visuals.ValidatorType.Max,
+          value: 60,
+        },
+      },
+    }),
+  });
+
+  name: string = "legendProps";
+  displayName: string = "Legend";
+  topLevelSlice = this.showLegend;
+  slices: Array<FormattingSettingsSlice> = [
+    this.legendOpacity,
+    this.showClassificationType,
+    this.showScale,
+    this.headingFont,
+    this.valueFont,
+  ];
+}
+
 export class ValidationPropertiesCardSettings extends FormattingSettingsCard {
   validateGeometries = new formattingSettings.ToggleSwitch({
     name: "validateGeometries",
@@ -940,6 +1043,7 @@ export class VisualFormattingSettingsModel extends FormattingSettingsModel {
   arc = new ArcCardSettings();
   map = new MapCardSettings();
   layerControls = new LayerControlsCardSettings();
+  legend = new LegendCardSettings();
   path = new PathCardSettings();
   polygon = new PolygonCardSettings();
   highlighting = new HighlightingCardSettings();
@@ -947,6 +1051,7 @@ export class VisualFormattingSettingsModel extends FormattingSettingsModel {
   cards = [
     this.map,
     this.layerControls,
+    this.legend,
     this.validation,
     this.highlighting,
     this.scatter,
