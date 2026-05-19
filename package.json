@@ -18,7 +18,7 @@
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "typecheck:all": "tsc -p tsconfig.eslint.json --noEmit",
-    "test": "node --import tsx --test \"tests/**/*.test.ts\"",
+    "test": "tsx --test \"tests/**/*.test.ts\"",
     "check:version": "node scripts/check-version.cjs",
     "check": "npm run lint && npm run typecheck && npm run typecheck:all && npm test && npm run check:version",
     "bench": "node --expose-gc --import tsx scripts/benchmarks/run.ts",
@@ -50,4 +50,3 @@
     }
   }
 }
-

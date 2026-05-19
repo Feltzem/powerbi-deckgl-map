@@ -11,9 +11,11 @@ High-performance Power BI custom visual using [deck.gl](https://deck.gl/) and Ma
 
 - Download the latest Hamilton demo `.pbix` from <https://github.com/Feltzem/powerbi-deckgl-map/releases>.
 - Use the tracked sample CSVs in [`samples/hamilton`](samples/hamilton) if you want to rebuild or inspect the demo data.
-- Follow [`docs/demo-dashboard-publishing-guide.md`](docs/demo-dashboard-publishing-guide.md) when refreshing the demo dashboard or publishing a new release.
+- Use [`notebooks/nz_data_for_visual.ipynb`](notebooks/nz_data_for_visual.ipynb) to regenerate the full New Zealand CSV bundle when you want a nationwide demo dataset instead of the Hamilton sample.
 
-The demo dashboard is intentionally Hamilton-sized so it opens quickly and stays below Power BI visual row-window limits, while still showing points, lines, arcs, paths, polygons, a combined multi-geometry map, WKP geometry, numeric gradients, and dynamic hex colour measures. Full New Zealand demo exports are generated from the City Transportation notebook and are not committed to this repo.
+The demo dashboard is intentionally Hamilton-sized so it opens quickly and stays below Power BI visual row-window limits, while still showing points, lines, arcs, paths, polygons, a combined multi-geometry map, WKP geometry, numeric gradients, and dynamic hex colour measures. The Hamilton sample remains the tracked default dataset, while the full New Zealand exports can be regenerated from [`notebooks/nz_data_for_visual.ipynb`](notebooks/nz_data_for_visual.ipynb).
+
+![Demo dashboard screenshot](assets/screenshot.jpg)
 
 ## Current Capabilities
 
@@ -78,7 +80,7 @@ Secondly, you can filter the selected shapes by click. This is two way:
 
 ## Future Ideas
 
-Potential future enhancements include Z-coordinate support for path and polygon geometry, screenshots in the README, satellite basemaps, Power BI standard highlight integration, and additional deck.gl layers such as column, heatmap, or hexagon layers.
+Potential future enhancements include Z-coordinate support for path and polygon geometry, satellite basemaps, Power BI standard highlight integration, and additional deck.gl layers such as column, heatmap, or hexagon layers.
 
 ## Developing
 
@@ -139,13 +141,13 @@ For numeric gradients and categorical palettes, opacity comes from the default o
 
 ## Geometry-Specific Colour Buckets
 
-| Geometry type | Use this bucket for a custom colour measure                     | Use this bucket for a numeric gradient             | Use this bucket for categories                   | Format pane card     |
-| ------------- | --------------------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------ | -------------------- |
-| Scatter       | `Scatter fill` for point fill, `Scatter line color` for outline | Same buckets; bind a numeric field instead of text | Same buckets; bind categorical text              | `Scatter properties` |
-| Line          | `(Line) line color`                                             | Same bucket; bind a numeric field instead of text  | Same bucket; bind categorical text               | `Line properties`    |
-| Path          | `Path color`                                                    | Same bucket; bind a numeric field instead of text  | Same bucket; bind categorical text               | `Path properties`    |
-| Polygon       | `Polygon fill` for fill, `Polygon line color` for outline       | Same buckets; bind a numeric field instead of text | Same buckets; bind categorical text              | `Polygon properties` |
-| Arc           | `Arc Source color` and `Arc Target color`                       | Same buckets; bind numeric fields instead of text  | Same buckets; bind categorical text              | `Arc properties`     |
+| Geometry type | Use this bucket for a custom colour measure                     | Use this bucket for a numeric gradient             | Use this bucket for categories      | Format pane card     |
+| ------------- | --------------------------------------------------------------- | -------------------------------------------------- | ----------------------------------- | -------------------- |
+| Scatter       | `Scatter fill` for point fill, `Scatter line color` for outline | Same buckets; bind a numeric field instead of text | Same buckets; bind categorical text | `Scatter properties` |
+| Line          | `(Line) line color`                                             | Same bucket; bind a numeric field instead of text  | Same bucket; bind categorical text  | `Line properties`    |
+| Path          | `Path color`                                                    | Same bucket; bind a numeric field instead of text  | Same bucket; bind categorical text  | `Path properties`    |
+| Polygon       | `Polygon fill` for fill, `Polygon line color` for outline       | Same buckets; bind a numeric field instead of text | Same buckets; bind categorical text | `Polygon properties` |
+| Arc           | `Arc Source color` and `Arc Target color`                       | Same buckets; bind numeric fields instead of text  | Same buckets; bind categorical text | `Arc properties`     |
 
 When a geometry exposes both fill and line colours, you can drive them independently. For arcs, source and target colours are also independent, so you can bind one measure to `Arc Source color` and a different measure to `Arc Target color`.
 
