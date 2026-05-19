@@ -1049,6 +1049,100 @@ const validateMixedPathCategoricalData = (
   }
 };
 
+const validateGroupedPolygonNumericColor = (
+  mapperModule: any,
+  legendModule: any,
+  settings: any,
+  host: any,
+) => {
+  const ids = ["sa2-high", "sa2-mid"];
+  const polygonWkt = [
+    "POLYGON ((175 -37.8, 175.001 -37.8, 175.001 -37.799, 175 -37.799, 175 -37.8))",
+    "POLYGON ((175.002 -37.8, 175.003 -37.8, 175.003 -37.799, 175.002 -37.799, 175.002 -37.8))",
+  ];
+  const surfaceGroups = [
+    { name: "metalled", density: [0, 1.25] },
+    { name: "sealed", density: [13.124993676550858, 2.5] },
+    { name: "unmetalled", density: [0, 0.25] },
+  ];
+  const makeGroupedColumn = (
+    roleName: string,
+    values: unknown[],
+    displayName = roleName,
+  ) => makeColumn(roleName, values, displayName);
+  const groups = surfaceGroups.map((group) => ({
+    name: group.name,
+    values: [
+      makeGroupedColumn("layerType", ids.map(() => "polygon")),
+      makeGroupedColumn("wkt", polygonWkt),
+      makeGroupedColumn(
+        "polygonFillColor",
+        group.density,
+        "Road Density",
+      ),
+    ],
+  }));
+  const flattenedValues = groups.flatMap((group) => group.values) as any[];
+  (flattenedValues as any).source = {
+    roles: { pathColor: true },
+    displayName: "road_surface",
+    queryName: "bench.road_surface.series",
+  };
+  (flattenedValues as any).grouped = () => groups;
+  const options = {
+    dataViews: [
+      {
+        categorical: {
+          categories: [makeRoleCategory("geometryId", ids, "geometry_id")],
+          values: flattenedValues,
+        },
+        metadata: {},
+      },
+    ],
+  };
+
+  const parsed = parseDataset(
+    mapperModule,
+    options,
+    settings,
+    host,
+    new Map<string, unknown>(),
+  );
+  assertBenchmark(
+    parsed.layers.polygon.length === 2,
+    "grouped polygon numeric color should parse polygon rows",
+  );
+  const highValue = parsed.layers.polygon[0]?.properties?.fillColorValue;
+  assertBenchmark(
+    typeof highValue === "number" &&
+      Math.abs(highValue - 13.124993676550858) < 1e-9,
+    "grouped polygon numeric color should merge split surface values before classification",
+  );
+  const maxValue = parsed.colorRoles.polygonFillColor.maxValue;
+  assertBenchmark(
+    typeof maxValue === "number" &&
+      Math.abs(maxValue - 13.124993676550858) < 1e-9,
+    "grouped polygon numeric color stats should use the merged maximum",
+  );
+
+  const legendSpecs = buildLegendSpecs(
+    legendModule,
+    parsed,
+    settings,
+    options,
+    new Map<string, unknown>(),
+  );
+  const polygonLegend = legendSpecs.find(
+    (spec: any) => spec.type === "numeric" && spec.key === "polygon-fill",
+  );
+  const legendHighValue = polygonLegend?.classes?.at(-1)?.highValue;
+  assertBenchmark(
+    typeof legendHighValue === "number" &&
+      Math.abs(legendHighValue - 13.124993676550858) < 1e-9,
+    "grouped polygon legend should show the true merged maximum",
+  );
+};
+
 const selectedIdsForScenario = (
   parsed: ParsedDataset,
   scenario: BenchmarkScenario,
@@ -1431,9 +1525,6 @@ const runScenario = async (
       importFromRepo<any>(repoPath, "src/powerbiUtils.ts"),
     ]),
   );
-  if (scenario.geometryMode === "wkp") {
-    await sleep(750);
-  }
 
   const options = await buildSyntheticOptions(scenario);
   const settings = new settingsModule.VisualFormattingSettingsModel();
@@ -1456,6 +1547,12 @@ const runScenario = async (
       host,
     );
     validateMixedPathCategoricalData(mapperModule, legendModule, settings, host);
+    validateGroupedPolygonNumericColor(
+      mapperModule,
+      legendModule,
+      settings,
+      host,
+    );
   }
   const coldGeometryCache = new Map<string, unknown>();
   const warmGeometryCache = new Map<string, unknown>();

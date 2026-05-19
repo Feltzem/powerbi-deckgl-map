@@ -4,6 +4,11 @@ export type RoleColumn =
   | powerbi.DataViewValueColumn
   | powerbi.DataViewCategoryColumn;
 
+export type GroupedRoleValueMerger<TRoleKey extends string> = (
+  roleKey: TRoleKey,
+  values: powerbi.PrimitiveValue[],
+) => powerbi.PrimitiveValue | null | undefined;
+
 export const isMeaningfulPrimitiveValue = (value: unknown): boolean => {
   if (value === null || value === undefined) {
     return false;
@@ -55,6 +60,7 @@ export const getGroupedRoleColumns = <TRoleKey extends string>(
     roleKey: TRoleKey,
     value: powerbi.PrimitiveValue | null | undefined,
   ) => boolean,
+  mergeGroupedRoleValues?: GroupedRoleValueMerger<TRoleKey>,
 ): powerbi.DataViewValueColumn[] => {
   const groups = getGroupedValueColumnGroups(values);
   if (!values || rowCount === 0 || groups.length === 0) {
@@ -63,12 +69,43 @@ export const getGroupedRoleColumns = <TRoleKey extends string>(
 
   const groupedRoleColumns: powerbi.DataViewValueColumn[] = [];
   for (const [roleKey, roleName] of roleMappings) {
+    const seriesSource = values.source;
+    if (seriesSource?.roles?.[roleName]) {
+      const seriesValues = new Array<powerbi.PrimitiveValue | null>(rowCount).fill(
+        null,
+      );
+      for (const group of groups) {
+        const groupName = group.name ?? null;
+        if (!hasMeaningfulRoleValue(roleKey, groupName)) {
+          continue;
+        }
+
+        for (let index = 0; index < rowCount; index += 1) {
+          if (
+            !hasMeaningfulRoleValue(roleKey, seriesValues[index]) &&
+            rowBelongsToGroupedValue(group, index)
+          ) {
+            seriesValues[index] = groupName;
+          }
+        }
+      }
+
+      if (seriesValues.some((value) => hasMeaningfulRoleValue(roleKey, value))) {
+        groupedRoleColumns.push({
+          source: seriesSource,
+          values: seriesValues,
+        });
+        continue;
+      }
+    }
+
     const sourceColumns = groups.flatMap((group) =>
       group.values.filter((column) => column.source?.roles?.[roleName]),
     );
     if (sourceColumns.length > 0) {
-      const mergedValues = new Array<powerbi.PrimitiveValue | null>(rowCount).fill(
-        null,
+      const groupedValues = Array.from(
+        { length: rowCount },
+        () => [] as powerbi.PrimitiveValue[],
       );
       for (const group of groups) {
         for (const column of group.values) {
@@ -77,15 +114,20 @@ export const getGroupedRoleColumns = <TRoleKey extends string>(
           }
           for (let index = 0; index < rowCount; index += 1) {
             const value = column.values?.[index] ?? null;
-            if (
-              !hasMeaningfulRoleValue(roleKey, mergedValues[index]) &&
-              hasMeaningfulRoleValue(roleKey, value)
-            ) {
-              mergedValues[index] = value;
+            if (hasMeaningfulRoleValue(roleKey, value)) {
+              groupedValues[index].push(value);
             }
           }
         }
       }
+
+      const mergedValues = groupedValues.map((rowValues) => {
+        if (rowValues.length === 0) {
+          return null;
+        }
+
+        return mergeGroupedRoleValues?.(roleKey, rowValues) ?? rowValues[0];
+      });
 
       if (mergedValues.some((value) => hasMeaningfulRoleValue(roleKey, value))) {
         groupedRoleColumns.push({
@@ -93,37 +135,6 @@ export const getGroupedRoleColumns = <TRoleKey extends string>(
           values: mergedValues,
         });
       }
-    }
-
-    const seriesSource = values.source;
-    if (!seriesSource?.roles?.[roleName]) {
-      continue;
-    }
-
-    const seriesValues = new Array<powerbi.PrimitiveValue | null>(rowCount).fill(
-      null,
-    );
-    for (const group of groups) {
-      const groupName = group.name ?? null;
-      if (!hasMeaningfulRoleValue(roleKey, groupName)) {
-        continue;
-      }
-
-      for (let index = 0; index < rowCount; index += 1) {
-        if (
-          !hasMeaningfulRoleValue(roleKey, seriesValues[index]) &&
-          rowBelongsToGroupedValue(group, index)
-        ) {
-          seriesValues[index] = groupName;
-        }
-      }
-    }
-
-    if (seriesValues.some((value) => hasMeaningfulRoleValue(roleKey, value))) {
-      groupedRoleColumns.push({
-        source: seriesSource,
-        values: seriesValues,
-      });
     }
   }
 

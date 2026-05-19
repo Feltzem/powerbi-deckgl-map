@@ -1,8 +1,13 @@
-import { InputLayerType, OurData, RowValues } from "../dataTypes";
+import {
+  InputLayerType,
+  OurData,
+  RowValueAvailability,
+  RowValues,
+} from "../dataTypes";
 import { getNumberFromValue, parseColorInput } from "../powerbiUtils";
 
 export const parseScatter = (
-  isProvided: RowValues,
+  isProvided: RowValueAvailability,
   rowValues: RowValues,
   errorMessages: string[],
   data: OurData,
@@ -18,11 +23,11 @@ export const parseScatter = (
     );
     return false;
   }
-  const lat = parseFloat(rowValues.point1Latitude.toString()); // why not user number
+  const lat = parseFloat(rowValues.point1Latitude.toString());
   const lon = parseFloat(rowValues.point1Longitude.toString());
-  if (lat === null || lon === null) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
     errorMessages.push(
-      `Geometry ${rowValues.geometryId}: one or more point coordinates parse to null`,
+      `Geometry ${rowValues.geometryId}: one or more point coordinates are not finite numbers`,
     );
     return false;
   }

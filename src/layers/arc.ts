@@ -1,4 +1,5 @@
 import { ArcLayer } from "@deck.gl/layers";
+import type { PickingInfo } from "@deck.gl/core";
 import { ColorRoleStatsStore, OurData } from "../dataTypes";
 import { withOpacity, decodeHex } from "../col";
 import {
@@ -24,7 +25,7 @@ export default function getArcLayer(
   colorRoles: ColorRoleStatsStore,
   classificationCache: NumericColorBinsCache,
   dataVersion: string,
-  onClick: (info: any, event: any) => void,
+  onClick: (info: PickingInfo, event: unknown) => void,
 ) {
   const defaultSourceColor = withOpacity(
     decodeHex(settings.defaultSourceColor.value.value, [0, 0, 0, 100]),

@@ -1,5 +1,41 @@
 # Changelog
 
+## 1.6.2.0 - 2026-05-19
+
+### Added
+
+- Added compact geometry-type icons to numeric and categorical legend headings.
+
+### Changed
+
+- Updated release metadata to version `1.6.2.0`.
+- Updated README legend guidance to describe geometry-aware legend headings.
+
+### Fixed
+
+- Fixed categorical Path color grouping so rows keep their category when Power BI returns sparse grouped values.
+- Fixed grouped Path color legends so small categories such as `metalled` remain visible in the unfiltered view.
+- Requested Path color as a row category when present so arbitrary text fields keep their per-row colour values.
+
+## 1.6.1.5 - 2026-05-19
+
+### Added
+
+- Added publish checks for linting, TypeScript, focused Node tests, and version synchronization.
+- Added focused tests for colour parsing, grouped role columns, coordinate parsing, layer order, tooltip aggregation, and release version checks.
+
+### Changed
+
+- Updated CI to install with `npm ci`, run the full check suite, and then package the visual.
+- Made WKP WASM source generation idempotent to avoid unnecessary tracked-file churn.
+- Cleaned README release guidance and moved future ideas out of the public TODO section.
+
+### Fixed
+
+- Rejected non-finite point and line/arc coordinates during parsing.
+- Removed routine WKP startup logging and noisy MapLibre error logging from production visual code.
+- Preserved grouped numeric colour values before classification so grouped polygon legends use the merged maximum.
+
 ## 1.6.1.0 - 2026-05-13
 
 ### Added

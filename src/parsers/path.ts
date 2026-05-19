@@ -3,8 +3,8 @@ import { Geometry, LineString, MultiLineString } from "geojson";
 import { getNumberFromValue, parseColorInput } from "../powerbiUtils";
 
 export const parsePath = (
-  wktGeometry: Geometry,
-  wkpGeometry: Geometry,
+  wktGeometry: Geometry | null,
+  wkpGeometry: Geometry | null,
   rowValues: RowValues,
   errorMessages: string[],
   data: OurData,

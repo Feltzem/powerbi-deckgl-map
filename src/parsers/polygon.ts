@@ -3,8 +3,8 @@ import { RowValues, OurData, InputLayerType } from "../dataTypes";
 import { getNumberFromValue, parseColorInput } from "../powerbiUtils";
 
 export const parsePolygon = (
-  wktGeometry: Geometry,
-  wkpGeometry: Geometry,
+  wktGeometry: Geometry | null,
+  wkpGeometry: Geometry | null,
   rowValues: RowValues,
   errorMessages: string[],
   data: OurData,

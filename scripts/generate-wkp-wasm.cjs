@@ -28,8 +28,21 @@ const lines = [
     ''
 ];
 
-fs.writeFileSync(outputPath, lines.join('\n'), 'utf8');
-console.log(`Generated ${path.relative(workspaceRoot, outputPath)} from ${path.relative(workspaceRoot, wasmPath)}`);
+const writeFileIfChanged = (filePath, content) => {
+    const existing = fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf8') : null;
+    if (existing === content) {
+        return false;
+    }
+
+    fs.writeFileSync(filePath, content, 'utf8');
+    return true;
+};
+
+const generatedSource = lines.join('\n');
+const generatedWasmSource = writeFileIfChanged(outputPath, generatedSource);
+console.log(
+    `${generatedWasmSource ? 'Generated' : 'Already up to date'} ${path.relative(workspaceRoot, outputPath)} from ${path.relative(workspaceRoot, wasmPath)}`
+);
 
 const jsSource = fs.readFileSync(wasmJsPath, 'utf8');
 let patched = jsSource;
@@ -42,7 +55,7 @@ patched = patched.replace(
 patched = patched.replaceAll('new URL("./",import.meta.url)', '""');
 
 if (patched !== jsSource) {
-    fs.writeFileSync(wasmJsPath, patched, 'utf8');
+    writeFileIfChanged(wasmJsPath, patched);
     console.log(`Patched ${path.relative(workspaceRoot, wasmJsPath)} for pbiviz/webpack compatibility`);
 } else {
     console.log(`No compatibility patch needed for ${path.relative(workspaceRoot, wasmJsPath)}`);

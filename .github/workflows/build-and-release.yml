@@ -26,7 +26,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Generate WKP WASM base64 source
         run: npm run generate:wkp-wasm
@@ -36,6 +36,9 @@ jobs:
           test -f src/wkpWasmBase64.ts
           grep -q "export const WKP_CORE_WASM_BASE64" src/wkpWasmBase64.ts
           grep -q "Node-only require unavailable in Power BI bundle" node_modules/@wkpjs/web/dist/wkp_core.js
+
+      - name: Run checks
+        run: npm run check
 
       - name: Package visual
         run: |

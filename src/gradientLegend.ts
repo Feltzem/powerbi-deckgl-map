@@ -23,6 +23,8 @@ import {
   getGroupedRoleColumns,
   getRoleRowCount,
 } from "./roleColumnUtils";
+import { createGeometryIconElement } from "./geometryIcons";
+import type { RenderableGeometryType } from "./layerState";
 
 const legendValueFormatter = new Intl.NumberFormat(undefined, {
   maximumSignificantDigits: 4,
@@ -61,6 +63,7 @@ const legendRoleMappings: Array<[LegendRoleName, string]> = legendRoleNames.map(
 
 export interface NumericGradientLegendSpec {
   type: "numeric";
+  geometryType: RenderableGeometryType;
   key: string;
   title: string;
   subtitle: string;
@@ -77,6 +80,7 @@ export interface CategoricalLegendClass {
 
 export interface CategoricalGradientLegendSpec {
   type: "categorical";
+  geometryType: RenderableGeometryType;
   key: string;
   title: string;
   classes: CategoricalLegendClass[];
@@ -294,6 +298,7 @@ const getLegendTitle = (
 ): string => roleTitles[roleName] ?? fallbackTitle;
 
 const createLegendSpec = (
+  geometryType: RenderableGeometryType,
   key: string,
   title: string,
   bins: NumericColorBins | null,
@@ -327,6 +332,7 @@ const createLegendSpec = (
 
   return {
     type: "numeric",
+    geometryType,
     key,
     title,
     subtitle: getGradientBinningMethodDisplayName(classificationMethod),
@@ -336,6 +342,7 @@ const createLegendSpec = (
 };
 
 const createCategoricalLegendSpec = (
+  geometryType: RenderableGeometryType,
   key: string,
   title: string,
   stats: ColorRoleStats | undefined,
@@ -376,6 +383,7 @@ const createCategoricalLegendSpec = (
 
   return {
     type: "categorical",
+    geometryType,
     key,
     title,
     classes,
@@ -445,6 +453,7 @@ export const getGradientLegendSpecs = (
     );
   };
   const appendCategoricalSpec = (
+    geometryType: RenderableGeometryType,
     roleName: LegendRoleName,
     key: string,
     title: string,
@@ -454,6 +463,7 @@ export const getGradientLegendSpecs = (
     appendLegendSpec(
       specs,
       createCategoricalLegendSpec(
+        geometryType,
         key,
         title,
         colorRoles?.[roleName],
@@ -468,6 +478,7 @@ export const getGradientLegendSpecs = (
     appendLegendSpec(
       specs,
       createLegendSpec(
+        "scatter",
         "scatter-fill",
         title,
         getBins(
@@ -491,6 +502,7 @@ export const getGradientLegendSpecs = (
       ),
     );
     appendCategoricalSpec(
+      "scatter",
       "scatterFillColor",
       "scatter-fill",
       title,
@@ -504,6 +516,7 @@ export const getGradientLegendSpecs = (
     appendLegendSpec(
       specs,
       createLegendSpec(
+        "scatter",
         "scatter-line",
         title,
         getBins(
@@ -527,6 +540,7 @@ export const getGradientLegendSpecs = (
       ),
     );
     appendCategoricalSpec(
+      "scatter",
       "scatterLineColor",
       "scatter-line",
       title,
@@ -539,6 +553,7 @@ export const getGradientLegendSpecs = (
   appendLegendSpec(
     specs,
     createLegendSpec(
+      "line",
       "line",
       lineTitle,
       getBins(
@@ -561,6 +576,7 @@ export const getGradientLegendSpecs = (
     ),
   );
   appendCategoricalSpec(
+    "line",
     "lineLineColor",
     "line",
     lineTitle,
@@ -572,6 +588,7 @@ export const getGradientLegendSpecs = (
   appendLegendSpec(
     specs,
     createLegendSpec(
+      "path",
       "path",
       pathTitle,
       getBins(
@@ -594,6 +611,7 @@ export const getGradientLegendSpecs = (
     ),
   );
   appendCategoricalSpec(
+    "path",
     "pathColor",
     "path",
     pathTitle,
@@ -606,6 +624,7 @@ export const getGradientLegendSpecs = (
     appendLegendSpec(
       specs,
       createLegendSpec(
+        "polygon",
         "polygon-fill",
         title,
         getBins(
@@ -629,6 +648,7 @@ export const getGradientLegendSpecs = (
       ),
     );
     appendCategoricalSpec(
+      "polygon",
       "polygonFillColor",
       "polygon-fill",
       title,
@@ -642,6 +662,7 @@ export const getGradientLegendSpecs = (
     appendLegendSpec(
       specs,
       createLegendSpec(
+        "polygon",
         "polygon-line",
         title,
         getBins(
@@ -665,6 +686,7 @@ export const getGradientLegendSpecs = (
       ),
     );
     appendCategoricalSpec(
+      "polygon",
       "polygonLineColor",
       "polygon-line",
       title,
@@ -677,6 +699,7 @@ export const getGradientLegendSpecs = (
   appendLegendSpec(
     specs,
     createLegendSpec(
+      "arc",
       "arc-source",
       arcSourceTitle,
       getBins(
@@ -699,6 +722,7 @@ export const getGradientLegendSpecs = (
     ),
   );
   appendCategoricalSpec(
+    "arc",
     "arcSourceColor",
     "arc-source",
     arcSourceTitle,
@@ -710,6 +734,7 @@ export const getGradientLegendSpecs = (
   appendLegendSpec(
     specs,
     createLegendSpec(
+      "arc",
       "arc-target",
       arcTargetTitle,
       getBins(
@@ -732,6 +757,7 @@ export const getGradientLegendSpecs = (
     ),
   );
   appendCategoricalSpec(
+    "arc",
     "arcTargetColor",
     "arc-target",
     arcTargetTitle,
@@ -794,7 +820,7 @@ export const getGradientLegendSignature = (
     .map(
       (spec) => {
         if (spec.type === "categorical") {
-          return `${spec.type}:${spec.key}:${spec.title}:${spec.classes
+          return `${spec.type}:${spec.geometryType}:${spec.key}:${spec.title}:${spec.classes
             .map(
               (legendClass) =>
                 `${legendClass.label}:${legendClass.count}:${legendClass.color.join(",")}:${legendClass.overflow ? "overflow" : ""}`,
@@ -802,7 +828,7 @@ export const getGradientLegendSignature = (
             .join(";")}`;
         }
 
-        return `${spec.type}:${spec.key}:${spec.title}:${spec.subtitle}:${spec.gradientCss}:${spec.classes
+        return `${spec.type}:${spec.geometryType}:${spec.key}:${spec.title}:${spec.subtitle}:${spec.gradientCss}:${spec.classes
           .map(
             (legendClass) =>
               `${legendClass.lowValue}:${legendClass.highValue}:${legendClass.color.join(",")}`,
@@ -870,10 +896,20 @@ export const renderGradientLegend = (
     item.className = `deckgl-gradient-legend__item deckgl-gradient-legend__item--${spec.type}`;
     item.setAttribute("data-legend-key", spec.key);
 
+    const titleRow = document.createElement("div");
+    titleRow.className = "deckgl-gradient-legend__item-title-row";
+
     const title = document.createElement("div");
     title.className = "deckgl-gradient-legend__item-title";
     title.textContent = spec.title;
-    item.appendChild(title);
+    titleRow.appendChild(title);
+    titleRow.appendChild(
+      createGeometryIconElement(
+        spec.geometryType,
+        "deckgl-gradient-legend__geometry-icon",
+      ),
+    );
+    item.appendChild(titleRow);
 
     if (spec.type === "numeric" && resolvedOptions.showClassificationType) {
       const subtitle = document.createElement("div");

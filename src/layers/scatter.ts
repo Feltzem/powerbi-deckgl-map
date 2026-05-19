@@ -1,4 +1,5 @@
 import { ScatterplotLayer } from "@deck.gl/layers";
+import type { PickingInfo } from "@deck.gl/core";
 import { ColorRoleStatsStore, OurData } from "../dataTypes";
 import { decodeHex, withOpacity } from "../col";
 import {
@@ -24,7 +25,7 @@ export default function getScatterLayer(
   colorRoles: ColorRoleStatsStore,
   classificationCache: NumericColorBinsCache,
   dataVersion: string,
-  onClick: (info: any, event: any) => void,
+  onClick: (info: PickingInfo, event: unknown) => void,
 ) {
   const defaultFillColor = withOpacity(
     decodeHex(settings.fill.defaultFillColor.value.value, [0, 0, 0, 100]),

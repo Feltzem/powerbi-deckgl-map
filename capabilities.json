@@ -897,9 +897,18 @@
       ],
       "categorical": {
         "categories": {
-          "for": {
-            "in": "geometryId"
-          },
+          "select": [
+            {
+              "for": {
+                "in": "geometryId"
+              }
+            },
+            {
+              "bind": {
+                "to": "pathColor"
+              }
+            }
+          ],
           "dataReductionAlgorithm": {
             "window": {
               "count": 10000
@@ -907,9 +916,7 @@
           }
         },
         "values": {
-          "group": {
-            "by": "pathColor",
-            "select": [
+          "select": [
               {
                 "bind": {
                   "to": "layerType"
@@ -1021,7 +1028,6 @@
                 }
               }
             ]
-          }
         }
       }
     },

@@ -10,6 +10,8 @@ import {
 } from "geojson";
 import { RGBAColor } from "./col";
 
+type PrimitiveValue = powerbi.PrimitiveValue;
+
 // Enum for supported layer types
 export enum InputLayerType {
   Scatter = "scatter",
@@ -64,7 +66,7 @@ export interface ArcProperties {
 
 export interface OurData {
   id: string;
-  type: InputLayerType;
+  type: InputLayerType | null;
   lineData?: LineData | null;
   lineProperties?: LineProperties | null;
   scatterData?: ScatterData | null;
@@ -142,31 +144,48 @@ export interface DatasetSnapshot {
 export type GeometryCache = Map<string, Geometry>;
 
 export interface RowValues {
-  geometryId: any | null;
-  layerType: any | null;
-  wkp: any | null;
-  wkt: any | null;
-  point1Latitude: any | null;
-  point1Longitude: any | null;
-  point2Latitude: any | null;
-  point2Longitude: any | null;
-  scatterRadius: any | null;
-  scatterLineColor: any | null;
-  scatterLineWidth: any | null;
-  scatterFillColor: any | null;
-  lineLineWidth: any | null;
-  lineLineColor: any | null;
-  pathWidth: any | null;
-  pathColor: any | null;
-  polygonLineColor: any | null;
-  polygonLineWidth: any | null;
-  polygonFillColor: any | null;
-  polygonExtrudeElevation: any | null;
-  arcLineWidth: any | null;
-  arcSourceColor: any | null;
-  arcTargetColor: any | null;
-  tooltip: any | null;
+  geometryId: PrimitiveValue | null;
+  layerType: PrimitiveValue | null;
+  wkp: PrimitiveValue | null;
+  wkt: PrimitiveValue | null;
+  point1Latitude: PrimitiveValue | null;
+  point1Longitude: PrimitiveValue | null;
+  point2Latitude: PrimitiveValue | null;
+  point2Longitude: PrimitiveValue | null;
+  scatterRadius: PrimitiveValue | null;
+  scatterLineColor: PrimitiveValue | null;
+  scatterLineWidth: PrimitiveValue | null;
+  scatterFillColor: PrimitiveValue | null;
+  lineLineWidth: PrimitiveValue | null;
+  lineLineColor: PrimitiveValue | null;
+  pathWidth: PrimitiveValue | null;
+  pathColor: PrimitiveValue | null;
+  polygonLineColor: PrimitiveValue | null;
+  polygonLineWidth: PrimitiveValue | null;
+  polygonFillColor: PrimitiveValue | null;
+  polygonExtrudeElevation: PrimitiveValue | null;
+  arcLineWidth: PrimitiveValue | null;
+  arcSourceColor: PrimitiveValue | null;
+  arcTargetColor: PrimitiveValue | null;
+  tooltip: PrimitiveValue | null;
 }
+
+export type RowValueArrays = {
+  [K in keyof RowValues]: PrimitiveValue[] | null;
+};
+
+export type RowValueAvailability = {
+  [K in keyof RowValues]: boolean;
+};
+
+export const createEmptyLayerDataStore = (): LayerDataStore => ({
+  all: [],
+  scatter: [],
+  line: [],
+  arc: [],
+  path: [],
+  polygon: [],
+});
 
 export interface BoundingBox {
   minLon: number;

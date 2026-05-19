@@ -4,6 +4,7 @@ import * as process from "process";
 (window as any).process = process;
 
 import powerbi from "powerbi-visuals-api";
+import type { PickingInfo } from "@deck.gl/core";
 import { FormattingSettingsService } from "powerbi-visuals-utils-formattingmodel";
 import "./../style/visual.less";
 
@@ -30,8 +31,8 @@ import {
 import {
   DatasetSnapshot,
   GeometryCache,
-  LayerDataStore,
   OurData,
+  createEmptyLayerDataStore,
 } from "./dataTypes";
 import { NumericColorBinsCache } from "./gradientClassification";
 import getScatterLayer from "./layers/scatter";
@@ -48,15 +49,6 @@ import {
   parseLayerDrawOrder,
 } from "./layerState";
 import { getAggregatedTooltipHtml } from "./tooltip";
-
-const createEmptyLayerDataStore = (): LayerDataStore => ({
-  all: [],
-  scatter: [],
-  line: [],
-  arc: [],
-  path: [],
-  polygon: [],
-});
 
 const createEmptyDatasetSnapshot = (version = "0"): DatasetSnapshot => ({
   layers: createEmptyLayerDataStore(),
@@ -86,11 +78,22 @@ interface LayerOrderControl {
   render: () => void;
 }
 
+interface ModifierKeyEvent {
+  ctrlKey?: boolean;
+  metaKey?: boolean;
+  originalEvent?: unknown;
+  srcEvent?: unknown;
+  sourceEvent?: unknown;
+}
+
+const asModifierKeyEvent = (event: unknown): ModifierKeyEvent | null =>
+  event && typeof event === "object" ? (event as ModifierKeyEvent) : null;
+
 export class Visual implements IVisual {
   private host: IVisualHost;
   private formattingSettings: VisualFormattingSettingsModel;
   private formattingSettingsService: FormattingSettingsService;
-  private map: any;
+  private map: MapLibreMap | null;
   private selectionManager: powerbi.extensibility.ISelectionManager;
   private dataPoints: OurData[];
   private dataset: DatasetSnapshot;
@@ -410,16 +413,20 @@ export class Visual implements IVisual {
     this.selectionManager.clear();
   }
 
-  private isMultiSelectEvent(event: any): boolean {
+  private isMultiSelectEvent(event: unknown): boolean {
+    const rootEvent = asModifierKeyEvent(event);
+    const originalEvent = asModifierKeyEvent(rootEvent?.originalEvent);
+    const srcEvent = asModifierKeyEvent(rootEvent?.srcEvent);
+    const sourceEvent = asModifierKeyEvent(rootEvent?.sourceEvent);
     const candidates = [
-      event,
-      event?.originalEvent,
-      event?.srcEvent,
-      event?.sourceEvent,
-      event?.originalEvent?.srcEvent,
-      event?.srcEvent?.originalEvent,
-      event?.sourceEvent?.originalEvent,
-      event?.sourceEvent?.srcEvent,
+      rootEvent,
+      originalEvent,
+      srcEvent,
+      sourceEvent,
+      asModifierKeyEvent(originalEvent?.srcEvent),
+      asModifierKeyEvent(srcEvent?.originalEvent),
+      asModifierKeyEvent(sourceEvent?.originalEvent),
+      asModifierKeyEvent(sourceEvent?.srcEvent),
     ];
     return candidates.some((ev) => !!(ev && (ev.ctrlKey || ev.metaKey)));
   }
@@ -433,6 +440,7 @@ export class Visual implements IVisual {
     );
     this.dataPoints = [];
     this.dataset = createEmptyDatasetSnapshot();
+    this.map = null;
     this.deckOverlay = null;
     this.geometryCache = new Map();
     this.classificationCache = new Map();
@@ -473,9 +481,6 @@ export class Visual implements IVisual {
       this.legendContainer.className =
         "deckgl-gradient-legend deckgl-gradient-legend--hidden";
       this.rootElement.appendChild(this.legendContainer);
-      this.map.on("error", (error) => {
-        console.warn("MapLibre error", error);
-      });
       this.map.on("load", () => {
         this.hasInitialViewBeenSet = false;
         this.deckOverlay = new DeckOverlay({
@@ -796,7 +801,7 @@ export class Visual implements IVisual {
     });
   }
 
-  public onClick = (info, event) => {
+  public onClick = (info: PickingInfo, event: unknown) => {
     if (!info.object) {
       return;
     }

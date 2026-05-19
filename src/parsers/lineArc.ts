@@ -1,8 +1,14 @@
-import { InputLayerType, LineData, OurData, RowValues } from "../dataTypes";
+import {
+  InputLayerType,
+  LineData,
+  OurData,
+  RowValueAvailability,
+  RowValues,
+} from "../dataTypes";
 import { getNumberFromValue, parseColorInput } from "../powerbiUtils";
 
 const parseLineArcGeometry = (
-  isProvided: RowValues,
+  isProvided: RowValueAvailability,
   rowValues: RowValues,
   errorMessages: string[],
 ): [boolean, LineData | null] => {
@@ -21,13 +27,18 @@ const parseLineArcGeometry = (
     );
     return [false, null];
   }
-  const lat1 = parseFloat(rowValues.point1Latitude.toString()); // why not user number
+  const lat1 = parseFloat(rowValues.point1Latitude.toString());
   const lon1 = parseFloat(rowValues.point1Longitude.toString());
   const lat2 = parseFloat(rowValues.point2Latitude.toString());
   const lon2 = parseFloat(rowValues.point2Longitude.toString());
-  if (lat1 === null || lon1 === null || lat2 === null || lon2 === null) {
+  if (
+    !Number.isFinite(lat1) ||
+    !Number.isFinite(lon1) ||
+    !Number.isFinite(lat2) ||
+    !Number.isFinite(lon2)
+  ) {
     errorMessages.push(
-      `Geometry ${rowValues.geometryId}: invalid line/arc coordinates (one or more point coordinates parse to null)`,
+      `Geometry ${rowValues.geometryId}: invalid line/arc coordinates (one or more point coordinates are not finite numbers)`,
     );
     return [false, null];
   }
@@ -39,7 +50,7 @@ const parseLineArcGeometry = (
 };
 
 export const parseLine = (
-  isProvided: RowValues,
+  isProvided: RowValueAvailability,
   rowValues: RowValues,
   errorMessages: string[],
   data: OurData,
@@ -65,7 +76,7 @@ export const parseLine = (
 };
 
 export const parseArc = (
-  isProvided: RowValues,
+  isProvided: RowValueAvailability,
   rowValues: RowValues,
   errorMessages: string[],
   data: OurData,

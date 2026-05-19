@@ -221,11 +221,39 @@
   border-top: 1px solid rgba(66, 92, 110, 0.12);
 }
 
+.deckgl-gradient-legend__item-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .deckgl-gradient-legend__item-title {
+  flex: 1 1 auto;
+  min-width: 0;
   font-family: var(--deckgl-legend-heading-font-family, "Segoe UI");
   font-size: var(--deckgl-legend-heading-font-size, 10pt);
   font-weight: 600;
   color: #243341;
+}
+
+.deckgl-gradient-legend__geometry-icon {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  color: #516575;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+.deckgl-gradient-legend__geometry-icon--scatter,
+.deckgl-gradient-legend__geometry-icon--polygon {
+  fill: currentcolor;
+  fill-opacity: 0.14;
 }
 
 .deckgl-gradient-legend__item-subtitle {
@@ -299,6 +327,10 @@
 
 .deckgl-map-visual--dark-basemap .deckgl-gradient-legend__item-title {
   color: #e8eef5;
+}
+
+.deckgl-map-visual--dark-basemap .deckgl-gradient-legend__geometry-icon {
+  color: #b8c6d3;
 }
 
 .deckgl-map-visual--dark-basemap .deckgl-gradient-legend__item-subtitle,

@@ -1,6 +1,6 @@
 # Power BI deck.gl map custom visual
 
-High-performance Power BI custom visual using [deck.gl](https://deck.gl/) and MapLibre for WebGL map rendering. It supports multiple geometry layers in one visual, row-level styling, numeric colour gradients, custom HTML tooltips with geometry-type icons, selection highlighting, polygon extrusion, and on-map layer ordering. It currently focuses on geometry layers rather than text or icon layers.
+High-performance Power BI custom visual using [deck.gl](https://deck.gl/) and MapLibre for WebGL map rendering. It supports multiple geometry layers in one visual, row-level styling, numeric colour gradients, geometry-aware legends, custom HTML tooltips with geometry-type icons, selection highlighting, polygon extrusion, and on-map layer ordering. It currently focuses on geometry layers rather than text or icon layers.
 
 ## Install
 
@@ -28,7 +28,7 @@ The demo dashboard is intentionally Hamilton-sized so it opens quickly and stays
 - Colour inputs: colour buckets accept `#RGB`, `#RRGGBB`, `#RRGGBBAA`, `rgb(...)`, `rgba(...)`, numeric values, or categorical text values.
 - Numeric gradients: numeric colour fields can be mapped through preset gradients with natural breaks, quantile, equal interval, or defined interval classification. Active numeric colour fields render scrollable gradient legends.
 - Categorical palettes: non-empty text that is not a valid direct colour and not a strict number is mapped through a qualitative palette such as Modern, Dark, or Neon. Active categorical colour fields render category legends.
-- Legend formatting: the `Legend` Format pane card controls colour legend visibility, background opacity, heading/value fonts, classification type text, and colour scale bars. Classification type text and colour scale bars apply to numeric legends only.
+- Legend formatting: the `Legend` Format pane card controls colour legend visibility, background opacity, heading/value fonts, classification type text, and colour scale bars. Each legend heading shows the compact geometry-type icon for its layer. Classification type text and colour scale bars apply to numeric legends only.
 - 3D camera: polygons can be extruded using a height field or default settings. When extruded polygons or valid arcs are currently rendered, the map automatically tilts to 45 degrees.
 - Tooltips: bind `Tooltip HTML` for custom sanitized HTML tooltips. Multi-layer tooltips follow the current visual layer order and show a compact geometry-type icon in the top-right of each feature section.
 - Interaction: click selection/highlighting, hover highlighting, configurable fade for unselected polygons, reset view, fly-to, and selectable base maps.
@@ -74,25 +74,11 @@ Secondly, you can filter the selected shapes by click. This is two way:
 - Hamilton sample manifest: `samples/hamilton/manifest.json`
 - Hamilton TLA boundary artifact: `samples/hamilton/statsnz_hamilton_territorial_authority_2023_generalised.geojson`
 - Combined Hamilton map table: `samples/hamilton/hamilton_multigeometry_road_density_map.csv`
-- Diagnostic sample CSV: `data_samples/data.csv`
-- Matching Power Query / Advanced Editor script: `data_samples/data.powerquery.m`
 - Matching Python transform script: `scripts/build_powerbi_table.py`
-- Running `python scripts/build_powerbi_table.py` creates a SQLite table at `data_samples/generated/data.powerbi.sqlite` with the same typed columns plus the derived `tooltip` column.
-- The checked-in query points at the repo-local copy of the CSV so it can be imported into Power BI without relying on the original external folder.
 
-## TODO
+## Future Ideas
 
-- Allow Z in polygon and path layer.
-- Add screenshots to readme.
-- Add satellite layer?
-- highlight this way: <https://learn.microsoft.com/en-us/power-bi/developer/visuals/highlight?tabs=Standard>
-- extra layers:
-  - <https://deck.gl/docs/api-reference/layers/column-layer>
-  - aggregate:
-    - <https://deck.gl/docs/api-reference/aggregation-layers/heatmap-layer>
-    - <https://deck.gl/docs/api-reference/aggregation-layers/hexagon-layer>
-- versioning - ensure package.json, pbiviz.json and the release all have same version.
-- vector layers ... why not working? CORS issue it seems, even if allowed through.
+Potential future enhancements include Z-coordinate support for path and polygon geometry, screenshots in the README, satellite basemaps, Power BI standard highlight integration, and additional deck.gl layers such as column, heatmap, or hexagon layers.
 
 ## Developing
 
@@ -104,8 +90,11 @@ Secondly, you can filter the selected shapes by click. This is two way:
 
 If you update the `@wkpjs/web` version, re-run `npm run generate:wkp-wasm` - we embed the wasm since PowerBI prevents loading it.
 
+Run `npm run check` before publishing changes. It runs linting, TypeScript checks, focused Node tests, and a version-sync check across `package.json`, `package-lock.json`, and `pbiviz.json`.
+
 ### Building
 
+- `npm run check`
 - `pbiviz package`
 
 ### Releasing
@@ -113,9 +102,10 @@ If you update the `@wkpjs/web` version, re-run `npm run generate:wkp-wasm` - we 
 To create a new release:
 
 1. Update the version in `pbiviz.json`, `package.json`, and `package-lock.json`.
-2. Push a new tag: `git tag v1.x.x && git push origin v1.x.x`.
-3. The GitHub Action will automatically build and create a GitHub Release with the `.pbiviz` asset.
-4. Refresh `powerbi-deckgl-map-demo-hamilton.pbix` manually in Power BI Desktop and attach it to the same release.
+2. Run `npm run check`.
+3. Push a new tag: `git tag v1.x.x && git push origin v1.x.x`.
+4. The GitHub Action will automatically build and create a GitHub Release with the `.pbiviz` asset.
+5. Refresh `powerbi-deckgl-map-demo-hamilton.pbix` manually in Power BI Desktop and attach it to the same release.
 
 # Power BI Colour Measures, Numeric Gradients, And Categorical Palettes
 
@@ -185,7 +175,7 @@ Palette assignment is deterministic from the category label, so colours stay sta
 
 ### Legend Settings
 
-Use the `Legend` Format pane card to tune colour legends on the map. You can show or hide the legend, adjust the panel opacity, and set separate fonts for legend headings and class-value labels. Numeric legends can also show or hide the classification method label and colour scale bar.
+Use the `Legend` Format pane card to tune colour legends on the map. You can show or hide the legend, adjust the panel opacity, and set separate fonts for legend headings and class-value labels. Each legend heading includes a compact geometry-type icon, matching the tooltip section icons. Numeric legends can also show or hide the classification method label and colour scale bar.
 
 Direct text colours such as `#RRGGBB` and `rgba(...)` are still rendered exactly as supplied, but they do not create a legend. Numeric values take priority for a role: if a colour bucket contains any numeric values, that role uses numeric gradient classification rather than categorical colours.
 

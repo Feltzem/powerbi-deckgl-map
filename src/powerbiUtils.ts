@@ -10,9 +10,9 @@ export interface ParsedColorInput {
 }
 
 export const getNumberFromPrimitive = (
-  value: powerbi.PrimitiveValue,
+  value: powerbi.PrimitiveValue | null | undefined,
 ): number | null => {
-  if (value === null) {
+  if (value === null || value === undefined) {
     return null;
   }
   const num = parseFloat(value.toString());
@@ -20,7 +20,7 @@ export const getNumberFromPrimitive = (
 };
 
 export const getNumberFromValue = (
-  col: powerbi.PrimitiveValue | null,
+  col: powerbi.PrimitiveValue | null | undefined,
 ): number | null => {
   if (col === null || col === undefined) {
     return null;
@@ -29,7 +29,7 @@ export const getNumberFromValue = (
 };
 
 export const getStrictNumberFromPrimitive = (
-  value: powerbi.PrimitiveValue,
+  value: powerbi.PrimitiveValue | null | undefined,
 ): number | null => {
   if (value === null || value === undefined) {
     return null;
@@ -55,7 +55,7 @@ export const getStrictNumberFromPrimitive = (
 };
 
 export const getStrictNumberFromValue = (
-  col: powerbi.PrimitiveValue | null,
+  col: powerbi.PrimitiveValue | null | undefined,
 ): number | null => {
   if (col === null || col === undefined) {
     return null;
@@ -64,7 +64,7 @@ export const getStrictNumberFromValue = (
 };
 
 export const getHexColorString = (
-  col: powerbi.PrimitiveValue | null,
+  col: powerbi.PrimitiveValue | null | undefined,
 ): string | null => {
   if (col === null || col === undefined) {
     return null;
@@ -78,7 +78,7 @@ export const getHexColorString = (
 };
 
 const getTrimmedTextValue = (
-  col: powerbi.PrimitiveValue | null,
+  col: powerbi.PrimitiveValue | null | undefined,
 ): string | null => {
   if (typeof col !== "string") {
     return null;
@@ -92,7 +92,7 @@ const getTrimmedTextValue = (
 };
 
 export const parseColorInput = (
-  col: powerbi.PrimitiveValue | null,
+  col: powerbi.PrimitiveValue | null | undefined,
 ): ParsedColorInput => {
   const textValue = getTrimmedTextValue(col);
   const rgbaColor = parseColorString(textValue);

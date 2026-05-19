@@ -10,7 +10,10 @@ import {
   InputLayerType,
   LayerDataStore,
   OurData,
+  RowValueArrays,
+  RowValueAvailability,
   RowValues,
+  createEmptyLayerDataStore,
 } from "./dataTypes";
 import {
   createEmptyColorRoleStatsStore,
@@ -73,15 +76,32 @@ const colorRoleFields = new Set<keyof RowValues>([
 ]);
 
 const tooltipHtmlMaxLength = 4000;
+const groupedNumericTolerance = 1e-12;
 
-const createEmptyLayerDataStore = (): LayerDataStore => ({
-  all: [],
-  scatter: [],
-  line: [],
-  arc: [],
-  path: [],
-  polygon: [],
-});
+const normalizeSourceName = (value: string | null | undefined): string | null => {
+  const normalized = value?.replace(/[^a-z0-9]/gi, "").toLowerCase();
+  return normalized ? normalized : null;
+};
+
+const getSourceNameVariants = (
+  source: powerbi.DataViewMetadataColumn | null | undefined,
+): Set<string> => {
+  const variants = new Set<string>();
+  for (const value of [source?.queryName, source?.displayName]) {
+    const normalized = normalizeSourceName(value);
+    if (normalized) {
+      variants.add(normalized);
+    }
+
+    const lastSegment = value?.split(".").pop();
+    const normalizedLastSegment = normalizeSourceName(lastSegment);
+    if (normalizedLastSegment) {
+      variants.add(normalizedLastSegment);
+    }
+  }
+
+  return variants;
+};
 
 const sanitizeTooltipHtml = (value: unknown): string | null => {
   if (value === null || value === undefined) {
@@ -208,40 +228,109 @@ const getRoleColumns = (
     }
   };
 
+  const getGroupedSourceCategoryRoleColumns = (): RoleColumnCandidate[] => {
+    const seriesSource = values?.source;
+    if (!seriesSource?.roles) {
+      return [];
+    }
+
+    const seriesNames = getSourceNameVariants(seriesSource);
+    if (seriesNames.size === 0) {
+      return [];
+    }
+
+    const matchingCategories = categories.filter((category) => {
+      const categoryNames = getSourceNameVariants(category.source);
+
+      return Array.from(categoryNames).some((categoryName) =>
+        seriesNames.has(categoryName),
+      );
+    });
+
+    return matchingCategories.flatMap((category) =>
+      roleMappings
+        .filter(([_fieldName, roleName]) => !!seriesSource.roles?.[roleName])
+        .map(
+          ([_fieldName, roleName]) =>
+            ({
+              ...category,
+              source: {
+                ...category.source,
+                displayName:
+                  seriesSource.displayName ?? category.source.displayName,
+                queryName: seriesSource.queryName ?? category.source.queryName,
+                roles: {
+                  ...category.source.roles,
+                  [roleName]: true,
+                },
+              },
+            }) as powerbi.DataViewCategoryColumn,
+        ),
+    );
+  };
+
   const rowCount = getRoleRowCount(values, categories);
+  const coalesceRoleColumn = (
+    fieldName: keyof RowValues,
+    candidates: RoleColumnCandidate[],
+  ): RoleColumnCandidate | null => {
+    if (candidates.length === 0) {
+      return null;
+    }
+
+    if (candidates.length === 1) {
+      return candidates[0];
+    }
+
+    const mergedValues = Array.from({ length: rowCount }, (_value, index) => {
+      const rowValues = candidates
+        .map((column) => column.values?.[index] ?? null)
+        .filter((value) => hasMeaningfulRoleValue(fieldName, value));
+
+      if (rowValues.length === 0) {
+        return null;
+      }
+
+      return mergeGroupedRoleValues(fieldName, rowValues) ?? rowValues[0];
+    });
+
+    if (
+      !mergedValues.some((value) => hasMeaningfulRoleValue(fieldName, value))
+    ) {
+      return candidates[0];
+    }
+
+    return {
+      source: candidates[0].source,
+      values: mergedValues,
+    };
+  };
+
+  addRoleColumnCandidates(getGroupedSourceCategoryRoleColumns());
+  addRoleColumnCandidates(categories);
   addRoleColumnCandidates(
-    getGroupedRoleColumns(values, rowCount, roleMappings, hasMeaningfulRoleValue),
+    getGroupedRoleColumns(
+      values,
+      rowCount,
+      roleMappings,
+      hasMeaningfulRoleValue,
+      mergeGroupedRoleValues,
+    ),
   );
   if (values) {
     addRoleColumnCandidates(values as RoleColumnCandidate[]);
   }
-  addRoleColumnCandidates(categories);
 
   const roleColumns: Partial<Record<keyof RowValues, RoleColumnCandidate>> = {};
   for (const [fieldName] of roleMappings) {
     const candidates = roleColumnCandidates[fieldName] ?? [];
-    if (candidates.length === 0) {
-      continue;
-    }
-
-    const meaningfulCandidate = candidates.find((column) =>
-      hasMeaningfulRoleValues(fieldName, column),
-    );
-    const roleColumn = meaningfulCandidate ?? candidates[0];
+    const roleColumn = coalesceRoleColumn(fieldName, candidates);
     if (roleColumn) {
       roleColumns[fieldName] = roleColumn;
     }
   }
 
   return roleColumns;
-};
-
-const hasMeaningfulRoleValues = (
-  fieldName: keyof RowValues,
-  column: RoleColumnCandidate,
-): boolean => {
-  const values = column.values ?? [];
-  return values.some((value) => hasMeaningfulRoleValue(fieldName, value));
 };
 
 const hasMeaningfulRoleValue = (
@@ -260,12 +349,44 @@ const hasMeaningfulRoleValue = (
   return isMeaningfulPrimitiveValue(value);
 };
 
+const areNearlyEqual = (left: number, right: number): boolean => {
+  const scale = Math.max(1, Math.abs(left), Math.abs(right));
+  return Math.abs(left - right) <= groupedNumericTolerance * scale;
+};
+
+const mergeNumericGroupedValues = (values: number[]): number => {
+  const firstValue = values[0];
+  if (values.every((value) => areNearlyEqual(value, firstValue))) {
+    return firstValue;
+  }
+
+  return values.reduce((sum, value) => sum + value, 0);
+};
+
+const mergeGroupedRoleValues = (
+  fieldName: keyof RowValues,
+  values: powerbi.PrimitiveValue[],
+): powerbi.PrimitiveValue | null => {
+  if (!colorRoleFields.has(fieldName)) {
+    return values[0] ?? null;
+  }
+
+  const numericValues = values
+    .map((value) => parseColorInput(value).numericValue)
+    .filter((value): value is number => value !== null);
+  if (numericValues.length === values.length && numericValues.length > 0) {
+    return mergeNumericGroupedValues(numericValues);
+  }
+
+  return values[0] ?? null;
+};
+
 const getColumnValues = (
   column: powerbi.DataViewValueColumn | powerbi.DataViewCategoryColumn | null,
 ): powerbi.PrimitiveValue[] | null => column?.values ?? null;
 
 const getRowValues = (
-  rowValueArrays: RowValues,
+  rowValueArrays: RowValueArrays,
   index: number,
 ): RowValues => ({
   geometryId: rowValueArrays.geometryId?.[index] ?? null,
@@ -319,6 +440,57 @@ const getDataPointType = (
     return InputLayerType.Polygon;
   }
   return null;
+};
+
+const getDataPointTypeFromGeometry = (
+  geometry: Geometry | null,
+): InputLayerType | null => {
+  if (!geometry) {
+    return null;
+  }
+
+  if (geometry.type === "LineString" || geometry.type === "MultiLineString") {
+    return InputLayerType.Path;
+  }
+
+  if (geometry.type === "Polygon" || geometry.type === "MultiPolygon") {
+    return InputLayerType.Polygon;
+  }
+
+  return null;
+};
+
+const dataPointTypeRoleEvidence: Array<[InputLayerType, Array<keyof RowValues>]> = [
+  [
+    InputLayerType.Scatter,
+    ["scatterRadius", "scatterLineColor", "scatterLineWidth", "scatterFillColor"],
+  ],
+  [InputLayerType.Line, ["lineLineWidth", "lineLineColor"]],
+  [InputLayerType.Path, ["pathWidth", "pathColor"]],
+  [
+    InputLayerType.Polygon,
+    [
+      "polygonLineColor",
+      "polygonLineWidth",
+      "polygonFillColor",
+      "polygonExtrudeElevation",
+    ],
+  ],
+  [InputLayerType.Arc, ["arcLineWidth", "arcSourceColor", "arcTargetColor"]],
+];
+
+const getDataPointTypeFromRoleValues = (
+  rowValues: RowValues,
+): InputLayerType | null => {
+  const matchingTypes = dataPointTypeRoleEvidence
+    .filter(([_dataType, roleNames]) =>
+      roleNames.some((roleName) =>
+        hasMeaningfulRoleValue(roleName, rowValues[roleName]),
+      ),
+    )
+    .map(([dataType]) => dataType);
+
+  return matchingTypes.length === 1 ? matchingTypes[0] : null;
 };
 
 const addDataPointToLayerStore = (
@@ -481,7 +653,7 @@ export function createDatasetSnapshot(
     return emptySnapshot();
   }
 
-  const rowValueArrays: RowValues = {
+  const rowValueArrays: RowValueArrays = {
     geometryId: getColumnValues(geometryIdValue),
     layerType: getColumnValues(layerTypeValue),
     wkp: getColumnValues(roleColumns.wkp ?? null),
@@ -514,7 +686,7 @@ export function createDatasetSnapshot(
     return emptySnapshot();
   }
 
-  const isProvided: RowValues = {
+  const isProvided: RowValueAvailability = {
     geometryId: !!rowValueArrays.geometryId,
     layerType: !!rowValueArrays.layerType,
     wkp: !!rowValueArrays.wkp,
@@ -548,11 +720,13 @@ export function createDatasetSnapshot(
   const pathString = settings.path.layerType.value.trim().toLowerCase();
   const polygonString = settings.polygon.layerType.value.trim().toLowerCase();
   const validateGeometries = settings.validation.validateGeometries.value;
-  const highlightColumns = categorical.values.filter((valueColumn: any) =>
+  const highlightColumns = (categorical.values ?? []).filter((valueColumn) =>
     Array.isArray(valueColumn?.highlights),
   );
-  const hasAnyDataHighlights = highlightColumns.some((valueColumn: any) =>
-    valueColumn.highlights.some((v) => v !== null && v !== undefined),
+  const hasAnyDataHighlights = highlightColumns.some((valueColumn) =>
+    valueColumn.highlights?.some(
+      (value) => value !== null && value !== undefined,
+    ),
   );
 
   for (let index = 0, len = rowValueArrays.geometryId.length; index < len; index += 1) {
@@ -565,7 +739,7 @@ export function createDatasetSnapshot(
     const geomType = rowValues.layerType
       ? rowValues.layerType.toString().trim().toLowerCase()
       : null;
-    const dataType = getDataPointType(
+    let dataType = getDataPointType(
       geomType,
       scatterString,
       lineString,
@@ -573,17 +747,18 @@ export function createDatasetSnapshot(
       pathString,
       polygonString,
     );
-
     if (!dataType) {
-      errorMessages.push(`Geometry ${id}: unknown layer type ${geomType}`);
-      continue;
+      dataType = getDataPointTypeFromRoleValues(rowValues);
     }
 
     const needsComplexGeometry =
       dataType === InputLayerType.Path || dataType === InputLayerType.Polygon;
     let wktGeometry: Geometry | null = null;
     let wkpGeometry: Geometry | null = null;
-    if (needsComplexGeometry) {
+    if (
+      needsComplexGeometry ||
+      (!dataType && (isProvided.wkt || isProvided.wkp))
+    ) {
       if (isProvided.wkt && rowValues.wkt?.toString().trim()) {
         wktGeometry = parseCachedGeometry(
           "wkt",
@@ -603,12 +778,21 @@ export function createDatasetSnapshot(
       }
     }
 
+    if (!dataType) {
+      dataType = getDataPointTypeFromGeometry(wktGeometry ?? wkpGeometry);
+    }
+
+    if (!dataType) {
+      errorMessages.push(`Geometry ${id}: unknown layer type ${geomType}`);
+      continue;
+    }
+
     const isHighlightedFromData =
       hasAnyDataHighlights &&
       highlightColumns.some(
-        (valueColumn: any) =>
-          valueColumn.highlights[index] !== null &&
-          valueColumn.highlights[index] !== undefined,
+        (valueColumn) =>
+          valueColumn.highlights?.[index] !== null &&
+          valueColumn.highlights?.[index] !== undefined,
       );
     const data: OurData = {
       id: String(rowValues.geometryId),
