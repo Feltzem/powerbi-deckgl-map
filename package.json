@@ -1,7 +1,7 @@
 {
   "name": "visual",
   "description": "powerbi-deckgl-map",
-  "version": "1.6.2.0",
+  "version": "1.6.2.1",
   "repository": {
     "type": "git",
     "url": "https://github.com/Feltzem/powerbi-deckgl-map"
@@ -18,7 +18,7 @@
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "typecheck:all": "tsc -p tsconfig.eslint.json --noEmit",
-    "test": "tsx --test \"tests/**/*.test.ts\"",
+    "test": "node scripts/run-tests.cjs",
     "check:version": "node scripts/check-version.cjs",
     "check": "npm run lint && npm run typecheck && npm run typecheck:all && npm test && npm run check:version",
     "bench": "node --expose-gc --import tsx scripts/benchmarks/run.ts",

@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.6.2.1 - 2026-05-19
+
+### Added
+
+- Added README links for the nationwide data-generation notebook and the demo screenshot.
+
+### Changed
+
+- Updated release metadata to version `1.6.2.1`.
+
+### Fixed
+
+- Fixed Node 20 release CI test discovery by replacing glob-dependent npm test execution with explicit test-file discovery.
+
 ## 1.6.2.0 - 2026-05-19
 
 ### Added
