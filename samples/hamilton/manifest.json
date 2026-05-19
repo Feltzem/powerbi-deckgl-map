@@ -31,7 +31,7 @@
         "geometry_id": "geometry_id",
         "layer_type": "layer_type",
         "wkp": "wkp",
-        "pathColor": "path_color_value or path_color_hex; both are road-surface hex colors",
+        "pathColor": "road_surface for categorical palette colors, or path_color_hex for direct road-surface colors",
         "pathWidth": "path_width_m",
         "tooltipHtml": "tooltip_html",
         "recommended_filter": "road_length_rank <= 10000"
@@ -89,7 +89,7 @@
         "pointLongitude": "point1_longitude for point rows",
         "polygonFillColor": "road_density_km_per_km2 or polygon_fill_color_value",
         "polygonLineColor": "polygon_line_color_hex",
-        "pathColor": "path_color_value or path_color_hex; both are road-surface hex colors",
+        "pathColor": "road_surface for categorical palette colors, path_color_value for numeric gradients, or path_color_hex for direct road-surface colors",
         "pathWidth": "path_width_m",
         "pointRadius": "point_radius_m",
         "pointFillColor": "point_fill_color_hex or point_fill_color_value",
@@ -105,11 +105,11 @@
   },
   "row_counts": {
     "hamilton_place_polygon": 33,
-    "hamilton_road_path": 2206,
+    "hamilton_road_path": 2258,
     "hamilton_sa2_travel_to_work_od_2023_arc": 2324,
     "hamilton_nzta_traffic_count_site_point": 39,
     "hamilton_ferry_route_line": 47,
-    "hamilton_multigeometry_road_density_map": 2278,
+    "hamilton_multigeometry_road_density_map": 2313,
     "hamilton_place_surface_density_fact": 132,
     "hamilton_place_road_bridge": 1483,
     "hamilton_road_surface_dimension": 4,
@@ -124,9 +124,9 @@
     },
     {
       "filename": "hamilton_road_path.csv",
-      "rows": 2206,
-      "columns": 12,
-      "size_bytes": 666400
+      "rows": 2258,
+      "columns": 11,
+      "size_bytes": 662026
     },
     {
       "filename": "hamilton_sa2_travel_to_work_od_2023_arc.csv",
@@ -148,9 +148,9 @@
     },
     {
       "filename": "hamilton_multigeometry_road_density_map.csv",
-      "rows": 2278,
+      "rows": 2313,
       "columns": 28,
-      "size_bytes": 801382
+      "size_bytes": 841122
     },
     {
       "filename": "hamilton_place_surface_density_fact.csv",
@@ -195,9 +195,9 @@
       "east": 175.344869683145
     },
     "hamilton_sa2_count": 68,
-    "hamilton_road_count": 2206,
+    "hamilton_road_count": 2258,
     "hamilton_road_count_from_place_bridge": 1341,
-    "hamilton_road_count_selected_by_boundary": 2206,
+    "hamilton_road_count_selected_by_boundary": 2258,
     "hamilton_traffic_site_count": 39
   }
 }

@@ -267,6 +267,19 @@
   color: #243341;
 }
 
+.deckgl-gradient-legend__item--categorical .deckgl-gradient-legend__class-label {
+  font-variant-numeric: normal;
+}
+
+.deckgl-gradient-legend__class--overflow .deckgl-gradient-legend__class-swatch {
+  visibility: hidden;
+}
+
+.deckgl-gradient-legend__class--overflow .deckgl-gradient-legend__class-label {
+  color: #617583;
+  font-style: italic;
+}
+
 .deckgl-map-visual--dark-basemap .deckgl-gradient-legend__panel {
   border-color: rgba(151, 174, 195, 0.22);
   background: rgba(15, 23, 31, var(--deckgl-legend-background-opacity, 0.92));
@@ -291,6 +304,10 @@
 .deckgl-map-visual--dark-basemap .deckgl-gradient-legend__item-subtitle,
 .deckgl-map-visual--dark-basemap .deckgl-gradient-legend__class-label {
   color: #b8c6d3;
+}
+
+.deckgl-map-visual--dark-basemap .deckgl-gradient-legend__class--overflow .deckgl-gradient-legend__class-label {
+  color: #9fb1c0;
 }
 
 .deckgl-map-visual--dark-basemap .deckgl-gradient-legend__bar,

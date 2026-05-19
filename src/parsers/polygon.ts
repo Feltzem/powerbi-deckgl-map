@@ -88,8 +88,10 @@ export const parsePolygon = (
     lineWidth: getNumberFromValue(rowValues.polygonLineWidth),
     lineColor: lineColor.rgbaColor,
     lineColorValue: lineColor.numericValue,
+    lineColorCategory: lineColor.categoricalValue,
     fillColor: fillColor.rgbaColor,
     fillColorValue: fillColor.numericValue,
+    fillColorCategory: fillColor.categoricalValue,
     elevation: getNumberFromValue(rowValues.polygonExtrudeElevation),
   };
   return true;

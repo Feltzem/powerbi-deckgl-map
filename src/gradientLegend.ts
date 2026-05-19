@@ -1,6 +1,6 @@
 import powerbi from "powerbi-visuals-api";
 import { interpolateGradientColor, RGBAColor } from "./col";
-import { ColorRoleStatsStore, LayerDataStore } from "./dataTypes";
+import { ColorRoleStats, ColorRoleStatsStore, LayerDataStore } from "./dataTypes";
 import {
   GradientBinningMethod,
   getGradientBinningMethodDisplayName,
@@ -10,16 +10,24 @@ import {
   NumericColorBins,
   NumericColorBinsCache,
 } from "./gradientClassification";
+import { getCategoricalPaletteColor } from "./categoricalPalettes";
 import { resolveGradientPresetColors } from "./gradientPresets";
 import { NumericColorGradient } from "./layers/col";
 import {
+  CategoricalPaletteSettings,
   NumericGradientSettings,
   VisualFormattingSettingsModel,
 } from "./settings";
+import { parseColorInput } from "./powerbiUtils";
+import {
+  getGroupedRoleColumns,
+  getRoleRowCount,
+} from "./roleColumnUtils";
 
 const legendValueFormatter = new Intl.NumberFormat(undefined, {
   maximumSignificantDigits: 4,
 });
+const categoricalLegendCategoryLimit = 30;
 
 type LegendRoleName =
   | "scatterFillColor"
@@ -32,6 +40,9 @@ type LegendRoleName =
   | "arcTargetColor";
 
 type LegendRoleTitleMap = Partial<Record<LegendRoleName, string>>;
+type LegendRoleColumn =
+  | powerbi.DataViewValueColumn
+  | powerbi.DataViewCategoryColumn;
 
 const legendRoleNames: LegendRoleName[] = [
   "scatterFillColor",
@@ -44,13 +55,36 @@ const legendRoleNames: LegendRoleName[] = [
   "arcTargetColor",
 ];
 
-export interface GradientLegendSpec {
+const legendRoleMappings: Array<[LegendRoleName, string]> = legendRoleNames.map(
+  (roleName) => [roleName, roleName],
+);
+
+export interface NumericGradientLegendSpec {
+  type: "numeric";
   key: string;
   title: string;
   subtitle: string;
   classes: GradientLegendClass[];
   gradientCss: string;
 }
+
+export interface CategoricalLegendClass {
+  label: string;
+  color: RGBAColor;
+  count: number;
+  overflow?: boolean;
+}
+
+export interface CategoricalGradientLegendSpec {
+  type: "categorical";
+  key: string;
+  title: string;
+  classes: CategoricalLegendClass[];
+}
+
+export type GradientLegendSpec =
+  | NumericGradientLegendSpec
+  | CategoricalGradientLegendSpec;
 
 export interface GradientLegendRenderOptions {
   showLegend: boolean;
@@ -199,18 +233,30 @@ const formatLegendRange = (lowValue: number, highValue: number): string => {
 const getLegendRoleTitles = (
   dataView: powerbi.DataView | undefined,
 ): LegendRoleTitleMap => {
-  const values = dataView?.categorical?.values;
-  if (!values) {
+  const categorical = dataView?.categorical;
+  if (!categorical) {
     return {};
   }
 
+  const roleColumns: LegendRoleColumn[] = [
+    ...getGroupedRoleColumns(
+      categorical.values,
+      getRoleRowCount(categorical.values, categorical.categories),
+      legendRoleMappings,
+      hasMeaningfulLegendRoleValue,
+    ),
+    ...((categorical.values ?? []) as powerbi.DataViewValueColumn[]),
+    ...(categorical.categories ?? []),
+  ];
   const roleTitles: LegendRoleTitleMap = {};
   for (const roleName of legendRoleNames) {
-    const valueColumn = values.find(
-      (column) => column.source?.roles?.[roleName],
+    const candidates = roleColumns.filter((column) =>
+      column.source?.roles?.[roleName],
     );
+    const meaningfulCandidate = candidates.find(hasMeaningfulLegendRoleValues);
+    const roleColumn = meaningfulCandidate ?? candidates[0];
     const title =
-      valueColumn?.source?.displayName ?? valueColumn?.source?.queryName;
+      roleColumn?.source?.displayName ?? roleColumn?.source?.queryName;
     if (title) {
       roleTitles[roleName] = title;
     }
@@ -218,6 +264,28 @@ const getLegendRoleTitles = (
 
   return roleTitles;
 };
+
+const hasMeaningfulLegendRoleValue = (
+  _roleName: LegendRoleName,
+  value: powerbi.PrimitiveValue | null | undefined,
+): boolean => {
+  const parsed = parseColorInput(value);
+  return (
+    parsed.rgbaColor !== null ||
+    parsed.numericValue !== null ||
+    parsed.categoricalValue !== null
+  );
+};
+
+const hasMeaningfulLegendRoleValues = (column: LegendRoleColumn): boolean =>
+  (column.values ?? []).some((value) => {
+    const parsed = parseColorInput(value);
+    return (
+      parsed.rgbaColor !== null ||
+      parsed.numericValue !== null ||
+      parsed.categoricalValue !== null
+    );
+  });
 
 const getLegendTitle = (
   roleTitles: LegendRoleTitleMap,
@@ -231,7 +299,7 @@ const createLegendSpec = (
   bins: NumericColorBins | null,
   gradient: NumericColorGradient,
   classificationMethod: string,
-): GradientLegendSpec | null => {
+): NumericGradientLegendSpec | null => {
   if (
     !bins ||
     bins.minValue === null ||
@@ -258,11 +326,59 @@ const createLegendSpec = (
           )} 100%)`;
 
   return {
+    type: "numeric",
     key,
     title,
     subtitle: getGradientBinningMethodDisplayName(classificationMethod),
     classes,
     gradientCss,
+  };
+};
+
+const createCategoricalLegendSpec = (
+  key: string,
+  title: string,
+  stats: ColorRoleStats | undefined,
+  paletteSettings: CategoricalPaletteSettings,
+  opacity: number,
+): CategoricalGradientLegendSpec | null => {
+  if (
+    !stats ||
+    stats.hasNumericColor ||
+    !stats.hasCategoricalColor ||
+    stats.categoryOrder.length === 0
+  ) {
+    return null;
+  }
+
+  const visibleCategories = stats.categoryOrder.slice(
+    0,
+    categoricalLegendCategoryLimit,
+  );
+  const classes: CategoricalLegendClass[] = visibleCategories.map((category) => ({
+    label: category,
+    color: getCategoricalPaletteColor(
+      category,
+      paletteSettings.palette.value.value as string,
+      opacity,
+    ),
+    count: stats.categoryCounts.get(category) ?? 0,
+  }));
+  const overflowCount = stats.categoryOrder.length - visibleCategories.length;
+  if (overflowCount > 0) {
+    classes.push({
+      label: `+ ${overflowCount} more categories`,
+      color: [0, 0, 0, 0],
+      count: overflowCount,
+      overflow: true,
+    });
+  }
+
+  return {
+    type: "categorical",
+    key,
+    title,
+    classes,
   };
 };
 
@@ -328,13 +444,32 @@ export const getGradientLegendSpecs = (
       stats,
     );
   };
+  const appendCategoricalSpec = (
+    roleName: LegendRoleName,
+    key: string,
+    title: string,
+    paletteSettings: CategoricalPaletteSettings,
+    opacity: number,
+  ) => {
+    appendLegendSpec(
+      specs,
+      createCategoricalLegendSpec(
+        key,
+        title,
+        colorRoles?.[roleName],
+        paletteSettings,
+        opacity,
+      ),
+    );
+  };
 
   if (settings.scatter.filled.value) {
+    const title = getLegendTitle(roleTitles, "scatterFillColor", "Scatter fill");
     appendLegendSpec(
       specs,
       createLegendSpec(
         "scatter-fill",
-        getLegendTitle(roleTitles, "scatterFillColor", "Scatter fill"),
+        title,
         getBins(
           "scatterFillColor",
           `${dataVersion}:scatter-fill`,
@@ -355,14 +490,22 @@ export const getGradientLegendSpecs = (
         settings.scatter.fillGradient.binningMethod.value.value as string,
       ),
     );
+    appendCategoricalSpec(
+      "scatterFillColor",
+      "scatter-fill",
+      title,
+      settings.scatter.fillCategoricalPalette,
+      settings.scatter.fill.defaultFillOpacity.value,
+    );
   }
 
   if (settings.scatter.stroked.value) {
+    const title = getLegendTitle(roleTitles, "scatterLineColor", "Scatter line");
     appendLegendSpec(
       specs,
       createLegendSpec(
         "scatter-line",
-        getLegendTitle(roleTitles, "scatterLineColor", "Scatter line"),
+        title,
         getBins(
           "scatterLineColor",
           `${dataVersion}:scatter-line`,
@@ -383,13 +526,21 @@ export const getGradientLegendSpecs = (
         settings.scatter.lineGradient.binningMethod.value.value as string,
       ),
     );
+    appendCategoricalSpec(
+      "scatterLineColor",
+      "scatter-line",
+      title,
+      settings.scatter.lineCategoricalPalette,
+      settings.scatter.line.color.defaultLineOpacity.value,
+    );
   }
 
+  const lineTitle = getLegendTitle(roleTitles, "lineLineColor", "Line");
   appendLegendSpec(
     specs,
     createLegendSpec(
       "line",
-      getLegendTitle(roleTitles, "lineLineColor", "Line"),
+      lineTitle,
       getBins(
         "lineLineColor",
         `${dataVersion}:line`,
@@ -409,12 +560,20 @@ export const getGradientLegendSpecs = (
       settings.line.gradient.binningMethod.value.value as string,
     ),
   );
+  appendCategoricalSpec(
+    "lineLineColor",
+    "line",
+    lineTitle,
+    settings.line.categoricalPalette,
+    settings.line.line.color.defaultLineOpacity.value,
+  );
 
+  const pathTitle = getLegendTitle(roleTitles, "pathColor", "Path");
   appendLegendSpec(
     specs,
     createLegendSpec(
       "path",
-      getLegendTitle(roleTitles, "pathColor", "Path"),
+      pathTitle,
       getBins(
         "pathColor",
         `${dataVersion}:path`,
@@ -434,13 +593,21 @@ export const getGradientLegendSpecs = (
       settings.path.gradient.binningMethod.value.value as string,
     ),
   );
+  appendCategoricalSpec(
+    "pathColor",
+    "path",
+    pathTitle,
+    settings.path.categoricalPalette,
+    settings.path.line.color.defaultLineOpacity.value,
+  );
 
   if (settings.polygon.filled.value) {
+    const title = getLegendTitle(roleTitles, "polygonFillColor", "Polygon fill");
     appendLegendSpec(
       specs,
       createLegendSpec(
         "polygon-fill",
-        getLegendTitle(roleTitles, "polygonFillColor", "Polygon fill"),
+        title,
         getBins(
           "polygonFillColor",
           `${dataVersion}:polygon-fill`,
@@ -461,14 +628,22 @@ export const getGradientLegendSpecs = (
         settings.polygon.fillGradient.binningMethod.value.value as string,
       ),
     );
+    appendCategoricalSpec(
+      "polygonFillColor",
+      "polygon-fill",
+      title,
+      settings.polygon.fillCategoricalPalette,
+      settings.polygon.fill.defaultFillOpacity.value,
+    );
   }
 
   if (settings.polygon.stroked.value) {
+    const title = getLegendTitle(roleTitles, "polygonLineColor", "Polygon line");
     appendLegendSpec(
       specs,
       createLegendSpec(
         "polygon-line",
-        getLegendTitle(roleTitles, "polygonLineColor", "Polygon line"),
+        title,
         getBins(
           "polygonLineColor",
           `${dataVersion}:polygon-line`,
@@ -489,13 +664,21 @@ export const getGradientLegendSpecs = (
         settings.polygon.lineGradient.binningMethod.value.value as string,
       ),
     );
+    appendCategoricalSpec(
+      "polygonLineColor",
+      "polygon-line",
+      title,
+      settings.polygon.lineCategoricalPalette,
+      settings.polygon.line.color.defaultLineOpacity.value,
+    );
   }
 
+  const arcSourceTitle = getLegendTitle(roleTitles, "arcSourceColor", "Arc source");
   appendLegendSpec(
     specs,
     createLegendSpec(
       "arc-source",
-      getLegendTitle(roleTitles, "arcSourceColor", "Arc source"),
+      arcSourceTitle,
       getBins(
         "arcSourceColor",
         `${dataVersion}:arc-source`,
@@ -515,12 +698,20 @@ export const getGradientLegendSpecs = (
       settings.arc.sourceGradient.binningMethod.value.value as string,
     ),
   );
+  appendCategoricalSpec(
+    "arcSourceColor",
+    "arc-source",
+    arcSourceTitle,
+    settings.arc.sourceCategoricalPalette,
+    settings.arc.defaultSourceOpacity.value,
+  );
 
+  const arcTargetTitle = getLegendTitle(roleTitles, "arcTargetColor", "Arc target");
   appendLegendSpec(
     specs,
     createLegendSpec(
       "arc-target",
-      getLegendTitle(roleTitles, "arcTargetColor", "Arc target"),
+      arcTargetTitle,
       getBins(
         "arcTargetColor",
         `${dataVersion}:arc-target`,
@@ -540,11 +731,18 @@ export const getGradientLegendSpecs = (
       settings.arc.targetGradient.binningMethod.value.value as string,
     ),
   );
+  appendCategoricalSpec(
+    "arcTargetColor",
+    "arc-target",
+    arcTargetTitle,
+    settings.arc.targetCategoricalPalette,
+    settings.arc.defaultTargetOpacity.value,
+  );
 
   return specs;
 };
 
-const createLegendClassRow = (
+const createNumericLegendClassRow = (
   legendClass: GradientLegendClass,
 ): HTMLDivElement => {
   const row = document.createElement("div");
@@ -566,19 +764,51 @@ const createLegendClassRow = (
   return row;
 };
 
+const createCategoricalLegendClassRow = (
+  legendClass: CategoricalLegendClass,
+): HTMLDivElement => {
+  const row = document.createElement("div");
+  row.className = "deckgl-gradient-legend__class";
+  if (legendClass.overflow) {
+    row.classList.add("deckgl-gradient-legend__class--overflow");
+  }
+
+  const swatch = document.createElement("span");
+  swatch.className = "deckgl-gradient-legend__class-swatch";
+  swatch.style.backgroundColor = rgbaToCss(legendClass.color);
+
+  const label = document.createElement("span");
+  label.className = "deckgl-gradient-legend__class-label";
+  label.textContent = legendClass.label;
+
+  row.appendChild(swatch);
+  row.appendChild(label);
+  return row;
+};
+
 export const getGradientLegendSignature = (
   specs: GradientLegendSpec[],
   options?: Partial<GradientLegendRenderOptions>,
 ): string => {
   const specsSignature = specs
     .map(
-      (spec) =>
-        `${spec.key}:${spec.title}:${spec.subtitle}:${spec.gradientCss}:${spec.classes
+      (spec) => {
+        if (spec.type === "categorical") {
+          return `${spec.type}:${spec.key}:${spec.title}:${spec.classes
+            .map(
+              (legendClass) =>
+                `${legendClass.label}:${legendClass.count}:${legendClass.color.join(",")}:${legendClass.overflow ? "overflow" : ""}`,
+            )
+            .join(";")}`;
+        }
+
+        return `${spec.type}:${spec.key}:${spec.title}:${spec.subtitle}:${spec.gradientCss}:${spec.classes
           .map(
             (legendClass) =>
               `${legendClass.lowValue}:${legendClass.highValue}:${legendClass.color.join(",")}`,
           )
-          .join(";")}`,
+          .join(";")}`;
+      },
     )
     .join("|");
 
@@ -637,7 +867,7 @@ export const renderGradientLegend = (
 
   for (const spec of specs) {
     const item = document.createElement("section");
-    item.className = "deckgl-gradient-legend__item";
+    item.className = `deckgl-gradient-legend__item deckgl-gradient-legend__item--${spec.type}`;
     item.setAttribute("data-legend-key", spec.key);
 
     const title = document.createElement("div");
@@ -645,14 +875,14 @@ export const renderGradientLegend = (
     title.textContent = spec.title;
     item.appendChild(title);
 
-    if (resolvedOptions.showClassificationType) {
+    if (spec.type === "numeric" && resolvedOptions.showClassificationType) {
       const subtitle = document.createElement("div");
       subtitle.className = "deckgl-gradient-legend__item-subtitle";
       subtitle.textContent = spec.subtitle;
       item.appendChild(subtitle);
     }
 
-    if (resolvedOptions.showScale) {
+    if (spec.type === "numeric" && resolvedOptions.showScale) {
       const bar = document.createElement("div");
       bar.className = "deckgl-gradient-legend__bar";
       bar.style.backgroundImage = spec.gradientCss;
@@ -661,8 +891,14 @@ export const renderGradientLegend = (
 
     const classes = document.createElement("div");
     classes.className = "deckgl-gradient-legend__classes";
-    for (const legendClass of spec.classes) {
-      classes.appendChild(createLegendClassRow(legendClass));
+    if (spec.type === "categorical") {
+      for (const legendClass of spec.classes) {
+        classes.appendChild(createCategoricalLegendClassRow(legendClass));
+      }
+    } else {
+      for (const legendClass of spec.classes) {
+        classes.appendChild(createNumericLegendClassRow(legendClass));
+      }
     }
     item.appendChild(classes);
 

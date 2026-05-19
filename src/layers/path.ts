@@ -7,6 +7,7 @@ import {
   NumericColorBinsCache,
 } from "../gradientClassification";
 import { resolveGradientPresetColors } from "../gradientPresets";
+import { getCategoricalPaletteColor } from "../categoricalPalettes";
 import { HighlightingCardSettings, PathCardSettings } from "../settings";
 import { LAYER_IDS } from "../layerState";
 import {
@@ -52,6 +53,13 @@ export default function getPathLayer(
     cacheKey: `${dataVersion}:path`,
     getColorValue: (d) => d.properties?.lineColor,
     getNumericColorValue: (d) => d.properties?.lineColorValue,
+    getCategoricalColorValue: (d) => d.properties?.lineColorCategory,
+    getCategoricalColor: (category) =>
+      getCategoricalPaletteColor(
+        category,
+        settings.categoricalPalette.palette.value.value as string,
+        settings.line.color.defaultLineOpacity.value,
+      ),
     getId: (d) => String(d.id),
     defaultColor: defaultLineColor,
     getGradient: () =>
@@ -99,6 +107,10 @@ export default function getPathLayer(
           settings.gradient.classCount.value,
           settings.gradient.definedInterval.value,
           getNumericColorBinsSignature(lineColor.bins),
+        ],
+        [
+          settings.categoricalPalette.palette.value.value,
+          lineColor.categoricalSignature,
         ],
         lineColor,
         highlighting.highlightOnClick.value,

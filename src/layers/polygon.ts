@@ -7,6 +7,7 @@ import {
   NumericColorBinsCache,
 } from "../gradientClassification";
 import { resolveGradientPresetColors } from "../gradientPresets";
+import { getCategoricalPaletteColor } from "../categoricalPalettes";
 import { HighlightingCardSettings, PolygonCardSettings } from "../settings";
 import { LAYER_IDS } from "../layerState";
 import {
@@ -62,6 +63,13 @@ export default function getPolygonLayer(
     cacheKey: `${dataVersion}:polygon-line`,
     getColorValue: (d) => d.properties?.lineColor,
     getNumericColorValue: (d) => d.properties?.lineColorValue,
+    getCategoricalColorValue: (d) => d.properties?.lineColorCategory,
+    getCategoricalColor: (category) =>
+      getCategoricalPaletteColor(
+        category,
+        settings.lineCategoricalPalette.palette.value.value as string,
+        settings.line.color.defaultLineOpacity.value,
+      ),
     getId: (d) => String(d.id),
     defaultColor: defaultLineColor,
     getGradient: () =>
@@ -81,6 +89,13 @@ export default function getPolygonLayer(
     cacheKey: `${dataVersion}:polygon-fill`,
     getColorValue: (d) => d.properties?.fillColor,
     getNumericColorValue: (d) => d.properties?.fillColorValue,
+    getCategoricalColorValue: (d) => d.properties?.fillColorCategory,
+    getCategoricalColor: (category) =>
+      getCategoricalPaletteColor(
+        category,
+        settings.fillCategoricalPalette.palette.value.value as string,
+        settings.fill.defaultFillOpacity.value,
+      ),
     getId: (d) => String(d.id),
     defaultColor: defaultFillColor,
     getGradient: () =>
@@ -133,6 +148,10 @@ export default function getPolygonLayer(
           settings.lineGradient.definedInterval.value,
           getNumericColorBinsSignature(lineColor.bins),
         ],
+        [
+          settings.lineCategoricalPalette.palette.value.value,
+          lineColor.categoricalSignature,
+        ],
         lineColor,
         highlighting.highlightOnClick.value,
         highlighting.unselectedFadeOpacity.value,
@@ -149,6 +168,10 @@ export default function getPolygonLayer(
           settings.fillGradient.classCount.value,
           settings.fillGradient.definedInterval.value,
           getNumericColorBinsSignature(fillColor.bins),
+        ],
+        [
+          settings.fillCategoricalPalette.palette.value.value,
+          fillColor.categoricalSignature,
         ],
         fillColor,
         highlighting.highlightOnClick.value,

@@ -7,6 +7,7 @@ import {
   NumericColorBinsCache,
 } from "../gradientClassification";
 import { resolveGradientPresetColors } from "../gradientPresets";
+import { getCategoricalPaletteColor } from "../categoricalPalettes";
 import { ArcCardSettings, HighlightingCardSettings } from "../settings";
 import { LAYER_IDS } from "../layerState";
 import {
@@ -62,6 +63,13 @@ export default function getArcLayer(
     cacheKey: `${dataVersion}:arc-source`,
     getColorValue: (d) => d.arcProperties?.sourceColor,
     getNumericColorValue: (d) => d.arcProperties?.sourceColorValue,
+    getCategoricalColorValue: (d) => d.arcProperties?.sourceColorCategory,
+    getCategoricalColor: (category) =>
+      getCategoricalPaletteColor(
+        category,
+        settings.sourceCategoricalPalette.palette.value.value as string,
+        settings.defaultSourceOpacity.value,
+      ),
     getId: (d) => String(d.id),
     defaultColor: defaultSourceColor,
     getGradient: () =>
@@ -81,6 +89,13 @@ export default function getArcLayer(
     cacheKey: `${dataVersion}:arc-target`,
     getColorValue: (d) => d.arcProperties?.targetColor,
     getNumericColorValue: (d) => d.arcProperties?.targetColorValue,
+    getCategoricalColorValue: (d) => d.arcProperties?.targetColorCategory,
+    getCategoricalColor: (category) =>
+      getCategoricalPaletteColor(
+        category,
+        settings.targetCategoricalPalette.palette.value.value as string,
+        settings.defaultTargetOpacity.value,
+      ),
     getId: (d) => String(d.id),
     defaultColor: defaultTargetColor,
     getGradient: () =>
@@ -128,6 +143,10 @@ export default function getArcLayer(
           settings.sourceGradient.definedInterval.value,
           getNumericColorBinsSignature(sourceColor.bins),
         ],
+        [
+          settings.sourceCategoricalPalette.palette.value.value,
+          sourceColor.categoricalSignature,
+        ],
         sourceColor,
         highlighting.highlightOnClick.value,
         highlighting.unselectedFadeOpacity.value,
@@ -144,6 +163,10 @@ export default function getArcLayer(
           settings.targetGradient.classCount.value,
           settings.targetGradient.definedInterval.value,
           getNumericColorBinsSignature(targetColor.bins),
+        ],
+        [
+          settings.targetCategoricalPalette.palette.value.value,
+          targetColor.categoricalSignature,
         ],
         targetColor,
         highlighting.highlightOnClick.value,

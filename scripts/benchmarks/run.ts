@@ -6,7 +6,7 @@ import { pathToFileURL } from "node:url";
 import { performance } from "node:perf_hooks";
 import { createWkp } from "@wkpjs/web";
 
-type ColorMode = "default" | "hex" | "rgba" | "numeric";
+type ColorMode = "default" | "hex" | "rgba" | "numeric" | "categorical";
 type GeometryMode = "coordinates" | "wkt" | "wkp";
 type LayerMode = "arc" | "path" | "mixed";
 type BinningMethod =
@@ -169,6 +169,14 @@ const scenarios: BenchmarkScenario[] = [
     binningMethod: "equal-interval",
   },
   {
+    id: "path-wkt-categorical-10k",
+    rowCount: 10000,
+    layerMode: "path",
+    geometryMode: "wkt",
+    colorMode: "categorical",
+    binningMethod: "equal-interval",
+  },
+  {
     id: "path-wkp-numeric-10k",
     rowCount: 10000,
     layerMode: "path",
@@ -182,6 +190,14 @@ const scenarios: BenchmarkScenario[] = [
     layerMode: "mixed",
     geometryMode: "coordinates",
     colorMode: "numeric",
+    binningMethod: "equal-interval",
+  },
+  {
+    id: "mixed-categorical-10k",
+    rowCount: 10000,
+    layerMode: "mixed",
+    geometryMode: "coordinates",
+    colorMode: "categorical",
     binningMethod: "equal-interval",
   },
 ];
@@ -286,6 +302,17 @@ const median = (values: number[]): number => {
   return (sorted[midpoint - 1] + sorted[midpoint]) / 2;
 };
 
+const assertBenchmark = (condition: boolean, message: string) => {
+  if (!condition) {
+    throw new Error(`Benchmark validation failed: ${message}`);
+  }
+};
+
+const colorsEqual = (actual: unknown, expected: number[]): boolean =>
+  Array.isArray(actual) &&
+  actual.length === expected.length &&
+  actual.every((value, index) => value === expected[index]);
+
 const makeColumn = (
   roleName: string,
   values: unknown[],
@@ -301,8 +328,22 @@ const makeColumn = (
 
 const makeCategory = (values: string[]) => ({
   source: {
+    roles: { geometryId: true },
     displayName: "Geometry ID",
     queryName: "bench.geometryId",
+  },
+  values,
+});
+
+const makeRoleCategory = (
+  roleName: string,
+  values: unknown[],
+  displayName = roleName,
+) => ({
+  source: {
+    roles: { [roleName]: true },
+    displayName,
+    queryName: `bench.${roleName}`,
   },
   values,
 });
@@ -328,6 +369,11 @@ const colorValueForIndex = (
   if (mode === "rgba") {
     const alpha = 0.35 + (index % 50) / 100;
     return `rgba(${index % 255}, ${120 + (index % 90)}, 210, ${alpha})`;
+  }
+  if (mode === "categorical") {
+    return ["sealed", "metalled", "unmetalled", "chip seal", "concrete"][
+      index % 5
+    ];
   }
   return Math.log1p((index * 37) % 100000);
 };
@@ -585,6 +631,422 @@ const parseDataset = (
     version: "legacy",
     isSnapshot: false,
   };
+};
+
+const validateColorParsing = (powerbiUtilsModule: any): boolean => {
+  const parseColorInput = powerbiUtilsModule.parseColorInput;
+  if (typeof parseColorInput !== "function") {
+    return false;
+  }
+
+  const categorical = parseColorInput("sealed");
+  if (!("categoricalValue" in categorical)) {
+    return false;
+  }
+
+  assertBenchmark(
+    colorsEqual(parseColorInput("#abc").rgbaColor, [170, 187, 204, 255]),
+    "#RGB should still parse as a direct color",
+  );
+  assertBenchmark(
+    colorsEqual(parseColorInput("#AABBCCDD").rgbaColor, [170, 187, 204, 221]),
+    "#RRGGBBAA should still parse as a direct color",
+  );
+  assertBenchmark(
+    colorsEqual(parseColorInput("rgba(1, 2, 3, 0.5)").rgbaColor, [
+      1,
+      2,
+      3,
+      128,
+    ]),
+    "rgba(...) should still parse as a direct color",
+  );
+  assertBenchmark(
+    parseColorInput(" 1e3 ").numericValue === 1000,
+    "strict numeric strings should parse as numeric values",
+  );
+  assertBenchmark(
+    parseColorInput(42).numericValue === 42,
+    "finite numeric primitives should parse as numeric values",
+  );
+  assertBenchmark(
+    parseColorInput("123abc").categoricalValue === "123abc",
+    "numeric-looking non-numbers should parse as categories",
+  );
+  assertBenchmark(
+    parseColorInput(" #zzzzzz ").categoricalValue === "#zzzzzz",
+    "invalid color-looking text should parse as a category",
+  );
+  assertBenchmark(
+    parseColorInput(" 'metalled' ").categoricalValue === "metalled",
+    "quoted category labels should be trimmed",
+  );
+  assertBenchmark(
+    parseColorInput("   ").categoricalValue === null,
+    "whitespace-only strings should use the default color path",
+  );
+  assertBenchmark(
+    parseColorInput(true).categoricalValue === null,
+    "boolean primitives should use the default color path",
+  );
+  assertBenchmark(
+    parseColorInput(new Date("2026-05-13T00:00:00Z")).categoricalValue === null,
+    "date primitives should use the default color path",
+  );
+
+  return true;
+};
+
+const copyValueRoleToCategoryAndBlankValue = (
+  options: any,
+  roleName: string,
+  categoryDisplayName?: string,
+) => {
+  const categorical = options.dataViews?.[0]?.categorical;
+  const values = categorical?.values ?? [];
+  const roleIndex = values.findIndex(
+    (column: any) => column.source?.roles?.[roleName],
+  );
+
+  assertBenchmark(roleIndex >= 0, `${roleName} value column should exist`);
+  const column = values[roleIndex];
+  const categoryValues = [...(column.values ?? [])];
+  column.values = categoryValues.map(() => null);
+  categorical.categories.push(
+    makeRoleCategory(
+      roleName,
+      categoryValues,
+      categoryDisplayName ?? column.source?.displayName ?? roleName,
+    ),
+  );
+};
+
+const copyValueRoleToGroupedSeries = (
+  options: any,
+  roleName: string,
+  seriesDisplayName?: string,
+) => {
+  const categorical = options.dataViews?.[0]?.categorical;
+  const values = categorical?.values ?? [];
+  const roleColumn = values.find((column: any) => column.source?.roles?.[roleName]);
+
+  assertBenchmark(!!roleColumn, `${roleName} value column should exist`);
+  const roleValues = [...(roleColumn.values ?? [])];
+  const seriesValues = Array.from(
+    new Set(
+      roleValues
+        .filter((value) => value !== null && value !== undefined)
+        .map((value) => String(value).trim())
+        .filter((value) => value.length > 0),
+    ),
+  );
+  const groupedValueColumns = values.filter(
+    (column: any) => !column.source?.roles?.[roleName],
+  );
+
+  const groups = seriesValues.map((seriesValue) => ({
+    name: seriesValue,
+    values: groupedValueColumns.map((column: any) => ({
+      source: column.source,
+      values: (column.values ?? []).map((value: unknown, index: number) =>
+        String(roleValues[index]).trim() === seriesValue ? value : null,
+      ),
+    })),
+  }));
+  const flattenedValues = groups.flatMap((group) => group.values) as any[];
+  flattenedValues.push(
+    makeColumn(
+      roleName,
+      roleValues.map(() => null),
+      `First ${seriesDisplayName ?? roleColumn.source?.displayName ?? roleName}`,
+    ),
+  );
+  (flattenedValues as any).source = {
+    roles: { [roleName]: true },
+    displayName: seriesDisplayName ?? roleColumn.source?.displayName ?? roleName,
+    queryName: `bench.${roleName}.series`,
+  };
+  (flattenedValues as any).grouped = () => groups;
+  categorical.values = flattenedValues;
+};
+
+const assertPathCategoricalRendering = async (
+  repoPath: string,
+  parsed: ParsedDataset,
+  legendModule: any,
+  settings: any,
+  options: any,
+  context: string,
+) => {
+  const stats = parsed.colorRoles?.pathColor;
+
+  assertBenchmark(parsed.dataPoints.length > 0, `${context} rows should parse`);
+  assertBenchmark(
+    stats?.hasCategoricalColor === true,
+    `${context} should populate categorical path color stats`,
+  );
+  assertBenchmark(
+    stats?.hasNumericColor === false,
+    `${context} should not promote path categories to numeric mode`,
+  );
+
+  const pathCategories = parsed.layers.path.map(
+    (feature: any) => feature.properties?.lineColorCategory,
+  );
+  for (const expectedLabel of ["sealed", "metalled", "unmetalled"]) {
+    assertBenchmark(
+      pathCategories.includes(expectedLabel),
+      `${context} should populate ${expectedLabel} path row categories`,
+    );
+  }
+
+  const legendSpecs = buildLegendSpecs(
+    legendModule,
+    parsed,
+    settings,
+    options,
+    new Map<string, unknown>(),
+  );
+  const categoricalLegend = legendSpecs.find(
+    (spec: any) => spec.type === "categorical" && spec.key === "path",
+  );
+  assertBenchmark(
+    categoricalLegend?.title === "road_surface",
+    `${context} should preserve the field display name in the legend`,
+  );
+  const legendLabels = new Set(
+    (categoricalLegend?.classes ?? []).map((entry: any) => entry.label),
+  );
+  for (const expectedLabel of ["sealed", "metalled", "unmetalled"]) {
+    assertBenchmark(
+      legendLabels.has(expectedLabel),
+      `${context} legend should include ${expectedLabel}`,
+    );
+  }
+
+  const [pathLayerModule, paletteModule] = await Promise.all([
+    importFromRepo<any>(repoPath, "src/layers/path.ts"),
+    importFromRepo<any>(repoPath, "src/categoricalPalettes.ts"),
+  ]);
+  const getPathLayer = pathLayerModule.default;
+  const getCategoricalPaletteColor = paletteModule.getCategoricalPaletteColor;
+  const pathLayer = getPathLayer(
+    parsed.layers.path,
+    settings.path,
+    settings.highlighting,
+    new Set<string>(),
+    "",
+    parsed.colorRoles,
+    new Map<string, unknown>(),
+    parsed.version,
+    () => undefined,
+  );
+  assertBenchmark(
+    typeof pathLayer.props.getLineColor === "function",
+    `${context} should create a path color accessor`,
+  );
+
+  const expectedColors = new Map(
+    ["sealed", "metalled", "unmetalled"].map((category) => [
+      category,
+      getCategoricalPaletteColor(
+        category,
+        settings.path.categoricalPalette.palette.value.value,
+        settings.path.line.color.defaultLineOpacity.value,
+      ),
+    ]),
+  );
+  const observedColors = new Map<string, number[]>();
+  for (const feature of parsed.layers.path) {
+    const category = feature.properties?.lineColorCategory;
+    if (category && !observedColors.has(category)) {
+      observedColors.set(category, pathLayer.props.getLineColor(feature));
+    }
+  }
+  for (const [category, expectedColor] of expectedColors) {
+    assertBenchmark(
+      colorsEqual(observedColors.get(category), expectedColor),
+      `${context} should color ${category} path rows with the categorical palette`,
+    );
+  }
+  assertBenchmark(
+    new Set(Array.from(observedColors.values()).map((color) => color.join(",")))
+      .size >= 3,
+    `${context} should produce visibly distinct path colors`,
+  );
+};
+
+const validateRoleCategoryColumn = async (
+  repoPath: string,
+  mapperModule: any,
+  legendModule: any,
+  settings: any,
+  host: any,
+) => {
+  const options = await buildSyntheticOptions({
+    id: "path-wkt-categorical-category-role-check",
+    rowCount: 30,
+    layerMode: "path",
+    geometryMode: "wkt",
+    colorMode: "categorical",
+    binningMethod: "equal-interval",
+  });
+  const pathColorColumn = options.dataViews?.[0]?.categorical?.values?.find(
+    (column: any) => column.source?.roles?.pathColor,
+  );
+  if (pathColorColumn?.source) {
+    pathColorColumn.source.displayName = "First road_surface";
+  }
+  copyValueRoleToCategoryAndBlankValue(options, "pathColor", "road_surface");
+
+  const parsed = parseDataset(
+    mapperModule,
+    options,
+    settings,
+    host,
+    new Map<string, unknown>(),
+  );
+  await assertPathCategoricalRendering(
+    repoPath,
+    parsed,
+    legendModule,
+    settings,
+    options,
+    "role category column",
+  );
+};
+
+const validateDesktopGroupedPathColor = async (
+  repoPath: string,
+  mapperModule: any,
+  legendModule: any,
+  settings: any,
+  host: any,
+) => {
+  const options = await buildSyntheticOptions({
+    id: "path-wkt-categorical-grouped-role-check",
+    rowCount: 30,
+    layerMode: "path",
+    geometryMode: "wkt",
+    colorMode: "categorical",
+    binningMethod: "equal-interval",
+  });
+  const pathColorColumn = options.dataViews?.[0]?.categorical?.values?.find(
+    (column: any) => column.source?.roles?.pathColor,
+  );
+  if (pathColorColumn?.source) {
+    pathColorColumn.source.displayName = "First road_surface";
+  }
+  copyValueRoleToGroupedSeries(options, "pathColor", "road_surface");
+
+  const parsed = parseDataset(
+    mapperModule,
+    options,
+    settings,
+    host,
+    new Map<string, unknown>(),
+  );
+  await assertPathCategoricalRendering(
+    repoPath,
+    parsed,
+    legendModule,
+    settings,
+    options,
+    "Desktop grouped pathColor",
+  );
+  assertBenchmark(
+    parsed.layers.path.length === 30,
+    "Desktop grouped pathColor should keep rows from every category group",
+  );
+  for (const feature of parsed.layers.path) {
+    assertBenchmark(
+      !!feature.properties?.lineColorCategory,
+      "Desktop grouped pathColor should assign every path row a category",
+    );
+  }
+};
+
+const validateMixedPathCategoricalData = (
+  mapperModule: any,
+  legendModule: any,
+  settings: any,
+  host: any,
+) => {
+  const ids = ["path-1", "polygon-1", "scatter-1", "path-2", "polygon-2", "path-3"];
+  const layerTypes = ["path", "polygon", "scatter", "path", "polygon", "path"];
+  const pathCategories = ["sealed", null, null, "metalled", null, "unmetalled"];
+  const wkt = [
+    "LINESTRING (175 -37.8, 175.001 -37.799)",
+    "POLYGON ((175 -37.8, 175.001 -37.8, 175.001 -37.799, 175 -37.799, 175 -37.8))",
+    null,
+    "LINESTRING (175.002 -37.8, 175.003 -37.799)",
+    "POLYGON ((175.002 -37.8, 175.003 -37.8, 175.003 -37.799, 175.002 -37.799, 175.002 -37.8))",
+    "LINESTRING (175.004 -37.8, 175.005 -37.799)",
+  ];
+  const options = {
+    dataViews: [
+      {
+        categorical: {
+          categories: [
+            makeRoleCategory("geometryId", ids, "geometry_id"),
+            makeRoleCategory("pathColor", pathCategories, "road_surface"),
+          ],
+          values: [
+            makeColumn("layerType", layerTypes),
+            makeColumn("wkt", wkt),
+            makeColumn("point1Latitude", [null, null, -37.8, null, null, null]),
+            makeColumn("point1Longitude", [null, null, 175, null, null, null]),
+            makeColumn("scatterRadius", [null, null, 50, null, null, null]),
+            makeColumn("pathWidth", [3, null, null, 3, null, 3]),
+            makeColumn("pathColor", pathCategories.map(() => null)),
+          ],
+        },
+        metadata: {},
+      },
+    ],
+  };
+
+  const parsed = parseDataset(
+    mapperModule,
+    options,
+    settings,
+    host,
+    new Map<string, unknown>(),
+  );
+  const stats = parsed.colorRoles?.pathColor;
+  assertBenchmark(parsed.layers.path.length === 3, "mixed data should parse path rows");
+  assertBenchmark(
+    parsed.layers.polygon.length === 2,
+    "mixed data should parse polygon rows",
+  );
+  assertBenchmark(
+    parsed.layers.scatter.length === 1,
+    "mixed data should parse scatter rows",
+  );
+  assertBenchmark(
+    stats?.hasCategoricalColor === true && stats?.hasNumericColor === false,
+    "mixed data should keep path color in categorical mode",
+  );
+
+  const legendSpecs = buildLegendSpecs(
+    legendModule,
+    parsed,
+    settings,
+    options,
+    new Map<string, unknown>(),
+  );
+  const labels = new Set(
+    (
+      legendSpecs.find((spec: any) => spec.type === "categorical" && spec.key === "path")
+        ?.classes ?? []
+    ).map((entry: any) => entry.label),
+  );
+  for (const expectedLabel of ["sealed", "metalled", "unmetalled"]) {
+    assertBenchmark(
+      labels.has(expectedLabel),
+      `mixed data path legend should include ${expectedLabel}`,
+    );
+  }
 };
 
 const selectedIdsForScenario = (
@@ -856,6 +1318,53 @@ const buildLegendSpecs = (
   );
 };
 
+const validateCategoricalScenario = (
+  scenario: BenchmarkScenario,
+  parsed: ParsedDataset,
+  legendSpecs: unknown,
+) => {
+  if (scenario.colorMode !== "categorical") {
+    return;
+  }
+
+  const roleStats = Object.values(parsed.colorRoles ?? {});
+  const supportsCategoricalStats = roleStats.some(
+    (stats: any) => "hasCategoricalColor" in stats,
+  );
+  if (!supportsCategoricalStats) {
+    return;
+  }
+
+  const categoricalRoles = roleStats.filter(
+    (stats: any) => stats.hasCategoricalColor,
+  );
+  assertBenchmark(
+    categoricalRoles.length > 0,
+    `${scenario.id} should produce categorical color stats`,
+  );
+  assertBenchmark(
+    categoricalRoles.every((stats: any) => !stats.hasNumericColor),
+    `${scenario.id} should not promote categorical colors to numeric mode`,
+  );
+
+  const specs = Array.isArray(legendSpecs) ? legendSpecs : [];
+  const categoricalSpec = specs.find((spec: any) => spec.type === "categorical");
+  assertBenchmark(
+    !!categoricalSpec,
+    `${scenario.id} should produce a categorical legend spec`,
+  );
+
+  const labels = new Set(
+    ((categoricalSpec as any)?.classes ?? []).map((entry: any) => entry.label),
+  );
+  for (const expectedLabel of ["sealed", "metalled", "unmetalled"]) {
+    assertBenchmark(
+      labels.has(expectedLabel),
+      `${scenario.id} legend should include ${expectedLabel}`,
+    );
+  }
+};
+
 const layerRows = (parsed: ParsedDataset): Record<string, number> => ({
   all: parsed.dataPoints.length,
   scatter: parsed.layers.scatter.length,
@@ -912,12 +1421,14 @@ const runScenario = async (
     settingsModule,
     gradientModule,
     legendModule,
+    powerbiUtilsModule,
   ] = await muteConsole(() =>
     Promise.all([
       importFromRepo<any>(repoPath, "src/mapper.ts"),
       importFromRepo<any>(repoPath, "src/settings.ts"),
       importFromRepo<any>(repoPath, "src/gradientClassification.ts"),
       importFromRepo<any>(repoPath, "src/gradientLegend.ts"),
+      importFromRepo<any>(repoPath, "src/powerbiUtils.ts"),
     ]),
   );
   if (scenario.geometryMode === "wkp") {
@@ -928,6 +1439,24 @@ const runScenario = async (
   const settings = new settingsModule.VisualFormattingSettingsModel();
   configureSettings(settings, scenario);
   const host = createMockHost();
+  const supportsCategoricalParsing = validateColorParsing(powerbiUtilsModule);
+  if (supportsCategoricalParsing && scenario.id === "path-wkt-categorical-10k") {
+    await validateRoleCategoryColumn(
+      repoPath,
+      mapperModule,
+      legendModule,
+      settings,
+      host,
+    );
+    await validateDesktopGroupedPathColor(
+      repoPath,
+      mapperModule,
+      legendModule,
+      settings,
+      host,
+    );
+    validateMixedPathCategoricalData(mapperModule, legendModule, settings, host);
+  }
   const coldGeometryCache = new Map<string, unknown>();
   const warmGeometryCache = new Map<string, unknown>();
 
@@ -969,6 +1498,7 @@ const runScenario = async (
     buildLegendSpecs(legendModule, parsed, settings, options, legendCache),
   );
   metrics.legendSpecs = legend.metric;
+  validateCategoricalScenario(scenario, parsed, legend.result);
 
   const layerCache = new Map<string, unknown>();
   const layersBuilt = await measure(() =>

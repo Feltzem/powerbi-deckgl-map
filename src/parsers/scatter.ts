@@ -38,8 +38,10 @@ export const parseScatter = (
     lineWidth: getNumberFromValue(rowValues.scatterLineWidth),
     lineColor: lineColor.rgbaColor,
     lineColorValue: lineColor.numericValue,
+    lineColorCategory: lineColor.categoricalValue,
     fillColor: fillColor.rgbaColor,
     fillColorValue: fillColor.numericValue,
+    fillColorCategory: fillColor.categoricalValue,
   };
   return true;
 };

@@ -46,6 +46,7 @@ export const parsePath = (
     lineWidth: getNumberFromValue(rowValues.pathWidth),
     lineColor: pathColor.rgbaColor,
     lineColorValue: pathColor.numericValue,
+    lineColorCategory: pathColor.categoricalValue,
   };
   return true;
 };

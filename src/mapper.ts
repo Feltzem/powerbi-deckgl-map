@@ -25,6 +25,13 @@ import { parsePolygon } from "./parsers/polygon";
 import { parseScatter } from "./parsers/scatter";
 import { parseLine, parseArc } from "./parsers/lineArc";
 import { getDataBoundingBox, validateData } from "./geom";
+import { parseColorInput } from "./powerbiUtils";
+import {
+  getGroupedRoleColumns,
+  getRoleRowCount,
+  isMeaningfulPrimitiveValue,
+  RoleColumn,
+} from "./roleColumnUtils";
 
 const roleMappings: Array<[keyof RowValues, string]> = [
   ["layerType", "layerType"],
@@ -51,6 +58,19 @@ const roleMappings: Array<[keyof RowValues, string]> = [
   ["arcTargetColor", "arcTargetColor"],
   ["tooltip", "tooltipHtml"],
 ];
+
+type RoleColumnCandidate = RoleColumn;
+
+const colorRoleFields = new Set<keyof RowValues>([
+  "scatterLineColor",
+  "scatterFillColor",
+  "lineLineColor",
+  "pathColor",
+  "polygonLineColor",
+  "polygonFillColor",
+  "arcSourceColor",
+  "arcTargetColor",
+]);
 
 const tooltipHtmlMaxLength = 4000;
 
@@ -165,25 +185,79 @@ const parseCachedGeometry = (
 };
 
 const getRoleColumns = (
-  values: powerbi.DataViewValueColumns,
-): Partial<Record<keyof RowValues, powerbi.DataViewValueColumn>> => {
-  const roleColumns: Partial<Record<keyof RowValues, powerbi.DataViewValueColumn>> =
-    {};
+  values: powerbi.DataViewValueColumns | null | undefined,
+  categories: powerbi.DataViewCategoryColumn[] = [],
+): Partial<
+  Record<keyof RowValues, powerbi.DataViewValueColumn | powerbi.DataViewCategoryColumn>
+> => {
+  const roleColumnCandidates: Partial<Record<keyof RowValues, RoleColumnCandidate[]>> = {};
 
-  for (const column of values) {
-    const roles = column.source?.roles;
-    if (!roles) {
+  const addRoleColumnCandidates = (columns: RoleColumnCandidate[]) => {
+    for (const column of columns) {
+      const roles = column.source?.roles;
+      if (!roles) {
+        continue;
+      }
+
+      for (const [fieldName, roleName] of roleMappings) {
+        if (roles[roleName]) {
+          roleColumnCandidates[fieldName] ??= [];
+          roleColumnCandidates[fieldName]!.push(column);
+        }
+      }
+    }
+  };
+
+  const rowCount = getRoleRowCount(values, categories);
+  addRoleColumnCandidates(
+    getGroupedRoleColumns(values, rowCount, roleMappings, hasMeaningfulRoleValue),
+  );
+  if (values) {
+    addRoleColumnCandidates(values as RoleColumnCandidate[]);
+  }
+  addRoleColumnCandidates(categories);
+
+  const roleColumns: Partial<Record<keyof RowValues, RoleColumnCandidate>> = {};
+  for (const [fieldName] of roleMappings) {
+    const candidates = roleColumnCandidates[fieldName] ?? [];
+    if (candidates.length === 0) {
       continue;
     }
 
-    for (const [fieldName, roleName] of roleMappings) {
-      if (roles[roleName] && !roleColumns[fieldName]) {
-        roleColumns[fieldName] = column;
-      }
+    const meaningfulCandidate = candidates.find((column) =>
+      hasMeaningfulRoleValues(fieldName, column),
+    );
+    const roleColumn = meaningfulCandidate ?? candidates[0];
+    if (roleColumn) {
+      roleColumns[fieldName] = roleColumn;
     }
   }
 
   return roleColumns;
+};
+
+const hasMeaningfulRoleValues = (
+  fieldName: keyof RowValues,
+  column: RoleColumnCandidate,
+): boolean => {
+  const values = column.values ?? [];
+  return values.some((value) => hasMeaningfulRoleValue(fieldName, value));
+};
+
+const hasMeaningfulRoleValue = (
+  fieldName: keyof RowValues,
+  value: powerbi.PrimitiveValue | null | undefined,
+): boolean => {
+  if (colorRoleFields.has(fieldName)) {
+    const parsed = parseColorInput(value);
+    return (
+      parsed.rgbaColor !== null ||
+      parsed.numericValue !== null ||
+      parsed.categoricalValue !== null
+    );
+  }
+
+  return isMeaningfulPrimitiveValue(value);
 };
 
 const getColumnValues = (
@@ -294,12 +368,14 @@ const updateDataPointColorRoleStats = (
       "scatterFillColor",
       data.scatterProperties.fillColor,
       data.scatterProperties.fillColorValue,
+      data.scatterProperties.fillColorCategory,
     );
     updateColorRoleStats(
       colorRoles,
       "scatterLineColor",
       data.scatterProperties.lineColor,
       data.scatterProperties.lineColorValue,
+      data.scatterProperties.lineColorCategory,
     );
   }
 
@@ -309,6 +385,7 @@ const updateDataPointColorRoleStats = (
       "lineLineColor",
       data.lineProperties.lineColor,
       data.lineProperties.lineColorValue,
+      data.lineProperties.lineColorCategory,
     );
   }
 
@@ -318,6 +395,7 @@ const updateDataPointColorRoleStats = (
       "pathColor",
       data.pathProperties.lineColor,
       data.pathProperties.lineColorValue,
+      data.pathProperties.lineColorCategory,
     );
   }
 
@@ -327,12 +405,14 @@ const updateDataPointColorRoleStats = (
       "polygonFillColor",
       data.polygonProperties.fillColor,
       data.polygonProperties.fillColorValue,
+      data.polygonProperties.fillColorCategory,
     );
     updateColorRoleStats(
       colorRoles,
       "polygonLineColor",
       data.polygonProperties.lineColor,
       data.polygonProperties.lineColorValue,
+      data.polygonProperties.lineColorCategory,
     );
   }
 
@@ -342,12 +422,14 @@ const updateDataPointColorRoleStats = (
       "arcSourceColor",
       data.arcProperties.sourceColor,
       data.arcProperties.sourceColorValue,
+      data.arcProperties.sourceColorCategory,
     );
     updateColorRoleStats(
       colorRoles,
       "arcTargetColor",
       data.arcProperties.targetColor,
       data.arcProperties.targetColorValue,
+      data.arcProperties.targetColorCategory,
     );
   }
 };
@@ -385,7 +467,7 @@ export function createDatasetSnapshot(
     );
   }
   const categorical = dataViews[0].categorical;
-  if (!categorical || !categorical.categories || !categorical.values) {
+  if (!categorical || !categorical.categories) {
     return emptySnapshot();
   }
   const geometryIdValue = categorical.categories[0];
@@ -393,7 +475,7 @@ export function createDatasetSnapshot(
     return emptySnapshot();
   }
 
-  const roleColumns = getRoleColumns(categorical.values);
+  const roleColumns = getRoleColumns(categorical.values, categorical.categories);
   const layerTypeValue = roleColumns.layerType;
   if (!layerTypeValue) {
     return emptySnapshot();

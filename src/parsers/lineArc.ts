@@ -59,6 +59,7 @@ export const parseLine = (
     lineWidth: getNumberFromValue(rowValues.lineLineWidth),
     lineColor: lineColor.rgbaColor,
     lineColorValue: lineColor.numericValue,
+    lineColorCategory: lineColor.categoricalValue,
   };
   return true;
 };
@@ -85,8 +86,10 @@ export const parseArc = (
     lineWidth: getNumberFromValue(rowValues.arcLineWidth),
     sourceColor: sourceColor.rgbaColor,
     sourceColorValue: sourceColor.numericValue,
+    sourceColorCategory: sourceColor.categoricalValue,
     targetColor: targetColor.rgbaColor,
     targetColorValue: targetColor.numericValue,
+    targetColorCategory: targetColor.categoricalValue,
   };
   return true;
 };

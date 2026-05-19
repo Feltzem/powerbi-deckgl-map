@@ -15,6 +15,12 @@ import {
   GradientPresetKey,
   gradientPresetItems,
 } from "./gradientPresets";
+import {
+  categoricalPaletteItems,
+  defaultCategoricalPaletteKey,
+  getCategoricalPalette,
+  CategoricalPaletteKey,
+} from "./categoricalPalettes";
 import { DEFAULT_LAYER_DRAW_ORDER } from "./layerState";
 
 import FormattingSettingsCard = formattingSettings.SimpleCard;
@@ -364,6 +370,39 @@ export class NumericGradientSettings extends FormattingSettingsCard {
   }
 }
 
+interface CategoricalPaletteSettingsOptions {
+  paletteName: string;
+  fieldLabel: string;
+  displayPrefix?: string;
+  defaultPalette?: CategoricalPaletteKey;
+}
+
+export class CategoricalPaletteSettings extends FormattingSettingsCard {
+  palette: formattingSettings.ItemDropdown;
+  slices: Array<FormattingSettingsSlice> = [];
+
+  constructor(options: CategoricalPaletteSettingsOptions) {
+    super();
+
+    const displayPrefix = options.displayPrefix
+      ? `${options.displayPrefix} `
+      : "";
+    const paletteKey =
+      options.defaultPalette ?? defaultCategoricalPaletteKey;
+    const palette = getCategoricalPalette(paletteKey);
+
+    this.palette = new formattingSettings.ItemDropdown({
+      name: options.paletteName,
+      displayName: `${displayPrefix}Categorical palette`,
+      description: `Palette used for categorical ${options.fieldLabel} text values`,
+      value: { value: paletteKey, displayName: palette.displayName },
+      items: categoricalPaletteItems,
+    });
+
+    this.slices = [this.palette];
+  }
+}
+
 export class ScatterCardSettings extends FormattingSettingsCard {
   billboard = new BaseBillboardSettings();
   line = new BaseStrokeSettings();
@@ -381,6 +420,16 @@ export class ScatterCardSettings extends FormattingSettingsCard {
     binningMethodName: "fillGradientBinningMethod",
     classCountName: "fillGradientClassCount",
     definedIntervalName: "fillGradientDefinedInterval",
+    fieldLabel: "scatter fill color",
+    displayPrefix: "Fill",
+  });
+  lineCategoricalPalette = new CategoricalPaletteSettings({
+    paletteName: "lineCategoricalPalette",
+    fieldLabel: "scatter line color",
+    displayPrefix: "Line",
+  });
+  fillCategoricalPalette = new CategoricalPaletteSettings({
+    paletteName: "fillCategoricalPalette",
     fieldLabel: "scatter fill color",
     displayPrefix: "Fill",
   });
@@ -470,8 +519,10 @@ export class ScatterCardSettings extends FormattingSettingsCard {
     this.filled,
     ...this.fill.slices,
     ...this.fillGradient.slices,
+    ...this.fillCategoricalPalette.slices,
     ...this.line.slices,
     ...this.lineGradient.slices,
+    ...this.lineCategoricalPalette.slices,
     ...this.billboard.slices,
   ];
 }
@@ -482,6 +533,10 @@ export class LineCardSettings extends FormattingSettingsCard {
     binningMethodName: "gradientBinningMethod",
     classCountName: "gradientClassCount",
     definedIntervalName: "gradientDefinedInterval",
+    fieldLabel: "line color",
+  });
+  categoricalPalette = new CategoricalPaletteSettings({
+    paletteName: "categoricalPalette",
     fieldLabel: "line color",
   });
 
@@ -500,6 +555,7 @@ export class LineCardSettings extends FormattingSettingsCard {
     this.layerType,
     ...this.line.slices,
     ...this.gradient.slices,
+    ...this.categoricalPalette.slices,
   ];
 }
 
@@ -518,6 +574,16 @@ export class ArcCardSettings extends FormattingSettingsCard {
     binningMethodName: "targetGradientBinningMethod",
     classCountName: "targetGradientClassCount",
     definedIntervalName: "targetGradientDefinedInterval",
+    fieldLabel: "arc target color",
+    displayPrefix: "Target",
+  });
+  sourceCategoricalPalette = new CategoricalPaletteSettings({
+    paletteName: "sourceCategoricalPalette",
+    fieldLabel: "arc source color",
+    displayPrefix: "Source",
+  });
+  targetCategoricalPalette = new CategoricalPaletteSettings({
+    paletteName: "targetCategoricalPalette",
     fieldLabel: "arc target color",
     displayPrefix: "Target",
   });
@@ -587,9 +653,11 @@ export class ArcCardSettings extends FormattingSettingsCard {
     this.defaultSourceColor,
     this.defaultSourceOpacity,
     ...this.sourceGradient.slices,
+    ...this.sourceCategoricalPalette.slices,
     this.defaultTargetColor,
     this.defaultTargetOpacity,
     ...this.targetGradient.slices,
+    ...this.targetCategoricalPalette.slices,
   ];
 }
 
@@ -641,6 +709,10 @@ export class PathCardSettings extends FormattingSettingsCard {
     definedIntervalName: "gradientDefinedInterval",
     fieldLabel: "path color",
   });
+  categoricalPalette = new CategoricalPaletteSettings({
+    paletteName: "categoricalPalette",
+    fieldLabel: "path color",
+  });
   path = new PathLineSettings();
   billboard = new BaseBillboardSettings();
 
@@ -659,6 +731,7 @@ export class PathCardSettings extends FormattingSettingsCard {
     this.layerType,
     ...this.line.slices,
     ...this.gradient.slices,
+    ...this.categoricalPalette.slices,
     ...this.path.slices,
     ...this.billboard.slices,
   ];
@@ -680,6 +753,16 @@ export class PolygonCardSettings extends FormattingSettingsCard {
     binningMethodName: "fillGradientBinningMethod",
     classCountName: "fillGradientClassCount",
     definedIntervalName: "fillGradientDefinedInterval",
+    fieldLabel: "polygon fill color",
+    displayPrefix: "Fill",
+  });
+  lineCategoricalPalette = new CategoricalPaletteSettings({
+    paletteName: "lineCategoricalPalette",
+    fieldLabel: "polygon line color",
+    displayPrefix: "Line",
+  });
+  fillCategoricalPalette = new CategoricalPaletteSettings({
+    paletteName: "fillCategoricalPalette",
     fieldLabel: "polygon fill color",
     displayPrefix: "Fill",
   });
@@ -730,9 +813,11 @@ export class PolygonCardSettings extends FormattingSettingsCard {
     this.stroked,
     ...this.line.slices,
     ...this.lineGradient.slices,
+    ...this.lineCategoricalPalette.slices,
     this.filled,
     ...this.fill.slices,
     ...this.fillGradient.slices,
+    ...this.fillCategoricalPalette.slices,
     this.extruded,
     this.wireframe,
     // no lineCapRounded for polygons
@@ -924,7 +1009,7 @@ export class LegendCardSettings extends FormattingSettingsCard {
   showLegend = new formattingSettings.ToggleSwitch({
     name: "showLegend",
     displayName: "Show legend",
-    description: "Show numeric color gradient legends on the map",
+    description: "Show numeric and categorical color legends on the map",
     value: true,
   });
 

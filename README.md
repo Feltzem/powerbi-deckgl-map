@@ -25,9 +25,10 @@ The demo dashboard is intentionally Hamilton-sized so it opens quickly and stays
   - Path uses WKT or WKP `LineString` / `MultiLineString` geometry.
   - Polygon uses WKT or WKP `Polygon` / `MultiPolygon` geometry.
 - Per-row styling: bind width, radius, fill colour, line colour, arc source colour, arc target colour, and polygon extrusion height fields, with Format pane defaults as fallbacks.
-- Colour inputs: colour buckets accept `#RGB`, `#RRGGBB`, `#RRGGBBAA`, `rgb(...)`, `rgba(...)`, or numeric values.
+- Colour inputs: colour buckets accept `#RGB`, `#RRGGBB`, `#RRGGBBAA`, `rgb(...)`, `rgba(...)`, numeric values, or categorical text values.
 - Numeric gradients: numeric colour fields can be mapped through preset gradients with natural breaks, quantile, equal interval, or defined interval classification. Active numeric colour fields render scrollable gradient legends.
-- Legend formatting: the `Legend` Format pane card controls numeric legend visibility, background opacity, heading/value fonts, classification type text, and colour scale bars.
+- Categorical palettes: non-empty text that is not a valid direct colour and not a strict number is mapped through a qualitative palette such as Modern, Dark, or Neon. Active categorical colour fields render category legends.
+- Legend formatting: the `Legend` Format pane card controls colour legend visibility, background opacity, heading/value fonts, classification type text, and colour scale bars. Classification type text and colour scale bars apply to numeric legends only.
 - 3D camera: polygons can be extruded using a height field or default settings. When extruded polygons or valid arcs are currently rendered, the map automatically tilts to 45 degrees.
 - Tooltips: bind `Tooltip HTML` for custom sanitized HTML tooltips. Multi-layer tooltips follow the current visual layer order and show a compact geometry-type icon in the top-right of each feature section.
 - Interaction: click selection/highlighting, hover highlighting, configurable fade for unselected polygons, reset view, fly-to, and selectable base maps.
@@ -48,7 +49,7 @@ Terminology and options closely match deck.gl:
 - Path - for WKT/WKP line strings and multi-line strings. See [PathLayer](https://deck.gl/docs/api-reference/layers/path-layer).
 - Polygon - for WKT/WKP polygons and multi-polygons. See [PolygonLayer](https://deck.gl/docs/api-reference/layers/polygon-layer).
 
-All colour fields can take either a direct colour string or a numeric value. Numeric values are styled through the matching gradient settings for that geometry and colour channel. Opacity can not be inferred from numeric values; use an alpha-bearing colour such as `#RRGGBBAA` or `rgba(...)` when data-driven opacity is required.
+All colour fields can take a direct colour string, a numeric value, or categorical text. Numeric values are styled through the matching gradient settings for that geometry and colour channel. Categorical text values are styled through the matching categorical palette setting. Opacity can not be inferred from numeric or categorical values; use an alpha-bearing colour such as `#RRGGBBAA` or `rgba(...)` when data-driven opacity is required.
 
 ### Arc styling notes
 
@@ -116,39 +117,45 @@ To create a new release:
 3. The GitHub Action will automatically build and create a GitHub Release with the `.pbiviz` asset.
 4. Refresh `powerbi-deckgl-map-demo-hamilton.pbix` manually in Power BI Desktop and attach it to the same release.
 
-# Power BI Colour Measures And Numeric Gradients
+# Power BI Colour Measures, Numeric Gradients, And Categorical Palettes
 
-Every colour bucket in the visual accepts one of two inputs:
+Every colour bucket in the visual accepts one of three inputs:
 
 1. A text measure or column that returns a CSS/hex colour such as `#RGB`, `#RRGGBB`, `#RRGGBBAA`, `rgb(...)`, or `rgba(...)`.
 2. A numeric measure or column that the visual maps through a gradient configured in the Format pane.
+3. A text column or measure with categorical values such as `sealed`, `metalled`, and `unmetalled`, mapped through a qualitative categorical palette.
 
-Use a text colour measure when you want exact control over the final colour or opacity from DAX. Use a numeric field when you want the visual to manage the gradient, class breaks, and legend for you.
+Use a text colour measure when you want exact control over the final colour or opacity from DAX. Use a numeric field when you want the visual to manage the gradient, class breaks, and numeric legend for you. Use categorical text when you want stable colours and a category legend for factor-style fields.
 
 ## General Setup
 
 1. Put `Geometry ID` in the visual so Power BI evaluates the colour measure at row level.
 2. Bind the geometry-specific colour bucket to either:
    - a text colour measure that returns a colour string, or
-   - a numeric measure that returns the value to classify.
+   - a numeric measure that returns the value to classify, or
+   - a categorical text field such as `road_surface`.
 3. If you bind a numeric field, open the matching Format pane card and configure:
    - `Gradient scale`
    - `Classification method`
    - `Class count`
    - `Defined interval`
-4. If you bind a text colour measure, include alpha in the returned value if you want DAX to control opacity as well.
+4. If you bind a categorical text field, open the matching Format pane card and choose the categorical palette:
+   - `Modern` is the default balanced dashboard palette.
+   - `Dark` uses saturated colours that work well on light basemaps.
+   - `Neon` uses bright colours intended for dark basemaps.
+5. If you bind a text colour measure, include alpha in the returned value if you want DAX to control opacity as well.
 
-For numeric gradients, opacity comes from the default opacity setting in the same Format pane card. For text colours, any alpha you return in `#RRGGBBAA` or `rgba(...)` is preserved.
+For numeric gradients and categorical palettes, opacity comes from the default opacity setting in the same Format pane card. For direct text colours, any alpha you return in `#RRGGBBAA` or `rgba(...)` is preserved.
 
 ## Geometry-Specific Colour Buckets
 
-| Geometry type | Use this bucket for a custom colour measure                           | Use this bucket for a numeric gradient             | Format pane card     |
-| ------------- | --------------------------------------------------------------------- | -------------------------------------------------- | -------------------- |
-| Scatter       | `Scatter fill` for point fill, `Scatter line color` for outline       | Same buckets; bind a numeric field instead of text | `Scatter properties` |
-| Line          | `(Line) line color`                                                   | Same bucket; bind a numeric field instead of text  | `Line properties`    |
-| Path          | `Path color`                                                          | Same bucket; bind a numeric field instead of text  | `Path properties`    |
-| Polygon       | `Polygon fill` for fill, `Polygon line color` for outline             | Same buckets; bind a numeric field instead of text | `Polygon properties` |
-| Arc           | `Arc Source color` and `Arc Target color`                             | Same buckets; bind numeric fields instead of text  | `Arc properties`     |
+| Geometry type | Use this bucket for a custom colour measure                     | Use this bucket for a numeric gradient             | Use this bucket for categories                   | Format pane card     |
+| ------------- | --------------------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------ | -------------------- |
+| Scatter       | `Scatter fill` for point fill, `Scatter line color` for outline | Same buckets; bind a numeric field instead of text | Same buckets; bind categorical text              | `Scatter properties` |
+| Line          | `(Line) line color`                                             | Same bucket; bind a numeric field instead of text  | Same bucket; bind categorical text               | `Line properties`    |
+| Path          | `Path color`                                                    | Same bucket; bind a numeric field instead of text  | Same bucket; bind categorical text               | `Path properties`    |
+| Polygon       | `Polygon fill` for fill, `Polygon line color` for outline       | Same buckets; bind a numeric field instead of text | Same buckets; bind categorical text              | `Polygon properties` |
+| Arc           | `Arc Source color` and `Arc Target color`                       | Same buckets; bind numeric fields instead of text  | Same buckets; bind categorical text              | `Arc properties`     |
 
 When a geometry exposes both fill and line colours, you can drive them independently. For arcs, source and target colours are also independent, so you can bind one measure to `Arc Source color` and a different measure to `Arc Target color`.
 
@@ -164,11 +171,23 @@ If a colour bucket contains numbers instead of colour strings, the visual maps t
 
 The supported classification methods are `Natural breaks`, `Quantile`, `Equal interval`, and `Defined interval`. When a numeric field is active, the visual also renders a matching legend for the active classes.
 
+## Format Pane Options For Categorical Fields
+
+If a colour bucket contains non-empty text that is not a valid direct colour and not a strict number, the visual maps each label to a fixed qualitative palette and renders a categorical legend.
+
+- `Scatter properties`: separate `Fill categorical palette` and `Line categorical palette` settings.
+- `Line properties`: one categorical palette for `(Line) line color`.
+- `Path properties`: one categorical palette for `Path color`.
+- `Polygon properties`: separate `Fill categorical palette` and `Line categorical palette` settings.
+- `Arc properties`: separate `Source categorical palette` and `Target categorical palette` settings.
+
+Palette assignment is deterministic from the category label, so colours stay stable as filters change. If there are more labels than palette colours, colours repeat; the legend shows the first 30 categories and then a `+ N more categories` row.
+
 ### Legend Settings
 
-Use the `Legend` Format pane card to tune numeric gradient legends on the map. You can show or hide the legend, adjust the panel opacity, show or hide the classification method label, show or hide the colour scale bar, and set separate fonts for legend headings and class-value labels.
+Use the `Legend` Format pane card to tune colour legends on the map. You can show or hide the legend, adjust the panel opacity, and set separate fonts for legend headings and class-value labels. Numeric legends can also show or hide the classification method label and colour scale bar.
 
-Legend settings apply to numeric colour buckets only. Direct text colours such as `#RRGGBB` and `rgba(...)` are still rendered exactly as supplied, but they do not create a gradient legend.
+Direct text colours such as `#RRGGBB` and `rgba(...)` are still rendered exactly as supplied, but they do not create a legend. Numeric values take priority for a role: if a colour bucket contains any numeric values, that role uses numeric gradient classification rather than categorical colours.
 
 ## Simple Custom Colour Measure Example
 
@@ -217,27 +236,39 @@ Then configure the gradient in the Format pane:
 
 This is the easier option when you want a legend and want to tune classification without editing DAX.
 
+## Simple Categorical Example
+
+Bind a categorical field directly to a geometry colour bucket. For the Hamilton path sample, bind `road_surface` to `Path color` to colour paths by `sealed`, `metalled`, and `unmetalled` and render a categorical legend.
+
+Power BI Desktop text-column binding has been validated for `Path color` using this `road_surface` example. The same categorical parsing, palette, and legend flow is shared by the other colour buckets when Power BI supplies row-level values for those roles.
+
+Then choose the palette in the Format pane:
+
+- `Path properties` > `Categorical palette` > `Modern` for a balanced dashboard look.
+- `Path properties` > `Categorical palette` > `Dark` for saturated colours on light basemaps.
+- `Path properties` > `Categorical palette` > `Neon` for bright colours on dark basemaps.
+
 ## How To Apply This To Each Geometry Type
 
 ### Scatter
 
-For points, use `Scatter fill` for the point body and `Scatter line color` for the outline. Each can take either a text colour measure or a numeric measure. If you use numeric values, configure the matching `Fill ...` or `Line ...` gradient settings in `Scatter properties`.
+For points, use `Scatter fill` for the point body and `Scatter line color` for the outline. Each can take a text colour measure, a numeric measure, or categorical text. If you use numeric values, configure the matching `Fill ...` or `Line ...` gradient settings in `Scatter properties`. If you use categorical text, configure the matching categorical palette setting.
 
 ### Line
 
-For straight line segments, bind either a text colour measure or a numeric measure to `(Line) line color`. If the value is numeric, set the gradient in `Line properties`.
+For straight line segments, bind a text colour measure, a numeric measure, or categorical text to `(Line) line color`. If the value is numeric, set the gradient in `Line properties`. If the value is categorical text, set the categorical palette.
 
 ### Path
 
-For `LineString` and `MultiLineString` paths, bind either a text colour measure or a numeric measure to `Path color`. If the value is numeric, set the gradient in `Path properties`.
+For `LineString` and `MultiLineString` paths, bind a text colour measure, a numeric measure, or categorical text to `Path color`. If the value is numeric, set the gradient in `Path properties`. If the value is categorical text, set the categorical palette.
 
 ### Polygon
 
-For polygons, use `Polygon fill` for fill colour and `Polygon line color` for the border. You can mix approaches, for example a direct hex fill measure with a numeric outline measure. If a bucket is numeric, configure the matching `Fill ...` or `Line ...` gradient settings in `Polygon properties`.
+For polygons, use `Polygon fill` for fill colour and `Polygon line color` for the border. You can mix approaches, for example a direct hex fill measure with a numeric outline measure or a categorical fill. If a bucket is numeric, configure the matching `Fill ...` or `Line ...` gradient settings in `Polygon properties`. If a bucket is categorical text, configure the matching categorical palette.
 
 ### Arc
 
-For arcs, use `Arc Source color` for the start of the arc and `Arc Target color` for the end. You can return explicit colours from DAX for both ends, or bind numeric fields and configure `Source ...` and `Target ...` gradients separately in `Arc properties`.
+For arcs, use `Arc Source color` for the start of the arc and `Arc Target color` for the end. You can return explicit colours from DAX, bind numeric fields and configure `Source ...` and `Target ...` gradients, or bind categorical text and configure `Source ...` and `Target ...` categorical palettes separately in `Arc properties`.
 
 ## Worked Example: Arc Colour Measures
 
@@ -294,7 +325,15 @@ RETURN
     IF (
         ISBLANK ( CurrentCount ) || CurrentCount <= 0,
         0,
-        MAX ( 0, MIN ( 1, DIVIDE ( CurrentLog - MinLog, MaxLog - MinLog, 0 ) ) )
+        IF (
+            ISBLANK ( MinLog ) || ISBLANK ( MaxLog ),
+            0,
+            IF (
+                MaxLog <= MinLog,
+                1,
+                MAX ( 0, MIN ( 1, DIVIDE ( CurrentLog - MinLog, MaxLog - MinLog ) ) )
+            )
+        )
     )
 
 Arc Target Hex Custom =

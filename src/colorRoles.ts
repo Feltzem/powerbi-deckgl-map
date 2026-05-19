@@ -19,8 +19,11 @@ export const colorRoleKeys: ColorRoleKey[] = [
 export const createEmptyColorRoleStats = (): ColorRoleStats => ({
   hasTextColor: false,
   hasNumericColor: false,
+  hasCategoricalColor: false,
   minValue: null,
   maxValue: null,
+  categoryCounts: new Map<string, number>(),
+  categoryOrder: [],
 });
 
 export const createEmptyColorRoleStatsStore = (): ColorRoleStatsStore =>
@@ -33,10 +36,22 @@ export const updateColorRoleStats = (
   roleKey: ColorRoleKey,
   textColor: RGBAColor | null | undefined,
   numericValue: number | null | undefined,
+  categoricalValue: string | null | undefined,
 ) => {
   const stats = store[roleKey];
   if (textColor) {
     stats.hasTextColor = true;
+  }
+
+  if (categoricalValue) {
+    stats.hasCategoricalColor = true;
+    if (!stats.categoryCounts.has(categoricalValue)) {
+      stats.categoryOrder.push(categoricalValue);
+    }
+    stats.categoryCounts.set(
+      categoricalValue,
+      (stats.categoryCounts.get(categoricalValue) ?? 0) + 1,
+    );
   }
 
   if (typeof numericValue !== "number" || !isFinite(numericValue)) {
@@ -49,3 +64,10 @@ export const updateColorRoleStats = (
   stats.maxValue =
     stats.maxValue === null ? numericValue : Math.max(stats.maxValue, numericValue);
 };
+
+export const getColorRoleCategorySignature = (
+  stats: ColorRoleStats,
+): string =>
+  stats.categoryOrder
+    .map((category) => `${category}:${stats.categoryCounts.get(category) ?? 0}`)
+    .join("|");

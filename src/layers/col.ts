@@ -8,6 +8,7 @@ import {
   NumericGradientClassificationSettings,
 } from "../gradientClassification";
 import { ColorRoleStats } from "../dataTypes";
+import { getColorRoleCategorySignature } from "../colorRoles";
 
 export interface NumericColorGradient {
   lowColor: RGBAColor;
@@ -17,6 +18,7 @@ export interface NumericColorGradient {
 
 export type ColorPropertyAccessor<T> = (item: T) => RGBAColor | null | undefined;
 export type NumericColorAccessor<T> = (item: T) => number | null | undefined;
+export type CategoricalColorAccessor<T> = (item: T) => string | null | undefined;
 
 export interface LayerColorAccessorOptions<T> {
   items: T[],
@@ -25,6 +27,8 @@ export interface LayerColorAccessorOptions<T> {
   cacheKey: string;
   getColorValue: ColorPropertyAccessor<T>;
   getNumericColorValue: NumericColorAccessor<T>;
+  getCategoricalColorValue: CategoricalColorAccessor<T>;
+  getCategoricalColor: (category: string) => RGBAColor;
   getId: (item: T) => string;
   defaultColor: RGBAColor;
   getGradient: () => NumericColorGradient;
@@ -38,6 +42,8 @@ export interface LayerColorAccessorResult<T> {
   accessor: RGBAColor | ((item: T) => RGBAColor);
   bins: NumericColorBins | null;
   usesGradient: boolean;
+  usesCategorical: boolean;
+  categoricalSignature: string;
 }
 
 export const applySelectionFade = (
@@ -89,6 +95,60 @@ export const getLayerColorWithSelectionFade = (
 ): RGBAColor =>
   applySelectionFade(color, shouldFade, fadeFactor, selectedIds, id);
 
+export const getLayerColorWithCategoryBase = (
+  colorProp: RGBAColor | null | undefined,
+  categoricalColorValue: string | null | undefined,
+  defaultColor: RGBAColor,
+  getCategoricalColor: (category: string) => RGBAColor,
+): RGBAColor => {
+  if (colorProp) {
+    return colorProp;
+  }
+
+  if (categoricalColorValue) {
+    return getCategoricalColor(categoricalColorValue);
+  }
+
+  return defaultColor;
+};
+
+export const getLayerColorWithCategory = (
+  colorProp: RGBAColor | null | undefined,
+  categoricalColorValue: string | null | undefined,
+  defaultColor: RGBAColor,
+  getCategoricalColor: (category: string) => RGBAColor,
+  shouldFade: boolean,
+  fadeFactor: number,
+  selectedIds: Set<string>,
+  id: string,
+): RGBAColor => {
+  const color = getLayerColorWithCategoryBase(
+    colorProp,
+    categoricalColorValue,
+    defaultColor,
+    getCategoricalColor,
+  );
+  return getLayerColorWithSelectionFade(
+    color,
+    shouldFade,
+    fadeFactor,
+    selectedIds,
+    id,
+  );
+};
+
+const createCategoricalColorLookup = (
+  colorStats: ColorRoleStats,
+  getCategoricalColor: (category: string) => RGBAColor,
+): ((category: string) => RGBAColor) => {
+  const colorMap = new Map<string, RGBAColor>();
+  for (const category of colorStats.categoryOrder) {
+    colorMap.set(category, getCategoricalColor(category));
+  }
+
+  return (category: string) => colorMap.get(category) ?? getCategoricalColor(category);
+};
+
 export const getLayerColorWithGradient = (
   colorProp: RGBAColor | null | undefined,
   numericColorValue: number | null | undefined,
@@ -123,6 +183,8 @@ export const createLayerColorAccessor = <T>({
   cacheKey,
   getColorValue,
   getNumericColorValue,
+  getCategoricalColorValue,
+  getCategoricalColor,
   getId,
   defaultColor,
   getGradient,
@@ -132,6 +194,7 @@ export const createLayerColorAccessor = <T>({
   selectedIds,
 }: LayerColorAccessorOptions<T>): LayerColorAccessorResult<T> => {
   const shouldApplyFade = shouldFade && fadeFactor < 1;
+  const categoricalSignature = getColorRoleCategorySignature(colorStats);
 
   if (colorStats.hasNumericColor) {
     const bins = getCachedNumericColorBins(
@@ -150,6 +213,8 @@ export const createLayerColorAccessor = <T>({
       return {
         bins,
         usesGradient: true,
+        usesCategorical: false,
+        categoricalSignature,
         accessor: (item: T) =>
           getLayerColorWithGradient(
             getColorValue(item),
@@ -168,6 +233,8 @@ export const createLayerColorAccessor = <T>({
     return {
       bins,
       usesGradient: true,
+      usesCategorical: false,
+      categoricalSignature,
       accessor: (item: T) =>
         getLayerColorWithGradientBase(
           getColorValue(item),
@@ -179,10 +246,53 @@ export const createLayerColorAccessor = <T>({
     };
   }
 
+  if (colorStats.hasCategoricalColor) {
+    const getCachedCategoricalColor = createCategoricalColorLookup(
+      colorStats,
+      getCategoricalColor,
+    );
+
+    if (shouldApplyFade) {
+      return {
+        bins: null,
+        usesGradient: false,
+        usesCategorical: true,
+        categoricalSignature,
+        accessor: (item: T) =>
+          getLayerColorWithCategory(
+            getColorValue(item),
+            getCategoricalColorValue(item),
+            defaultColor,
+            getCachedCategoricalColor,
+            true,
+            fadeFactor,
+            selectedIds,
+            getId(item),
+          ),
+      };
+    }
+
+    return {
+      bins: null,
+      usesGradient: false,
+      usesCategorical: true,
+      categoricalSignature,
+      accessor: (item: T) =>
+        getLayerColorWithCategoryBase(
+          getColorValue(item),
+          getCategoricalColorValue(item),
+          defaultColor,
+          getCachedCategoricalColor,
+        ),
+    };
+  }
+
   if (shouldApplyFade) {
     return {
       bins: null,
       usesGradient: false,
+      usesCategorical: false,
+      categoricalSignature,
       accessor: (item: T) =>
         getLayerColorWithSelectionFade(
           getLayerColor(getColorValue(item), defaultColor),
@@ -198,6 +308,8 @@ export const createLayerColorAccessor = <T>({
     return {
       bins: null,
       usesGradient: false,
+      usesCategorical: false,
+      categoricalSignature,
       accessor: (item: T) => getLayerColor(getColorValue(item), defaultColor),
     };
   }
@@ -206,12 +318,15 @@ export const createLayerColorAccessor = <T>({
     accessor: defaultColor,
     bins: null,
     usesGradient: false,
+    usesCategorical: false,
+    categoricalSignature,
   };
 };
 
 export const getLayerColorUpdateTriggers = <T>(
   baseTriggers: unknown[],
   gradientTriggers: unknown[],
+  categoricalTriggers: unknown[],
   colorAccessor: LayerColorAccessorResult<T>,
   highlightOnClick: boolean,
   unselectedFadeOpacity: number,
@@ -219,6 +334,7 @@ export const getLayerColorUpdateTriggers = <T>(
 ): unknown[] => [
   ...baseTriggers,
   ...(colorAccessor.usesGradient ? gradientTriggers : []),
+  ...(colorAccessor.usesCategorical ? categoricalTriggers : []),
   highlightOnClick,
   unselectedFadeOpacity,
   ...(highlightOnClick ? [selectedSignature] : []),

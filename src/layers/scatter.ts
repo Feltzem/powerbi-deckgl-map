@@ -7,6 +7,7 @@ import {
   NumericColorBinsCache,
 } from "../gradientClassification";
 import { resolveGradientPresetColors } from "../gradientPresets";
+import { getCategoricalPaletteColor } from "../categoricalPalettes";
 import { HighlightingCardSettings, ScatterCardSettings } from "../settings";
 import { LAYER_IDS } from "../layerState";
 import {
@@ -62,6 +63,13 @@ export default function getScatterLayer(
     cacheKey: `${dataVersion}:scatter-fill`,
     getColorValue: (d) => d.scatterProperties?.fillColor,
     getNumericColorValue: (d) => d.scatterProperties?.fillColorValue,
+    getCategoricalColorValue: (d) => d.scatterProperties?.fillColorCategory,
+    getCategoricalColor: (category) =>
+      getCategoricalPaletteColor(
+        category,
+        settings.fillCategoricalPalette.palette.value.value as string,
+        settings.fill.defaultFillOpacity.value,
+      ),
     getId: (d) => String(d.id),
     defaultColor: defaultFillColor,
     getGradient: () =>
@@ -81,6 +89,13 @@ export default function getScatterLayer(
     cacheKey: `${dataVersion}:scatter-line`,
     getColorValue: (d) => d.scatterProperties?.lineColor,
     getNumericColorValue: (d) => d.scatterProperties?.lineColorValue,
+    getCategoricalColorValue: (d) => d.scatterProperties?.lineColorCategory,
+    getCategoricalColor: (category) =>
+      getCategoricalPaletteColor(
+        category,
+        settings.lineCategoricalPalette.palette.value.value as string,
+        settings.line.color.defaultLineOpacity.value,
+      ),
     getId: (d) => String(d.id),
     defaultColor: defaultLineColor,
     getGradient: () =>
@@ -140,6 +155,10 @@ export default function getScatterLayer(
           settings.fillGradient.definedInterval.value,
           getNumericColorBinsSignature(fillColor.bins),
         ],
+        [
+          settings.fillCategoricalPalette.palette.value.value,
+          fillColor.categoricalSignature,
+        ],
         fillColor,
         highlighting.highlightOnClick.value,
         highlighting.unselectedFadeOpacity.value,
@@ -156,6 +175,10 @@ export default function getScatterLayer(
           settings.lineGradient.classCount.value,
           settings.lineGradient.definedInterval.value,
           getNumericColorBinsSignature(lineColor.bins),
+        ],
+        [
+          settings.lineCategoricalPalette.palette.value.value,
+          lineColor.categoricalSignature,
         ],
         lineColor,
         highlighting.highlightOnClick.value,

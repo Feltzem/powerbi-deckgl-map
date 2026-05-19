@@ -407,7 +407,7 @@ export const getGradientColorForValue = (
 ): RGBAColor => {
   const classIndex = getBinIndex(value, bins);
   const position =
-    bins.classCount <= 1 ? 0.5 : classIndex / Math.max(1, bins.classCount - 1);
+    bins.classCount <= 1 ? 1 : classIndex / Math.max(1, bins.classCount - 1);
   return sampleGradientAtPosition(gradient, position);
 };
 
@@ -418,7 +418,7 @@ export const getGradientClassColors = (
   Array.from({ length: bins.classCount }, (_, index) =>
     sampleGradientAtPosition(
       gradient,
-      bins.classCount <= 1 ? 0.5 : index / Math.max(1, bins.classCount - 1),
+      bins.classCount <= 1 ? 1 : index / Math.max(1, bins.classCount - 1),
     ),
   );
 

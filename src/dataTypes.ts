@@ -38,10 +38,12 @@ interface StrokedProperties {
   lineWidth: number | null;
   lineColor: RGBAColor | null;
   lineColorValue: number | null;
+  lineColorCategory: string | null;
 }
 interface FilledProperties {
   fillColor: RGBAColor | null;
   fillColorValue: number | null;
+  fillColorCategory: string | null;
 }
 export interface LineProperties extends StrokedProperties {}
 export interface PathProperties extends StrokedProperties {}
@@ -54,8 +56,10 @@ export interface ArcProperties {
   lineWidth: number | null;
   sourceColor: RGBAColor | null;
   sourceColorValue: number | null;
+  sourceColorCategory: string | null;
   targetColor: RGBAColor | null;
   targetColorValue: number | null;
+  targetColorCategory: string | null;
 }
 
 export interface OurData {
@@ -116,8 +120,11 @@ export type ColorRoleKey =
 export interface ColorRoleStats {
   hasTextColor: boolean;
   hasNumericColor: boolean;
+  hasCategoricalColor: boolean;
   minValue: number | null;
   maxValue: number | null;
+  categoryCounts: Map<string, number>;
+  categoryOrder: string[];
 }
 
 export type ColorRoleStatsStore = Record<ColorRoleKey, ColorRoleStats>;

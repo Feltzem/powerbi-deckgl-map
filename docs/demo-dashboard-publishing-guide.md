@@ -120,7 +120,7 @@ For the multi-geometry map page, bind the combined table as:
 | `Point1 Latitude` | `point1_latitude` |
 | `Point1 Longitude` | `point1_longitude` |
 | `Polygon fill (Hex)` | `road_density_km_per_km2` or `polygon_fill_color_value` |
-| `Path color` | `path_color_hex` or `path_color_value` |
+| `Path color` | `road_surface` for categorical colours, `path_color_hex` for direct colours, or `path_color_value` for numeric gradients where present |
 | `Path width (m)` | `path_width_m` |
 | `Scatter fill (Hex)` | `point_fill_color_hex` or `point_fill_color_value` |
 | `Scatter radius (m)` | `point_radius_m` |
@@ -128,7 +128,9 @@ For the multi-geometry map page, bind the combined table as:
 
 Set `Scatter properties > Layer Identifier` to `point`. The full-New-Zealand combined table is already row-window limited; the Hamilton combined table includes all Hamilton road centre lines.
 
-For road paths in the combined tables, both `path_color_value` and `path_color_hex` are road-surface hex colours. Use `road_surface` itself for the category label or slicer.
+For road paths, bind `road_surface` to `Path color` when validating categorical palettes and the categorical legend. Use `path_color_hex` for direct road-surface colours, or `path_color_value` where the combined table includes a numeric gradient value.
+
+The current Desktop categorical-binding validation focuses on this `road_surface` -> `Path color` path example, because that is the Power BI grouped data-view shape used by the demo.
 
 ## Publish A Release
 

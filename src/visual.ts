@@ -1218,3 +1218,4 @@ export class Visual implements IVisual {
     this.legendContainer = null;
   }
 }
+

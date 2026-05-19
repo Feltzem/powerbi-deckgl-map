@@ -6,6 +6,7 @@ const strictNumberPattern = /^[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?$/;
 export interface ParsedColorInput {
   rgbaColor: RGBAColor | null;
   numericValue: number | null;
+  categoricalValue: string | null;
 }
 
 export const getNumberFromPrimitive = (
@@ -76,9 +77,45 @@ export const getHexColorString = (
   return /^#|^rgba?\(/i.test(trimmed) ? trimmed : null;
 };
 
+const getTrimmedTextValue = (
+  col: powerbi.PrimitiveValue | null,
+): string | null => {
+  if (typeof col !== "string") {
+    return null;
+  }
+
+  const trimmed = col
+    .trim()
+    .replace(/^(['"])(.*)\1$/, "$2")
+    .trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
+
 export const parseColorInput = (
   col: powerbi.PrimitiveValue | null,
-): ParsedColorInput => ({
-  rgbaColor: parseColorString(getHexColorString(col)),
-  numericValue: getStrictNumberFromValue(col),
-});
+): ParsedColorInput => {
+  const textValue = getTrimmedTextValue(col);
+  const rgbaColor = parseColorString(textValue);
+  if (rgbaColor) {
+    return {
+      rgbaColor,
+      numericValue: null,
+      categoricalValue: null,
+    };
+  }
+
+  const numericValue = getStrictNumberFromValue(col);
+  if (numericValue !== null) {
+    return {
+      rgbaColor: null,
+      numericValue,
+      categoricalValue: null,
+    };
+  }
+
+  return {
+    rgbaColor: null,
+    numericValue: null,
+    categoricalValue: textValue,
+  };
+};
