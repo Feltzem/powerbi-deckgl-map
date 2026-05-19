@@ -272,6 +272,87 @@ The measures below are a worked example for arcs. They keep the colour scale rel
 4. Bind the target colour bucket to one of the `Arc Target Hex ...` measures.
 5. Keep using the exported `count` field as the measure input.
 
+### Tuning The Custom Colour Scale
+
+The `Arc Source Hex Custom` and `Arc Target Hex Custom` measures below build a `#RRGGBBAA` colour by blending each channel between a start colour and an end colour:
+
+```DAX
+Start + ( End - Start ) * Ratio
+```
+
+`Ratio = 0` gives the start colour. `Ratio = 1` gives the end colour. Values between `0` and `1` produce the colours in between.
+
+To set the start and end colours, edit these variables in the measure:
+
+```DAX
+VAR StartR = 255
+VAR StartG = 255
+VAR StartB = 255
+VAR StartA = 51
+
+VAR EndR = 0
+VAR EndG = 91
+VAR EndB = 187
+VAR EndA = 242
+```
+
+`R`, `G`, and `B` are normal red, green, and blue values from `0` to `255`. `A` is alpha from `0` to `255`, where `0` is fully transparent and `255` is fully opaque. For example, `#005BBB` is:
+
+```DAX
+VAR EndR = 0
+VAR EndG = 91
+VAR EndB = 187
+```
+
+If the lightest colour is too pale, make the start colour darker. For example, replace white `#FFFFFF` with pale blue `#DCEBFA`:
+
+```DAX
+VAR StartR = 220
+VAR StartG = 235
+VAR StartB = 250
+```
+
+If the darkest colour is not strong enough, make the end colour darker. For example, replace `#005BBB` with deeper blue `#004196`:
+
+```DAX
+VAR EndR = 0
+VAR EndG = 65
+VAR EndB = 150
+```
+
+To shift the whole scale darker without changing the start and end colour variables, lift the ratio before using it for RGB:
+
+```DAX
+VAR DarkenShift = 0.10
+VAR ColourRatio = MIN ( 1, MAX ( 0, Ratio + DarkenShift ) )
+```
+
+Then use `ColourRatio` in the red, green, and blue calculations:
+
+```DAX
+VAR Red = ROUND ( StartR + ( EndR - StartR ) * ColourRatio, 0 )
+VAR Green = ROUND ( StartG + ( EndG - StartG ) * ColourRatio, 0 )
+VAR Blue = ROUND ( StartB + ( EndB - StartB ) * ColourRatio, 0 )
+```
+
+For the source arc measure, keep the source end lighter by applying the same shift to the scaled source ratio:
+
+```DAX
+VAR DarkenShift = 0.10
+VAR SourceRatio = MIN ( 1, MAX ( 0, DarkenShift + Ratio * 0.65 ) )
+```
+
+To shift the whole scale lighter, move the ratio back toward the start colour instead:
+
+```DAX
+VAR LightenShift = 0.10
+VAR ColourRatio = MIN ( 1, MAX ( 0, Ratio - LightenShift ) )
+```
+
+Use a shift around `0.05` for a subtle change, `0.10` for a clear change, and `0.15` or more when the colours need a stronger push. If you want both ends of the ramp to change, edit the `StartR/G/B/A` and `EndR/G/B/A` variables as well as the ratio shift.
+
+The same start/end channel technique works for any custom text colour measure, not just arcs. Bind the final `#RRGGBBAA` measure to the relevant scatter, line, path, polygon, or arc colour bucket. If you bind a numeric value directly instead, the visual uses the gradient scale selected in the Format pane; use a DAX text colour measure when you need exact arbitrary start and end colours.
+
 ### Base Measures
 
 ```DAX
