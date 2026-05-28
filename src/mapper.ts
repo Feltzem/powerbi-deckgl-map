@@ -28,7 +28,7 @@ import { parsePolygon } from "./parsers/polygon";
 import { parseScatter } from "./parsers/scatter";
 import { parseLine, parseArc } from "./parsers/lineArc";
 import { getDataBoundingBox, validateData } from "./geom";
-import { parseColorInput } from "./powerbiUtils";
+import { getStrictNumberFromValue, parseColorInput } from "./powerbiUtils";
 import {
   getGroupedRoleColumns,
   getRoleRowCount,
@@ -45,6 +45,7 @@ const roleMappings: Array<[keyof RowValues, string]> = [
   ["point2Latitude", "point2Latitude"],
   ["point2Longitude", "point2Longitude"],
   ["scatterRadius", "scatterRadius"],
+  ["heatmapWeight", "heatmapWeight"],
   ["scatterLineColor", "scatterLineColor"],
   ["scatterLineWidth", "scatterLineWidth"],
   ["scatterFillColor", "scatterFillColor"],
@@ -74,6 +75,8 @@ const colorRoleFields = new Set<keyof RowValues>([
   "arcSourceColor",
   "arcTargetColor",
 ]);
+
+const numericRoleFields = new Set<keyof RowValues>(["heatmapWeight"]);
 
 const tooltipHtmlMaxLength = 4000;
 const groupedNumericTolerance = 1e-12;
@@ -346,6 +349,10 @@ const hasMeaningfulRoleValue = (
     );
   }
 
+  if (numericRoleFields.has(fieldName)) {
+    return getStrictNumberFromValue(value) !== null;
+  }
+
   return isMeaningfulPrimitiveValue(value);
 };
 
@@ -368,6 +375,15 @@ const mergeGroupedRoleValues = (
   values: powerbi.PrimitiveValue[],
 ): powerbi.PrimitiveValue | null => {
   if (!colorRoleFields.has(fieldName)) {
+    if (numericRoleFields.has(fieldName)) {
+      const numericValues = values
+        .map((value) => getStrictNumberFromValue(value))
+        .filter((value): value is number => value !== null);
+      return numericValues.length > 0
+        ? mergeNumericGroupedValues(numericValues)
+        : (values[0] ?? null);
+    }
+
     return values[0] ?? null;
   }
 
@@ -398,6 +414,7 @@ const getRowValues = (
   point2Latitude: rowValueArrays.point2Latitude?.[index] ?? null,
   point2Longitude: rowValueArrays.point2Longitude?.[index] ?? null,
   scatterRadius: rowValueArrays.scatterRadius?.[index] ?? null,
+  heatmapWeight: rowValueArrays.heatmapWeight?.[index] ?? null,
   scatterLineColor: rowValueArrays.scatterLineColor?.[index] ?? null,
   scatterLineWidth: rowValueArrays.scatterLineWidth?.[index] ?? null,
   scatterFillColor: rowValueArrays.scatterFillColor?.[index] ?? null,
@@ -463,7 +480,13 @@ const getDataPointTypeFromGeometry = (
 const dataPointTypeRoleEvidence: Array<[InputLayerType, Array<keyof RowValues>]> = [
   [
     InputLayerType.Scatter,
-    ["scatterRadius", "scatterLineColor", "scatterLineWidth", "scatterFillColor"],
+    [
+      "scatterRadius",
+      "heatmapWeight",
+      "scatterLineColor",
+      "scatterLineWidth",
+      "scatterFillColor",
+    ],
   ],
   [InputLayerType.Line, ["lineLineWidth", "lineLineColor"]],
   [InputLayerType.Path, ["pathWidth", "pathColor"]],
@@ -663,6 +686,7 @@ export function createDatasetSnapshot(
     point2Latitude: getColumnValues(roleColumns.point2Latitude ?? null),
     point2Longitude: getColumnValues(roleColumns.point2Longitude ?? null),
     scatterRadius: getColumnValues(roleColumns.scatterRadius ?? null),
+    heatmapWeight: getColumnValues(roleColumns.heatmapWeight ?? null),
     scatterLineColor: getColumnValues(roleColumns.scatterLineColor ?? null),
     scatterLineWidth: getColumnValues(roleColumns.scatterLineWidth ?? null),
     scatterFillColor: getColumnValues(roleColumns.scatterFillColor ?? null),
@@ -696,6 +720,7 @@ export function createDatasetSnapshot(
     point2Latitude: !!rowValueArrays.point2Latitude,
     point2Longitude: !!rowValueArrays.point2Longitude,
     scatterRadius: !!rowValueArrays.scatterRadius,
+    heatmapWeight: !!rowValueArrays.heatmapWeight,
     scatterLineColor: !!rowValueArrays.scatterLineColor,
     scatterLineWidth: !!rowValueArrays.scatterLineWidth,
     scatterFillColor: !!rowValueArrays.scatterFillColor,

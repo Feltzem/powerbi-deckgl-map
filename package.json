@@ -1,7 +1,7 @@
 {
   "name": "visual",
   "description": "powerbi-deckgl-map",
-  "version": "1.6.2.1",
+  "version": "1.7.0.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/Feltzem/powerbi-deckgl-map"
@@ -30,6 +30,7 @@
     "@loaders.gl/wkt": "^4.3.4",
     "@wkpjs/web": "0.4.0",
     "deck.gl": "^9.1.14",
+    "h3-js": "^4.4.0",
     "maplibre-gl": "^5.7.1",
     "powerbi-visuals-api": "~5.3.0",
     "powerbi-visuals-utils-formattingmodel": "^6.2.1",

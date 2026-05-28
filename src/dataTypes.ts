@@ -29,6 +29,7 @@ export interface PointData {
 }
 export interface ScatterData extends PointData {
   radius: number | null; // in meters
+  heatmapWeight: number | null;
 }
 export interface LineData {
   point1: PointData;
@@ -153,6 +154,7 @@ export interface RowValues {
   point2Latitude: PrimitiveValue | null;
   point2Longitude: PrimitiveValue | null;
   scatterRadius: PrimitiveValue | null;
+  heatmapWeight: PrimitiveValue | null;
   scatterLineColor: PrimitiveValue | null;
   scatterLineWidth: PrimitiveValue | null;
   scatterFillColor: PrimitiveValue | null;

@@ -28,6 +28,7 @@ const makeRow = (overrides: Partial<RowValues> = {}): RowValues => ({
   point2Latitude: null,
   point2Longitude: null,
   scatterRadius: null,
+  heatmapWeight: null,
   scatterLineColor: null,
   scatterLineWidth: null,
   scatterFillColor: null,
@@ -86,8 +87,53 @@ test("parseScatter accepts finite coordinates", () => {
     lat: -37.8,
     lon: 175.2,
     radius: 10,
+    heatmapWeight: null,
   });
   assert.deepEqual(errors, []);
+});
+
+test("parseScatter stores positive heatmap weight and zeroes invalid bound weights", () => {
+  const data = makeData();
+  const errors: string[] = [];
+
+  assert.equal(
+    parseScatter(
+      makeAvailability([
+        "point1Latitude",
+        "point1Longitude",
+        "heatmapWeight",
+      ]),
+      makeRow({
+        point1Latitude: "-37.8",
+        point1Longitude: "175.2",
+        heatmapWeight: "2.5",
+      }),
+      errors,
+      data,
+    ),
+    true,
+  );
+  assert.equal(data.scatterData?.heatmapWeight, 2.5);
+
+  const invalidData = makeData();
+  assert.equal(
+    parseScatter(
+      makeAvailability([
+        "point1Latitude",
+        "point1Longitude",
+        "heatmapWeight",
+      ]),
+      makeRow({
+        point1Latitude: "-37.8",
+        point1Longitude: "175.2",
+        heatmapWeight: "-1",
+      }),
+      errors,
+      invalidData,
+    ),
+    true,
+  );
+  assert.equal(invalidData.scatterData?.heatmapWeight, 0);
 });
 
 test("parseScatter rejects non-finite coordinates", () => {

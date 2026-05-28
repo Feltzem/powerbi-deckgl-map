@@ -36,6 +36,10 @@ import {
 } from "./dataTypes";
 import { NumericColorBinsCache } from "./gradientClassification";
 import getScatterLayer from "./layers/scatter";
+import getHeatmapLayer from "./layers/heatmap";
+import getH3HexagonLayer, {
+  getH3HexagonTooltipHtml,
+} from "./layers/h3Hexagon";
 import getLineLayer from "./layers/line";
 import getArcLayer from "./layers/arc";
 import getPathLayer from "./layers/path";
@@ -504,6 +508,24 @@ export class Visual implements IVisual {
           },
           pickingRadius: 5,
           getTooltip: (hoverInfo) => {
+            const h3TooltipHtml = getH3HexagonTooltipHtml(hoverInfo);
+            if (h3TooltipHtml) {
+              return {
+                html: h3TooltipHtml,
+                style: {
+                  "z-index": 2,
+                  color: "#dbe6ef",
+                  "background-color": "#29323c",
+                  padding: "8px 10px",
+                  "border-radius": "4px",
+                  margin: "0px",
+                  "font-size": "12px",
+                  "margin-left": "25px",
+                  "max-width": "220px",
+                },
+              };
+            }
+
             const tooltipHtml = getAggregatedTooltipHtml({
               hoverInfo,
               deckOverlay: this.deckOverlay,
@@ -1062,19 +1084,45 @@ export class Visual implements IVisual {
         activeGeometryTypes.add(geometryType);
 
         if (geometryType === "scatter") {
-          layers.push(
-            getScatterLayer(
-              layerData.scatter,
-              settings.scatter,
-              settings.highlighting,
-              visualSelectedIds,
-              selectedSignature,
-              this.dataset.colorRoles,
-              this.classificationCache,
-              this.dataset.version,
-              this.onClick,
-            ),
-          );
+          const showHeatmap = settings.heatmap.showHeatmap.value === true;
+          const showH3Hexagons =
+            settings.h3Hexagon.showH3Hexagons.value === true;
+          const showScatterPoints =
+            (!showHeatmap ||
+              settings.heatmap.showScatterPoints.value === true) &&
+            (!showH3Hexagons ||
+              settings.h3Hexagon.showScatterPoints.value === true);
+
+          if (showHeatmap) {
+            layers.push(getHeatmapLayer(layerData.scatter, settings.heatmap));
+          }
+
+          if (showH3Hexagons) {
+            layers.push(
+              getH3HexagonLayer(
+                layerData.scatter,
+                settings.h3Hexagon,
+                this.classificationCache,
+                this.dataset.version,
+              ),
+            );
+          }
+
+          if (showScatterPoints) {
+            layers.push(
+              getScatterLayer(
+                layerData.scatter,
+                settings.scatter,
+                settings.highlighting,
+                visualSelectedIds,
+                selectedSignature,
+                this.dataset.colorRoles,
+                this.classificationCache,
+                this.dataset.version,
+                this.onClick,
+              ),
+            );
+          }
         } else if (geometryType === "line") {
           layers.push(
             getLineLayer(

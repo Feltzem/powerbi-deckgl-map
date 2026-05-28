@@ -4,7 +4,23 @@ import {
   RowValueAvailability,
   RowValues,
 } from "../dataTypes";
-import { getNumberFromValue, parseColorInput } from "../powerbiUtils";
+import {
+  getNumberFromValue,
+  getStrictNumberFromValue,
+  parseColorInput,
+} from "../powerbiUtils";
+
+const getHeatmapWeight = (
+  isProvided: RowValueAvailability,
+  rowValues: RowValues,
+): number | null => {
+  if (!isProvided.heatmapWeight) {
+    return null;
+  }
+
+  const value = getStrictNumberFromValue(rowValues.heatmapWeight);
+  return typeof value === "number" && isFinite(value) && value > 0 ? value : 0;
+};
 
 export const parseScatter = (
   isProvided: RowValueAvailability,
@@ -38,6 +54,7 @@ export const parseScatter = (
     lat: lat,
     lon: lon,
     radius: getNumberFromValue(rowValues.scatterRadius),
+    heatmapWeight: getHeatmapWeight(isProvided, rowValues),
   };
   data.scatterProperties = {
     lineWidth: getNumberFromValue(rowValues.scatterLineWidth),

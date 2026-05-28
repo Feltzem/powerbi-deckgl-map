@@ -1,5 +1,5 @@
 import powerbi from "powerbi-visuals-api";
-import { interpolateGradientColor, RGBAColor } from "./col";
+import { interpolateGradientColor, RGBAColor, withOpacity } from "./col";
 import { ColorRoleStats, ColorRoleStatsStore, LayerDataStore } from "./dataTypes";
 import {
   GradientBinningMethod,
@@ -23,8 +23,14 @@ import {
   getGroupedRoleColumns,
   getRoleRowCount,
 } from "./roleColumnUtils";
-import { createGeometryIconElement } from "./geometryIcons";
+import { createGeometryIconElement, GeometryIconType } from "./geometryIcons";
 import type { RenderableGeometryType } from "./layerState";
+import {
+  aggregateScatterToH3Cells,
+  clampH3Resolution,
+  getH3CountOpacity,
+  getH3HexagonCountBins,
+} from "./layers/h3Hexagon";
 
 const legendValueFormatter = new Intl.NumberFormat(undefined, {
   maximumSignificantDigits: 4,
@@ -63,7 +69,7 @@ const legendRoleMappings: Array<[LegendRoleName, string]> = legendRoleNames.map(
 
 export interface NumericGradientLegendSpec {
   type: "numeric";
-  geometryType: RenderableGeometryType;
+  geometryType: GeometryIconType;
   key: string;
   title: string;
   subtitle: string;
@@ -80,7 +86,7 @@ export interface CategoricalLegendClass {
 
 export interface CategoricalGradientLegendSpec {
   type: "categorical";
-  geometryType: RenderableGeometryType;
+  geometryType: GeometryIconType;
   key: string;
   title: string;
   classes: CategoricalLegendClass[];
@@ -297,13 +303,20 @@ const getLegendTitle = (
   fallbackTitle: string,
 ): string => roleTitles[roleName] ?? fallbackTitle;
 
+type LegendClassColorMapper = (
+  legendClass: GradientLegendClass,
+  index: number,
+  bins: NumericColorBins,
+) => RGBAColor;
+
 const createLegendSpec = (
-  geometryType: RenderableGeometryType,
+  geometryType: GeometryIconType,
   key: string,
   title: string,
   bins: NumericColorBins | null,
   gradient: NumericColorGradient,
   classificationMethod: string,
+  mapClassColor?: LegendClassColorMapper,
 ): NumericGradientLegendSpec | null => {
   if (
     !bins ||
@@ -314,21 +327,30 @@ const createLegendSpec = (
     return null;
   }
 
-  const classes = getGradientLegendClasses(bins, gradient);
+  const classes = getGradientLegendClasses(bins, gradient).map(
+    (legendClass, index) => ({
+      ...legendClass,
+      color: mapClassColor
+        ? mapClassColor(legendClass, index, bins)
+        : legendClass.color,
+    }),
+  );
   const hasMiddleStop = gradient.middleColor !== null && classes.length > 2;
   const middleColor = hasMiddleStop
     ? rgbaToCss(getLegendMidpointColor(bins, gradient))
     : null;
   const gradientCss =
-    classes.length > 1
+    mapClassColor && classes.length > 0
       ? createSteppedGradient(classes)
-      : hasMiddleStop
-        ? `linear-gradient(90deg, ${rgbaToCss(
-            gradient.lowColor,
-          )} 0%, ${middleColor!} 50%, ${rgbaToCss(gradient.highColor)} 100%)`
-        : `linear-gradient(90deg, ${rgbaToCss(gradient.lowColor)} 0%, ${rgbaToCss(
-            gradient.highColor,
-          )} 100%)`;
+      : classes.length > 1
+        ? createSteppedGradient(classes)
+        : hasMiddleStop
+          ? `linear-gradient(90deg, ${rgbaToCss(
+              gradient.lowColor,
+            )} 0%, ${middleColor!} 50%, ${rgbaToCss(gradient.highColor)} 100%)`
+          : `linear-gradient(90deg, ${rgbaToCss(gradient.lowColor)} 0%, ${rgbaToCss(
+              gradient.highColor,
+            )} 100%)`;
 
   return {
     type: "numeric",
@@ -397,6 +419,57 @@ const appendLegendSpec = (
   if (spec) {
     specs.push(spec);
   }
+};
+
+const getH3LegendClassRepresentativeValue = (
+  legendClass: GradientLegendClass,
+): number =>
+  legendClass.lowValue === legendClass.highValue
+    ? legendClass.highValue
+    : legendClass.lowValue + (legendClass.highValue - legendClass.lowValue) / 2;
+
+const createH3CountLegendSpec = (
+  key: string,
+  title: string,
+  bins: NumericColorBins | null,
+  gradientSettings: NumericGradientSettings,
+  lowOpacity: number,
+  highOpacity: number,
+): NumericGradientLegendSpec | null => {
+  const spec = createLegendSpec(
+    "h3",
+    key,
+    title,
+    bins,
+    resolveGradientPresetColors(
+      gradientSettings.preset.value.value as string,
+      255,
+    ),
+    gradientSettings.binningMethod.value.value as string,
+    (legendClass, _index, classBins) =>
+      withOpacity(
+        legendClass.color,
+        getH3CountOpacity(
+          getH3LegendClassRepresentativeValue(legendClass),
+          classBins,
+          lowOpacity,
+          highOpacity,
+        ),
+      ),
+  );
+
+  if (!spec) {
+    return null;
+  }
+
+  return {
+    ...spec,
+    classes: spec.classes.map((legendClass) => ({
+      ...legendClass,
+      lowValue: Math.round(legendClass.lowValue),
+      highValue: Math.round(legendClass.highValue),
+    })),
+  };
 };
 
 export const formatLegendValue = (value: number): string => {
@@ -547,6 +620,29 @@ export const getGradientLegendSpecs = (
       settings.scatter.lineCategoricalPalette,
       settings.scatter.line.color.defaultLineOpacity.value,
     );
+  }
+
+  if (settings.h3Hexagon.showH3Hexagons.value) {
+    const resolution = clampH3Resolution(settings.h3Hexagon.resolution.value);
+    const h3Cells = aggregateScatterToH3Cells(scatterData, resolution);
+    if (h3Cells.length > 0) {
+      appendLegendSpec(
+        specs,
+        createH3CountLegendSpec(
+          "h3-fill",
+          "H3 point count",
+          getH3HexagonCountBins(
+            h3Cells,
+            settings.h3Hexagon.fillGradient,
+            classificationCache,
+            `${dataVersion}:h3-fill:${resolution}`,
+          ),
+          settings.h3Hexagon.fillGradient,
+          settings.h3Hexagon.lowFillOpacity.value,
+          settings.h3Hexagon.highFillOpacity.value,
+        ),
+      );
+    }
   }
 
   const lineTitle = getLegendTitle(roleTitles, "lineLineColor", "Line");

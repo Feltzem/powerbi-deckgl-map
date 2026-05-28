@@ -5,7 +5,12 @@ import {
 
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 
-const getGeometryIconPaths = (geometryType: RenderableGeometryType): string => {
+export type GeometryIconType = RenderableGeometryType | "h3";
+
+const getGeometryIconLabel = (geometryType: GeometryIconType): string =>
+  geometryType === "h3" ? "H3 hexagon" : GEOMETRY_TYPE_LABELS[geometryType];
+
+const getGeometryIconPaths = (geometryType: GeometryIconType): string => {
   switch (geometryType) {
     case "scatter":
       return '<circle cx="10" cy="10" r="5.5" />';
@@ -17,6 +22,8 @@ const getGeometryIconPaths = (geometryType: RenderableGeometryType): string => {
       return '<polyline points="3.5 14.5 7.5 7.5 11.5 12.5 16.5 5.5" />';
     case "polygon":
       return '<polygon points="10 3.5 16 7.5 14 15.5 6 15.5 4 7.5" />';
+    case "h3":
+      return '<polygon points="10 2.8 16.3 6.4 16.3 13.6 10 17.2 3.7 13.6 3.7 6.4" />';
   }
 };
 
@@ -33,7 +40,7 @@ const createSvgChild = (
 };
 
 const createGeometryIconShapeElement = (
-  geometryType: RenderableGeometryType,
+  geometryType: GeometryIconType,
 ): SVGElement => {
   switch (geometryType) {
     case "scatter":
@@ -57,14 +64,18 @@ const createGeometryIconShapeElement = (
       return createSvgChild("polygon", {
         points: "10 3.5 16 7.5 14 15.5 6 15.5 4 7.5",
       });
+    case "h3":
+      return createSvgChild("polygon", {
+        points: "10 2.8 16.3 6.4 16.3 13.6 10 17.2 3.7 13.6 3.7 6.4",
+      });
   }
 };
 
 export const getGeometryIconHtml = (
-  geometryType: RenderableGeometryType,
+  geometryType: GeometryIconType,
   className: string,
 ): string => {
-  const label = GEOMETRY_TYPE_LABELS[geometryType];
+  const label = getGeometryIconLabel(geometryType);
 
   return [
     `<svg class="${className} ${className}--${geometryType}"`,
@@ -76,10 +87,10 @@ export const getGeometryIconHtml = (
 };
 
 export const createGeometryIconElement = (
-  geometryType: RenderableGeometryType,
+  geometryType: GeometryIconType,
   className: string,
 ): SVGSVGElement => {
-  const label = GEOMETRY_TYPE_LABELS[geometryType];
+  const label = getGeometryIconLabel(geometryType);
   const svg = document.createElementNS(SVG_NAMESPACE, "svg");
   svg.setAttribute("class", `${className} ${className}--${geometryType}`);
   svg.setAttribute("viewBox", "0 0 20 20");

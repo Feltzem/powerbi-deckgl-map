@@ -55,6 +55,17 @@
       "description": "The radius of scatter in meters"
     },
     {
+      "displayName": "Heatmap weight",
+      "name": "heatmapWeight",
+      "kind": "Measure",
+      "description": "Optional numeric weight used when rendering scatter points as a heatmap",
+      "preferredTypes": [
+        {
+          "numeric": true
+        }
+      ]
+    },
+    {
       "displayName": "Scatter line width (m)",
       "name": "scatterLineWidth",
       "kind": "Measure",
@@ -376,6 +387,11 @@
             "text": true
           }
         },
+        "symbolType": {
+          "type": {
+            "enumeration": []
+          }
+        },
         "radiusMinPixels": {
           "type": {
             "numeric": true
@@ -497,6 +513,111 @@
         "billboard": {
           "type": {
             "bool": true
+          }
+        }
+      }
+    },
+    "heatmapProps": {
+      "displayName": "Heatmap properties",
+      "properties": {
+        "showHeatmap": {
+          "type": {
+            "bool": true
+          }
+        },
+        "showScatterPoints": {
+          "type": {
+            "bool": true
+          }
+        },
+        "radiusPixels": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "intensity": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "opacity": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "colorPalette": {
+          "type": {
+            "enumeration": []
+          }
+        },
+        "threshold": {
+          "type": {
+            "numeric": true
+          }
+        }
+      }
+    },
+    "h3HexagonProps": {
+      "displayName": "H3 hexagon properties",
+      "properties": {
+        "showH3Hexagons": {
+          "type": {
+            "bool": true
+          }
+        },
+        "showScatterPoints": {
+          "type": {
+            "bool": true
+          }
+        },
+        "resolution": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "fillGradientPreset": {
+          "type": {
+            "enumeration": []
+          }
+        },
+        "fillGradientBinningMethod": {
+          "type": {
+            "enumeration": []
+          }
+        },
+        "fillGradientClassCount": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "fillGradientDefinedInterval": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "lowFillOpacity": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "highFillOpacity": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "lineWidthMinPixels": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "lineWidthMaxPixels": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "defaultLineWidth": {
+          "type": {
+            "numeric": true
           }
         }
       }
@@ -959,6 +1080,11 @@
               },
               {
                 "bind": {
+                  "to": "heatmapWeight"
+                }
+              },
+              {
+                "bind": {
                   "to": "scatterLineWidth"
                 }
               },
@@ -1090,6 +1216,11 @@
             {
               "bind": {
                 "to": "scatterRadius"
+              }
+            },
+            {
+              "bind": {
+                "to": "heatmapWeight"
               }
             },
             {

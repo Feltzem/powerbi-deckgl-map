@@ -20,6 +20,15 @@ The demo dashboard is intentionally Hamilton-sized so it opens quickly and stays
 ## Current Capabilities
 
 - Geometry layers: scatter points, straight lines, arcs, paths, and polygons.
+- Scatter heatmaps: render existing scatter points as a heatmap with optional
+  point weights, radius, intensity, opacity, threshold, and palette controls.
+- H3 hexagon overlays: aggregate scatter points into occupied H3 cells with
+  configurable resolution, count-driven fill gradients, count-driven
+  transparency, dark grey outlines, joined-point count tooltips, and rounded
+  count legends.
+- Scatter symbols: choose a layer-wide point shape from circle, square,
+  diamond, triangle, inverted triangle, hexagon, pentagon, star, cross, or X
+  cross while keeping the existing fill and outline styling.
 - Mixed-geometry maps: use one Power BI table with a `Layer Type` field containing `scatter`, `line`, `arc`, `path`, or `polygon`. These layer identifiers can be changed in the Format pane.
 - Geometry inputs:
   - Scatter uses `Point1 Latitude` and `Point1 Longitude`.
@@ -32,7 +41,7 @@ The demo dashboard is intentionally Hamilton-sized so it opens quickly and stays
 - Categorical palettes: non-empty text that is not a valid direct colour and not a strict number is mapped through a qualitative palette such as Modern, Dark, or Neon. Active categorical colour fields render category legends.
 - Legend formatting: the `Legend` Format pane card controls colour legend visibility, background opacity, heading/value fonts, classification type text, and colour scale bars. Each legend heading shows the compact geometry-type icon for its layer. Classification type text and colour scale bars apply to numeric legends only.
 - 3D camera: polygons can be extruded using a height field or default settings. When extruded polygons or valid arcs are currently rendered, the map automatically tilts to 45 degrees.
-- Tooltips: bind `Tooltip HTML` for custom sanitized HTML tooltips. Multi-layer tooltips follow the current visual layer order and show a compact geometry-type icon in the top-right of each feature section.
+- Tooltips: bind `Tooltip HTML` for custom sanitized HTML tooltips. Multi-layer tooltips follow the current visual layer order and show a compact geometry-type icon in the top-right of each feature section. H3 hexagons show their joined point count from the aggregate cell, separately from the `Tooltip HTML` bucket.
 - Interaction: click selection/highlighting, hover highlighting, configurable fade for unselected polygons, reset view, fly-to, and selectable base maps.
 - Layer ordering: multi-geometry visuals can reorder layer stacking directly on the map. The compact on-map layer order pane is off by default; turn on `Layer controls` > `Show layer order control` to use it. The visual persists the order with the report.
 - Validation: geometry validation is enabled by default and can be turned off in the Format pane once data quality is known.
@@ -42,6 +51,10 @@ The demo dashboard is intentionally Hamilton-sized so it opens quickly and stays
 At minimum, add `Geometry ID`, `Layer Type`, and the geometry fields required by the layer type you are drawing. Add optional style fields when you want row-level control; otherwise the visual uses the relevant Format pane defaults.
 
 Because Power BI custom visuals receive one categorical data view, multi-layer maps should be modelled as one combined table. Each row identifies its geometry type with `Layer Type`, and only the fields relevant to that geometry need to be populated.
+
+To render a scatter heatmap, add scatter rows as usual, then turn on `Heatmap properties` > `Show heatmap`. Bind `Heatmap weight` when each point should contribute a numeric amount; otherwise each scatter point contributes equally. Use `Show scatter points` to keep or hide the original point layer while the heatmap is active.
+
+To render H3 hexagons from scatter rows, turn on `H3 hexagon properties` > `Show H3 hexagons`. Each scatter row contributes one point to its H3 cell; only occupied cells render. Use `H3 resolution` to choose the standard H3 cell size. The fill gradient follows joined point count, while the dark grey outline uses the same count-based opacity settings. Hover a hexagon to see its joined point count; the H3 tooltip does not use the `Tooltip HTML` bucket.
 
 Terminology and options closely match deck.gl:
 
@@ -80,7 +93,7 @@ Secondly, you can filter the selected shapes by click. This is two way:
 
 ## Future Ideas
 
-Potential future enhancements include Z-coordinate support for path and polygon geometry, satellite basemaps, Power BI standard highlight integration, and additional deck.gl layers such as column, heatmap, or hexagon layers.
+Potential future enhancements include Z-coordinate support for path and polygon geometry, satellite basemaps, Power BI standard highlight integration, and additional deck.gl layers such as column layers.
 
 ## Developing
 
@@ -244,7 +257,7 @@ Then choose the palette in the Format pane:
 
 ### Scatter
 
-For points, use `Scatter fill` for the point body and `Scatter line color` for the outline. Each can take a text colour measure, a numeric measure, or categorical text. If you use numeric values, configure the matching `Fill ...` or `Line ...` gradient settings in `Scatter properties`. If you use categorical text, configure the matching categorical palette setting.
+For points, use `Scatter fill` for the point body and `Scatter line color` for the outline. Each can take a text colour measure, a numeric measure, or categorical text. If you use numeric values, configure the matching `Fill ...` or `Line ...` gradient settings in `Scatter properties`. If you use categorical text, configure the matching categorical palette setting. Use `Scatter properties` > `Symbol type` to choose a layer-wide point shape: circle, square, diamond, triangle, inverted triangle, hexagon, pentagon, star, cross, or X cross.
 
 ### Line
 

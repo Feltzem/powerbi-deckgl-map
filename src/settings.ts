@@ -22,6 +22,11 @@ import {
   CategoricalPaletteKey,
 } from "./categoricalPalettes";
 import { DEFAULT_LAYER_DRAW_ORDER } from "./layerState";
+import {
+  defaultScatterSymbolType,
+  getScatterSymbol,
+  scatterSymbolItems,
+} from "./scatterSymbols";
 
 import FormattingSettingsCard = formattingSettings.SimpleCard;
 import FormattingSettingsSlice = formattingSettings.Slice;
@@ -443,6 +448,17 @@ export class ScatterCardSettings extends FormattingSettingsCard {
     placeholder: "Enter layer type",
   });
 
+  symbolType = new formattingSettings.ItemDropdown({
+    name: "symbolType",
+    displayName: "Symbol type",
+    description: "Symbol shape used for scatter points",
+    value: {
+      value: defaultScatterSymbolType,
+      displayName: getScatterSymbol(defaultScatterSymbolType).displayName,
+    },
+    items: scatterSymbolItems,
+  });
+
   radiusMinPixels = new formattingSettings.NumUpDown({
     name: "radiusMinPixels",
     displayName: "Point radius min (pixels)",
@@ -512,6 +528,7 @@ export class ScatterCardSettings extends FormattingSettingsCard {
   displayName: string = "Scatter properties";
   slices: Array<FormattingSettingsSlice> = [
     this.layerType,
+    this.symbolType,
     this.defaultRadius,
     this.radiusMinPixels,
     this.radiusMaxPixels,
@@ -526,6 +543,206 @@ export class ScatterCardSettings extends FormattingSettingsCard {
     ...this.billboard.slices,
   ];
 }
+
+export class HeatmapCardSettings extends FormattingSettingsCard {
+  showHeatmap = new formattingSettings.ToggleSwitch({
+    name: "showHeatmap",
+    displayName: "Show heatmap",
+    description: "Render a heatmap derived from scatter points",
+    value: false,
+  });
+
+  showScatterPoints = new formattingSettings.ToggleSwitch({
+    name: "showScatterPoints",
+    displayName: "Show scatter points",
+    description: "Keep scatter points visible when the heatmap is enabled",
+    value: true,
+  });
+
+  radiusPixels = new formattingSettings.NumUpDown({
+    name: "radiusPixels",
+    displayName: "Radius size (pixels)",
+    description: "Heatmap radius in screen pixels",
+    value: 50,
+    options: {
+      minValue: {
+        type: powerbi.visuals.ValidatorType.Min,
+        value: 1,
+      },
+      maxValue: {
+        type: powerbi.visuals.ValidatorType.Max,
+        value: 100,
+      },
+    },
+  });
+
+  intensity = new formattingSettings.NumUpDown({
+    name: "intensity",
+    displayName: "Intensity",
+    description: "Multiplier applied to aggregated heatmap weight",
+    value: 1,
+    options: {
+      minValue: {
+        type: powerbi.visuals.ValidatorType.Min,
+        value: 0,
+      },
+      maxValue: {
+        type: powerbi.visuals.ValidatorType.Max,
+        value: 100,
+      },
+    },
+  });
+
+  opacity = new formattingSettings.Slider({
+    name: "opacity",
+    displayName: "Opacity",
+    description: "Opacity of heatmap colors (0-255)",
+    value: 180,
+    options: {
+      minValue: {
+        type: powerbi.visuals.ValidatorType.Min,
+        value: 0,
+      },
+      maxValue: {
+        type: powerbi.visuals.ValidatorType.Max,
+        value: 255,
+      },
+    },
+  });
+
+  colorPalette = new formattingSettings.ItemDropdown({
+    name: "colorPalette",
+    displayName: "Color palette",
+    description: "Preset color palette for the heatmap",
+    value: {
+      value: defaultGradientPresetKey,
+      displayName: getGradientPreset(defaultGradientPresetKey).displayName,
+    },
+    items: gradientPresetItems,
+  });
+
+  threshold = new formattingSettings.Slider({
+    name: "threshold",
+    displayName: "Low-density threshold (%)",
+    description: "Hide pixels below this percentage of the strongest density",
+    value: 5,
+    options: {
+      minValue: {
+        type: powerbi.visuals.ValidatorType.Min,
+        value: 0,
+      },
+      maxValue: {
+        type: powerbi.visuals.ValidatorType.Max,
+        value: 100,
+      },
+    },
+  });
+
+  name: string = "heatmapProps";
+  displayName: string = "Heatmap properties";
+  topLevelSlice = this.showHeatmap;
+  slices: Array<FormattingSettingsSlice> = [
+    this.showScatterPoints,
+    this.radiusPixels,
+    this.intensity,
+    this.opacity,
+    this.colorPalette,
+    this.threshold,
+  ];
+}
+
+export class H3HexagonCardSettings extends FormattingSettingsCard {
+  showH3Hexagons = new formattingSettings.ToggleSwitch({
+    name: "showH3Hexagons",
+    displayName: "Show H3 hexagons",
+    description: "Render H3 hexagons derived from scatter points",
+    value: false,
+  });
+
+  showScatterPoints = new formattingSettings.ToggleSwitch({
+    name: "showScatterPoints",
+    displayName: "Show scatter points",
+    description: "Keep scatter points visible when H3 hexagons are enabled",
+    value: true,
+  });
+
+  resolution = new formattingSettings.NumUpDown({
+    name: "resolution",
+    displayName: "H3 resolution",
+    description: "H3 grid resolution, from 0 for largest cells to 15 for smallest cells",
+    value: 7,
+    options: {
+      minValue: {
+        type: powerbi.visuals.ValidatorType.Min,
+        value: 0,
+      },
+      maxValue: {
+        type: powerbi.visuals.ValidatorType.Max,
+        value: 15,
+      },
+    },
+  });
+
+  fillGradient = new NumericGradientSettings({
+    presetName: "fillGradientPreset",
+    binningMethodName: "fillGradientBinningMethod",
+    classCountName: "fillGradientClassCount",
+    definedIntervalName: "fillGradientDefinedInterval",
+    fieldLabel: "H3 fill point count",
+    displayPrefix: "Fill",
+  });
+
+  lowFillOpacity = new formattingSettings.Slider({
+    name: "lowFillOpacity",
+    displayName: "Low-count opacity",
+    description:
+      "Fill and outline opacity for the lowest H3 point-count class (0-255)",
+    value: 70,
+    options: {
+      minValue: {
+        type: powerbi.visuals.ValidatorType.Min,
+        value: 0,
+      },
+      maxValue: {
+        type: powerbi.visuals.ValidatorType.Max,
+        value: 255,
+      },
+    },
+  });
+
+  highFillOpacity = new formattingSettings.Slider({
+    name: "highFillOpacity",
+    displayName: "High-count opacity",
+    description:
+      "Fill and outline opacity for the highest H3 point-count class (0-255)",
+    value: 210,
+    options: {
+      minValue: {
+        type: powerbi.visuals.ValidatorType.Min,
+        value: 0,
+      },
+      maxValue: {
+        type: powerbi.visuals.ValidatorType.Max,
+        value: 255,
+      },
+    },
+  });
+
+  lineWidth = new BaseStrokeWidthSettings();
+
+  name: string = "h3HexagonProps";
+  displayName: string = "H3 hexagon properties";
+  topLevelSlice = this.showH3Hexagons;
+  slices: Array<FormattingSettingsSlice> = [
+    this.showScatterPoints,
+    this.resolution,
+    ...this.fillGradient.slices,
+    this.lowFillOpacity,
+    this.highFillOpacity,
+    ...this.lineWidth.slices,
+  ];
+}
+
 export class LineCardSettings extends FormattingSettingsCard {
   line = new BaseStrokeSettings();
   gradient = new NumericGradientSettings({
@@ -1124,6 +1341,8 @@ export class ValidationPropertiesCardSettings extends FormattingSettingsCard {
 
 export class VisualFormattingSettingsModel extends FormattingSettingsModel {
   scatter = new ScatterCardSettings();
+  heatmap = new HeatmapCardSettings();
+  h3Hexagon = new H3HexagonCardSettings();
   line = new LineCardSettings();
   arc = new ArcCardSettings();
   map = new MapCardSettings();
@@ -1140,6 +1359,8 @@ export class VisualFormattingSettingsModel extends FormattingSettingsModel {
     this.validation,
     this.highlighting,
     this.scatter,
+    this.heatmap,
+    this.h3Hexagon,
     this.line,
     this.path,
     this.arc,

@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.7.0.0 - 2026-05-28
+
+### Added
+
+- Added scatter-derived heatmap rendering with optional `Heatmap weight`, radius, intensity, opacity, threshold, palette, and scatter point visibility settings.
+- Added scatter-derived H3 hexagon overlays with configurable H3 resolution, count-based fill gradients, count-based transparency, dark grey outlines, joined-point count tooltips, and rounded count legends.
+- Added a scatter `Symbol type` dropdown with circle, square, diamond, triangle, inverted triangle, hexagon, pentagon, star, cross, and X cross options while preserving fill and outline styling.
+
+### Changed
+
+- Updated release metadata to version `1.7.0.0`.
+
 ## 1.6.2.1 - 2026-05-19
 
 ### Added

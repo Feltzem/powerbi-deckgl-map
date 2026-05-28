@@ -467,3 +467,79 @@ test("createDatasetSnapshot keeps numeric path color category values numeric", (
   assert.equal(snapshot.colorRoles.pathColor.hasNumericColor, true);
   assert.equal(snapshot.colorRoles.pathColor.hasCategoricalColor, false);
 });
+
+test("createDatasetSnapshot maps heatmap weights for scatter rows", () => {
+  const ids = ["point-1", "point-2", "point-3", "point-4", "point-5"];
+  const warnings: string[] = [];
+  const settings = new VisualFormattingSettingsModel();
+  const options = {
+    dataViews: [
+      {
+        categorical: {
+          categories: [makeCategory("geometryId", ids, "geometry_id")],
+          values: makeValues([], undefined, [
+            makeColumn("layerType", [
+              "scatter",
+              "scatter",
+              "scatter",
+              "scatter",
+              "scatter",
+            ]),
+            makeColumn("point1Latitude", [-37.8, -37.81, -37.82, -37.83, -37.84]),
+            makeColumn("point1Longitude", [175.2, 175.21, 175.22, 175.23, 175.24]),
+            makeColumn("heatmapWeight", [2.5, null, "not-a-number", 0, -4]),
+          ]),
+        },
+        metadata: {},
+      },
+    ],
+  } as powerbi.extensibility.visual.VisualUpdateOptions;
+
+  const snapshot = createDatasetSnapshot(
+    options,
+    settings,
+    makeHost(warnings),
+    new Map(),
+    "test",
+  );
+
+  assert.deepEqual(warnings, []);
+  assert.equal(snapshot.layers.scatter.length, ids.length);
+  assert.deepEqual(
+    snapshot.layers.scatter.map((point) => point.scatterData?.heatmapWeight),
+    [2.5, 0, 0, 0, 0],
+  );
+});
+
+test("createDatasetSnapshot infers scatter rows from heatmap weight evidence", () => {
+  const warnings: string[] = [];
+  const settings = new VisualFormattingSettingsModel();
+  const options = {
+    dataViews: [
+      {
+        categorical: {
+          categories: [makeCategory("geometryId", ["point-1"], "geometry_id")],
+          values: makeValues([], undefined, [
+            makeColumn("layerType", [null]),
+            makeColumn("point1Latitude", [-37.8]),
+            makeColumn("point1Longitude", [175.2]),
+            makeColumn("heatmapWeight", [4]),
+          ]),
+        },
+        metadata: {},
+      },
+    ],
+  } as powerbi.extensibility.visual.VisualUpdateOptions;
+
+  const snapshot = createDatasetSnapshot(
+    options,
+    settings,
+    makeHost(warnings),
+    new Map(),
+    "test",
+  );
+
+  assert.deepEqual(warnings, []);
+  assert.equal(snapshot.layers.scatter.length, 1);
+  assert.equal(snapshot.layers.scatter[0].scatterData?.heatmapWeight, 4);
+});
