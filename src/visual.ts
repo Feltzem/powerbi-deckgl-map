@@ -53,6 +53,7 @@ import {
   parseLayerDrawOrder,
 } from "./layerState";
 import { getAggregatedTooltipHtml } from "./tooltip";
+import { getScatterSymbol, getScatterSymbolType } from "./scatterSymbols";
 
 const createEmptyDatasetSnapshot = (version = "0"): DatasetSnapshot => ({
   layers: createEmptyLayerDataStore(),
@@ -433,6 +434,20 @@ export class Visual implements IVisual {
       asModifierKeyEvent(sourceEvent?.srcEvent),
     ];
     return candidates.some((ev) => !!(ev && (ev.ctrlKey || ev.metaKey)));
+  }
+
+  private syncScatterSymbolSettingFromMetadata(dataView: powerbi.DataView) {
+    const objects = dataView.metadata?.objects as
+      | Record<string, Record<string, unknown>>
+      | undefined;
+    const rawSymbolType =
+      objects?.scatterProps?.symbolType ??
+      this.formattingSettings.scatter.symbolType.value;
+    const symbolType = getScatterSymbolType(rawSymbolType);
+    this.formattingSettings.scatter.symbolType.value = {
+      value: symbolType,
+      displayName: getScatterSymbol(symbolType).displayName,
+    };
   }
 
   constructor(options: VisualConstructorOptions) {
@@ -1209,6 +1224,7 @@ export class Visual implements IVisual {
           VisualFormattingSettingsModel,
           dataView,
         );
+      this.syncScatterSymbolSettingFromMetadata(dataView);
     }
     this.updateBaseMap();
     this.renderLayerOrderControl();

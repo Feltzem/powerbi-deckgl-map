@@ -94,6 +94,26 @@ const makeScatterLayer = (symbolType: string) => {
   );
 };
 
+const makeScatterLayerFromRawSymbolValue = (symbolType: unknown) => {
+  const settings = new VisualFormattingSettingsModel();
+  settings.scatter.symbolType.value = symbolType as typeof settings.scatter.symbolType.value;
+  const colorRoles = createEmptyColorRoleStatsStore();
+  colorRoles.scatterFillColor.hasTextColor = true;
+  colorRoles.scatterLineColor.hasTextColor = true;
+
+  return getScatterLayer(
+    [makeScatterPoint()],
+    settings.scatter,
+    settings.highlighting,
+    new Set(),
+    "",
+    colorRoles,
+    new Map(),
+    "test",
+    () => undefined,
+  );
+};
+
 test("scatter symbol registry exposes exactly the supported symbols", () => {
   assert.equal(defaultScatterSymbolType, "circle");
   assert.deepEqual(
@@ -114,6 +134,20 @@ test("scatter symbol registry exposes exactly the supported symbols", () => {
 
 test("scatter symbol lookup falls back to circle for invalid settings", () => {
   assert.equal(getScatterSymbolType("diamond"), "diamond");
+  assert.equal(getScatterSymbolType("Diamond"), "diamond");
+  assert.equal(getScatterSymbolType("X cross"), "x-cross");
+  assert.equal(
+    getScatterSymbolType({ value: "diamond", displayName: "Diamond" }),
+    "diamond",
+  );
+  assert.equal(getScatterSymbolType({ displayName: "Diamond" }), "diamond");
+  assert.equal(
+    getScatterSymbolType({
+      value: { value: "diamond", displayName: "Diamond" },
+      displayName: "Diamond",
+    }),
+    "diamond",
+  );
   assert.equal(getScatterSymbolType("not-a-symbol"), "circle");
   assert.equal(getScatterSymbolType(null), "circle");
 });
@@ -152,6 +186,14 @@ test("getScatterLayer uses ScatterSymbolLayer for non-circle symbols", () => {
   assert.equal(props.getLineWidth(point), 4);
   assert.deepEqual(props.getFillColor(point), [1, 2, 3, 255]);
   assert.deepEqual(props.getLineColor(point), [5, 6, 7, 255]);
+});
+
+test("getScatterLayer accepts display-name symbol values", () => {
+  const layer = makeScatterLayerFromRawSymbolValue("Triangle");
+  const props = layer.props as unknown as { symbolType: string };
+
+  assert.ok(layer instanceof ScatterSymbolLayer);
+  assert.equal(props.symbolType, "triangle");
 });
 
 test("getScatterLayer falls back to ScatterplotLayer for invalid symbol settings", () => {

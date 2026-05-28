@@ -111,9 +111,7 @@ export default function getScatterLayer(
     fadeFactor,
     selectedIds,
   });
-  const symbolType = getScatterSymbolType(
-    settings.symbolType.value.value as string,
-  );
+  const symbolType = getScatterSymbolType(settings.symbolType.value);
   const getLineWidth = (d: OurData) => {
     const w = d.scatterProperties?.lineWidth;
     if (typeof w === "number" && isFinite(w) && w > 0) {

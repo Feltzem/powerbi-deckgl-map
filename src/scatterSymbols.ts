@@ -61,20 +61,55 @@ export const scatterSymbolItems = scatterSymbolEntries.map(
   }),
 );
 
-export const getScatterSymbolType = (
-  symbolType: string | null | undefined,
-): ScatterSymbolType => {
-  if (symbolType && symbolType in scatterSymbols) {
-    return symbolType as ScatterSymbolType;
-  }
-
-  return defaultScatterSymbolType;
+type DropdownLikeValue = {
+  value?: unknown;
+  displayName?: unknown;
 };
 
+const normalizeScatterSymbolText = (value: string): string =>
+  value.trim().toLowerCase().replace(/[\s_]+/g, "-");
+
+const scatterSymbolAliases = new Map<string, ScatterSymbolType>();
+
+for (const [symbolType, symbol] of scatterSymbolEntries) {
+  scatterSymbolAliases.set(normalizeScatterSymbolText(symbolType), symbolType);
+  scatterSymbolAliases.set(
+    normalizeScatterSymbolText(symbol.displayName),
+    symbolType,
+  );
+}
+
+const resolveScatterSymbolType = (
+  symbolType: unknown,
+): ScatterSymbolType | null => {
+  if (typeof symbolType === "string") {
+    return (
+      scatterSymbolAliases.get(normalizeScatterSymbolText(symbolType)) ?? null
+    );
+  }
+
+  if (
+    symbolType !== null &&
+    typeof symbolType === "object" &&
+    ("value" in symbolType || "displayName" in symbolType)
+  ) {
+    const dropdownValue = symbolType as DropdownLikeValue;
+    return (
+      resolveScatterSymbolType(dropdownValue.value) ??
+      resolveScatterSymbolType(dropdownValue.displayName)
+    );
+  }
+
+  return null;
+};
+
+export const getScatterSymbolType = (symbolType: unknown): ScatterSymbolType =>
+  resolveScatterSymbolType(symbolType) ?? defaultScatterSymbolType;
+
 export const getScatterSymbol = (
-  symbolType: string | null | undefined,
+  symbolType: unknown,
 ): ScatterSymbolDefinition => scatterSymbols[getScatterSymbolType(symbolType)];
 
 export const getScatterSymbolShaderValue = (
-  symbolType: string | null | undefined,
+  symbolType: unknown,
 ): number => getScatterSymbol(symbolType).shaderValue;

@@ -39,7 +39,6 @@ type ScatterSymbolUniformProps = {
   billboard: boolean;
   radiusUnits: number;
   lineWidthUnits: number;
-  symbolType: number;
 };
 
 const scatterSymbolUniformBlock = `\
@@ -56,7 +55,6 @@ uniform scatterSymbolUniforms {
   bool billboard;
   highp int radiusUnits;
   highp int lineWidthUnits;
-  highp int symbolType;
 } scatterSymbol;
 `;
 
@@ -78,7 +76,6 @@ const scatterSymbolUniforms = {
     billboard: "f32",
     radiusUnits: "i32",
     lineWidthUnits: "i32",
-    symbolType: "i32",
   },
 } as const satisfies ShaderModule<ScatterSymbolUniformProps>;
 
@@ -161,6 +158,7 @@ out vec4 fragColor;
 
 const float PI = 3.141592653589793;
 const float TWO_PI = 6.283185307179586;
+const float SCATTER_SYMBOL_TYPE = __SCATTER_SYMBOL_TYPE__;
 
 float sdBox(vec2 p, vec2 b) {
   vec2 d = abs(p) - b;
@@ -240,31 +238,31 @@ float sdCross(vec2 p) {
 }
 
 float sdSymbol(vec2 p) {
-  if (scatterSymbol.symbolType == 1) {
+  if (SCATTER_SYMBOL_TYPE == 1.0) {
     return sdBox(p, vec2(1.0));
   }
-  if (scatterSymbol.symbolType == 2) {
+  if (SCATTER_SYMBOL_TYPE == 2.0) {
     return sdRegularPolygon(p, 4, PI / 2.0);
   }
-  if (scatterSymbol.symbolType == 3) {
+  if (SCATTER_SYMBOL_TYPE == 3.0) {
     return sdRegularPolygon(p, 3, PI / 2.0);
   }
-  if (scatterSymbol.symbolType == 4) {
+  if (SCATTER_SYMBOL_TYPE == 4.0) {
     return sdRegularPolygon(p, 3, -PI / 2.0);
   }
-  if (scatterSymbol.symbolType == 5) {
+  if (SCATTER_SYMBOL_TYPE == 5.0) {
     return sdRegularPolygon(p, 6, PI / 2.0);
   }
-  if (scatterSymbol.symbolType == 6) {
+  if (SCATTER_SYMBOL_TYPE == 6.0) {
     return sdRegularPolygon(p, 5, PI / 2.0);
   }
-  if (scatterSymbol.symbolType == 7) {
+  if (SCATTER_SYMBOL_TYPE == 7.0) {
     return sdStar(p);
   }
-  if (scatterSymbol.symbolType == 8) {
+  if (SCATTER_SYMBOL_TYPE == 8.0) {
     return sdCross(p);
   }
-  if (scatterSymbol.symbolType == 9) {
+  if (SCATTER_SYMBOL_TYPE == 9.0) {
     return sdCross(rotate2d(p, PI / 4.0));
   }
 
@@ -306,6 +304,14 @@ void main(void) {
   DECKGL_FILTER_COLOR(fragColor, geometry);
 }
 `;
+
+const getFragmentShader = (symbolType: ScatterSymbolType): string => {
+  const shaderValue = getScatterSymbolShaderValue(symbolType);
+  return fragmentShader.replace(
+    "__SCATTER_SYMBOL_TYPE__",
+    `${shaderValue}.0`,
+  );
+};
 
 type ScatterSymbolLayerSpecificProps<DataT> = {
   data: LayerDataSource<DataT>;
@@ -365,9 +371,11 @@ export default class ScatterSymbolLayer<
   };
 
   getShaders() {
+    const symbolType = this.props.symbolType ?? defaultScatterSymbolType;
+
     return super.getShaders({
       vs: vertexShader,
-      fs: fragmentShader,
+      fs: getFragmentShader(symbolType),
       modules: [project32, color, picking, scatterSymbolUniforms],
     });
   }
@@ -408,12 +416,16 @@ export default class ScatterSymbolLayer<
         defaultValue: 1,
       },
     });
+    this.state.model = this._getModel();
   }
 
   updateState(params: UpdateParameters<this>) {
     super.updateState(params);
 
-    if (params.changeFlags.extensionsChanged) {
+    const symbolChanged =
+      params.oldProps.symbolType !== params.props.symbolType;
+
+    if (params.changeFlags.extensionsChanged || symbolChanged) {
       this.state.model?.destroy();
       this.state.model = this._getModel();
       this.getAttributeManager()!.invalidateAll();
@@ -436,7 +448,6 @@ export default class ScatterSymbolLayer<
       lineWidthScale,
       lineWidthMinPixels,
       lineWidthMaxPixels,
-      symbolType,
     } = this.props;
     const scatterSymbolProps: ScatterSymbolUniformProps = {
       stroked,
@@ -451,7 +462,6 @@ export default class ScatterSymbolLayer<
       lineWidthScale,
       lineWidthMinPixels,
       lineWidthMaxPixels,
-      symbolType: getScatterSymbolShaderValue(symbolType),
     };
     const model = this.state.model!;
     model.shaderInputs.setProps({ scatterSymbol: scatterSymbolProps });
