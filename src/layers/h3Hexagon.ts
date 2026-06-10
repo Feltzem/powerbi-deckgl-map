@@ -170,6 +170,8 @@ const getGradientSettings = (
   method: settings.binningMethod.value.value as GradientBinningMethod,
   classCount: settings.classCount.value,
   definedInterval: settings.definedInterval.value,
+  manualBreaks: settings.manualBreaks.value,
+  manualColors: settings.manualColors.value,
 });
 
 export const getH3HexagonCountBins = (
@@ -247,6 +249,8 @@ export default function getH3HexagonLayer(
         settings.fillGradient.binningMethod.value.value,
         settings.fillGradient.classCount.value,
         settings.fillGradient.definedInterval.value,
+        settings.fillGradient.manualBreaks.value,
+        settings.fillGradient.manualColors.value,
         settings.lowFillOpacity.value,
         settings.highFillOpacity.value,
       ],

@@ -6,6 +6,7 @@ import {
   getGradientBinningMethodDisplayName,
   getGradientLegendClasses,
   getCachedNumericColorBins,
+  getManualClassColors,
   GradientLegendClass,
   NumericColorBins,
   NumericColorBinsCache,
@@ -198,6 +199,22 @@ const getLegendGradient = (
   opacity: number,
 ): NumericColorGradient =>
   resolveGradientPresetColors(settings.preset.value.value as string, opacity);
+
+const getManualColorMapper = (
+  settings: NumericGradientSettings,
+  opacity: number,
+): LegendClassColorMapper | undefined => {
+  if (
+    settings.binningMethod.value.value !== "manual-interval" ||
+    !settings.manualColors.value.trim()
+  ) {
+    return undefined;
+  }
+  return (_legendClass, index, bins) => {
+    const colors = getManualClassColors(bins, settings.manualColors.value, opacity);
+    return colors?.[index] ?? _legendClass.color;
+  };
+};
 
 const getLegendMidpointColor = (
   bins: NumericColorBins,
@@ -509,6 +526,8 @@ export const getGradientLegendSpecs = (
       method: GradientBinningMethod;
       classCount: number;
       definedInterval: number;
+      manualBreaks: string;
+      manualColors: string;
     },
   ): NumericColorBins | null => {
     const stats = colorRoles?.[roleName];
@@ -565,6 +584,8 @@ export const getGradientLegendSpecs = (
             classCount: settings.scatter.fillGradient.classCount.value,
             definedInterval:
               settings.scatter.fillGradient.definedInterval.value,
+            manualBreaks: settings.scatter.fillGradient.manualBreaks.value,
+            manualColors: settings.scatter.fillGradient.manualColors.value,
           },
         ),
         getLegendGradient(
@@ -572,6 +593,7 @@ export const getGradientLegendSpecs = (
           settings.scatter.fill.defaultFillOpacity.value,
         ),
         settings.scatter.fillGradient.binningMethod.value.value as string,
+        getManualColorMapper(settings.scatter.fillGradient, settings.scatter.fill.defaultFillOpacity.value),
       ),
     );
     appendCategoricalSpec(
@@ -603,6 +625,8 @@ export const getGradientLegendSpecs = (
             classCount: settings.scatter.lineGradient.classCount.value,
             definedInterval:
               settings.scatter.lineGradient.definedInterval.value,
+            manualBreaks: settings.scatter.lineGradient.manualBreaks.value,
+            manualColors: settings.scatter.lineGradient.manualColors.value,
           },
         ),
         getLegendGradient(
@@ -610,6 +634,7 @@ export const getGradientLegendSpecs = (
           settings.scatter.line.color.defaultLineOpacity.value,
         ),
         settings.scatter.lineGradient.binningMethod.value.value as string,
+        getManualColorMapper(settings.scatter.lineGradient, settings.scatter.line.color.defaultLineOpacity.value),
       ),
     );
     appendCategoricalSpec(
@@ -662,6 +687,8 @@ export const getGradientLegendSpecs = (
             .value as GradientBinningMethod,
           classCount: settings.line.gradient.classCount.value,
           definedInterval: settings.line.gradient.definedInterval.value,
+          manualBreaks: settings.line.gradient.manualBreaks.value,
+          manualColors: settings.line.gradient.manualColors.value,
         },
       ),
       getLegendGradient(
@@ -669,6 +696,7 @@ export const getGradientLegendSpecs = (
         settings.line.line.color.defaultLineOpacity.value,
       ),
       settings.line.gradient.binningMethod.value.value as string,
+      getManualColorMapper(settings.line.gradient, settings.line.line.color.defaultLineOpacity.value),
     ),
   );
   appendCategoricalSpec(
@@ -697,6 +725,8 @@ export const getGradientLegendSpecs = (
             .value as GradientBinningMethod,
           classCount: settings.path.gradient.classCount.value,
           definedInterval: settings.path.gradient.definedInterval.value,
+          manualBreaks: settings.path.gradient.manualBreaks.value,
+          manualColors: settings.path.gradient.manualColors.value,
         },
       ),
       getLegendGradient(
@@ -704,6 +734,7 @@ export const getGradientLegendSpecs = (
         settings.path.line.color.defaultLineOpacity.value,
       ),
       settings.path.gradient.binningMethod.value.value as string,
+      getManualColorMapper(settings.path.gradient, settings.path.line.color.defaultLineOpacity.value),
     ),
   );
   appendCategoricalSpec(
@@ -734,6 +765,8 @@ export const getGradientLegendSpecs = (
             classCount: settings.polygon.fillGradient.classCount.value,
             definedInterval:
               settings.polygon.fillGradient.definedInterval.value,
+            manualBreaks: settings.polygon.fillGradient.manualBreaks.value,
+            manualColors: settings.polygon.fillGradient.manualColors.value,
           },
         ),
         getLegendGradient(
@@ -741,6 +774,7 @@ export const getGradientLegendSpecs = (
           settings.polygon.fill.defaultFillOpacity.value,
         ),
         settings.polygon.fillGradient.binningMethod.value.value as string,
+        getManualColorMapper(settings.polygon.fillGradient, settings.polygon.fill.defaultFillOpacity.value),
       ),
     );
     appendCategoricalSpec(
@@ -772,6 +806,8 @@ export const getGradientLegendSpecs = (
             classCount: settings.polygon.lineGradient.classCount.value,
             definedInterval:
               settings.polygon.lineGradient.definedInterval.value,
+            manualBreaks: settings.polygon.lineGradient.manualBreaks.value,
+            manualColors: settings.polygon.lineGradient.manualColors.value,
           },
         ),
         getLegendGradient(
@@ -779,6 +815,7 @@ export const getGradientLegendSpecs = (
           settings.polygon.line.color.defaultLineOpacity.value,
         ),
         settings.polygon.lineGradient.binningMethod.value.value as string,
+        getManualColorMapper(settings.polygon.lineGradient, settings.polygon.line.color.defaultLineOpacity.value),
       ),
     );
     appendCategoricalSpec(
@@ -808,6 +845,8 @@ export const getGradientLegendSpecs = (
             .value as GradientBinningMethod,
           classCount: settings.arc.sourceGradient.classCount.value,
           definedInterval: settings.arc.sourceGradient.definedInterval.value,
+          manualBreaks: settings.arc.sourceGradient.manualBreaks.value,
+          manualColors: settings.arc.sourceGradient.manualColors.value,
         },
       ),
       getLegendGradient(
@@ -815,6 +854,7 @@ export const getGradientLegendSpecs = (
         settings.arc.defaultSourceOpacity.value,
       ),
       settings.arc.sourceGradient.binningMethod.value.value as string,
+      getManualColorMapper(settings.arc.sourceGradient, settings.arc.defaultSourceOpacity.value),
     ),
   );
   appendCategoricalSpec(
@@ -843,6 +883,8 @@ export const getGradientLegendSpecs = (
             .value as GradientBinningMethod,
           classCount: settings.arc.targetGradient.classCount.value,
           definedInterval: settings.arc.targetGradient.definedInterval.value,
+          manualBreaks: settings.arc.targetGradient.manualBreaks.value,
+          manualColors: settings.arc.targetGradient.manualColors.value,
         },
       ),
       getLegendGradient(
@@ -850,6 +892,7 @@ export const getGradientLegendSpecs = (
         settings.arc.defaultTargetOpacity.value,
       ),
       settings.arc.targetGradient.binningMethod.value.value as string,
+      getManualColorMapper(settings.arc.targetGradient, settings.arc.defaultTargetOpacity.value),
     ),
   );
   appendCategoricalSpec(

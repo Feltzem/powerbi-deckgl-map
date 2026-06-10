@@ -1,10 +1,11 @@
-import { interpolateGradientColor, RGBAColor } from "./col";
+import { decodeHex, interpolateGradientColor, RGBAColor, withOpacity } from "./col";
 
 export type GradientBinningMethod =
   | "natural-breaks"
   | "quantile"
   | "equal-interval"
-  | "defined-interval";
+  | "defined-interval"
+  | "manual-interval";
 
 export interface NumericColorRange {
   minValue: number | null;
@@ -33,6 +34,8 @@ export interface NumericGradientClassificationSettings {
   method: GradientBinningMethod;
   classCount: number;
   definedInterval: number;
+  manualBreaks: string;
+  manualColors: string;
 }
 
 export type NumericColorBinsCache = Map<string, NumericColorBins>;
@@ -41,6 +44,8 @@ export const defaultGradientBinningMethod: GradientBinningMethod =
   "equal-interval";
 export const defaultGradientClassCount = 5;
 export const defaultGradientDefinedInterval = 10;
+export const defaultGradientManualBreaks = "";
+export const defaultGradientManualColors = "";
 const naturalBreaksMaxValues = 5000;
 
 export const gradientBinningMethodItems = [
@@ -59,6 +64,10 @@ export const gradientBinningMethodItems = [
   {
     value: "defined-interval",
     displayName: "Defined interval",
+  },
+  {
+    value: "manual-interval",
+    displayName: "Manual interval",
   },
 ];
 
@@ -181,6 +190,76 @@ const buildDefinedIntervalBreaks = (
   return normalizeBreaks(breaks, minValue, maxValue);
 };
 
+export const parseManualBreaks = (manualBreaks: string): number[] | null => {
+  const text = (manualBreaks ?? "").trim();
+  if (text === "") {
+    return null;
+  }
+
+  const parts = text.split(/[\s,;]+/).filter((p) => p.length > 0);
+  const values: number[] = [];
+  for (const part of parts) {
+    const num = parseFloat(part);
+    if (!isFinite(num)) {
+      return null;
+    }
+    values.push(num);
+  }
+
+  if (values.length < 2) {
+    return null;
+  }
+
+  const sorted = [...values].sort((a, b) => a - b);
+  const deduped = sorted.filter(
+    (v, i) => i === 0 || v > sorted[i - 1],
+  );
+
+  if (deduped.length < 2) {
+    return null;
+  }
+
+  return deduped;
+};
+
+const buildManualIntervalBreaks = (manualBreaks: string): number[] | null =>
+  parseManualBreaks(manualBreaks);
+
+const fallbackManualColor: RGBAColor = [128, 128, 128, 255];
+
+export const parseManualColors = (manualColors: string): RGBAColor[] | null => {
+  const text = (manualColors ?? "").trim();
+  if (text === "") {
+    return null;
+  }
+
+  const parts = text.split(/\s*,\s*/).filter((p) => p.length > 0);
+  if (parts.length === 0) {
+    return null;
+  }
+
+  return parts.map((part) => decodeHex(part.trim(), fallbackManualColor));
+};
+
+export const getManualClassColors = (
+  bins: NumericColorBins,
+  manualColors: string,
+  opacity: number,
+): RGBAColor[] | null => {
+  if (bins.classCount === 0) {
+    return null;
+  }
+
+  const parsed = parseManualColors(manualColors);
+  if (!parsed || parsed.length === 0) {
+    return null;
+  }
+
+  return Array.from({ length: bins.classCount }, (_, i) =>
+    withOpacity(parsed[i] ?? parsed[parsed.length - 1], opacity),
+  );
+};
+
 const buildQuantileBreaks = (
   values: number[],
   classCount: number,
@@ -278,6 +357,20 @@ export const getNumericColorBins = <T>(
   rangeHint?: NumericColorRange | null,
 ): NumericColorBins => {
   const method = settings.method ?? defaultGradientBinningMethod;
+
+  if (method === "manual-interval") {
+    const breaks = buildManualIntervalBreaks(settings.manualBreaks ?? "");
+    if (breaks === null || breaks.length < 2) {
+      return { minValue: null, maxValue: null, breaks: [], classCount: 0 };
+    }
+    return {
+      minValue: breaks[0],
+      maxValue: breaks[breaks.length - 1],
+      breaks,
+      classCount: breaks.length - 1,
+    };
+  }
+
   const canUseRangeOnly =
     method === "equal-interval" || method === "defined-interval";
 
@@ -462,6 +555,8 @@ export const getCachedNumericColorBins = <T>(
     settings.method,
     settings.classCount,
     settings.definedInterval,
+    settings.manualBreaks ?? "",
+    settings.manualColors ?? "",
     rangeHint?.minValue ?? "",
     rangeHint?.maxValue ?? "",
   ].join("|");

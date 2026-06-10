@@ -46,6 +46,8 @@ export default function getPathLayer(
       .value as GradientBinningMethod,
     classCount: settings.gradient.classCount.value,
     definedInterval: settings.gradient.definedInterval.value,
+    manualBreaks: settings.gradient.manualBreaks.value,
+    manualColors: settings.gradient.manualColors.value,
   };
   const lineColor = createLayerColorAccessor<PathFeature>({
     items: data,
@@ -107,6 +109,8 @@ export default function getPathLayer(
           settings.gradient.binningMethod.value.value,
           settings.gradient.classCount.value,
           settings.gradient.definedInterval.value,
+          settings.gradient.manualBreaks.value,
+          settings.gradient.manualColors.value,
           getNumericColorBinsSignature(lineColor.bins),
         ],
         [

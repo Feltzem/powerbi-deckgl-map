@@ -230,6 +230,16 @@
             "enumeration": []
           }
         },
+        "show3DBuildings": {
+          "type": {
+            "bool": true
+          }
+        },
+        "buildingsMinZoom": {
+          "type": {
+            "numeric": true
+          }
+        },
         "initialSouth": {
           "type": {
             "numeric": true
@@ -480,6 +490,16 @@
             "numeric": true
           }
         },
+        "lineGradientManualBreaks": {
+          "type": {
+            "text": true
+          }
+        },
+        "lineGradientManualColors": {
+          "type": {
+            "text": true
+          }
+        },
         "lineCategoricalPalette": {
           "type": {
             "enumeration": []
@@ -503,6 +523,16 @@
         "fillGradientDefinedInterval": {
           "type": {
             "numeric": true
+          }
+        },
+        "fillGradientManualBreaks": {
+          "type": {
+            "text": true
+          }
+        },
+        "fillGradientManualColors": {
+          "type": {
+            "text": true
           }
         },
         "fillCategoricalPalette": {
@@ -595,6 +625,16 @@
             "numeric": true
           }
         },
+        "fillGradientManualBreaks": {
+          "type": {
+            "text": true
+          }
+        },
+        "fillGradientManualColors": {
+          "type": {
+            "text": true
+          }
+        },
         "lowFillOpacity": {
           "type": {
             "numeric": true
@@ -679,6 +719,16 @@
             "numeric": true
           }
         },
+        "gradientManualBreaks": {
+          "type": {
+            "text": true
+          }
+        },
+        "gradientManualColors": {
+          "type": {
+            "text": true
+          }
+        },
         "categoricalPalette": {
           "type": {
             "enumeration": []
@@ -741,6 +791,16 @@
         "gradientDefinedInterval": {
           "type": {
             "numeric": true
+          }
+        },
+        "gradientManualBreaks": {
+          "type": {
+            "text": true
+          }
+        },
+        "gradientManualColors": {
+          "type": {
+            "text": true
           }
         },
         "categoricalPalette": {
@@ -827,6 +887,16 @@
             "numeric": true
           }
         },
+        "sourceGradientManualBreaks": {
+          "type": {
+            "text": true
+          }
+        },
+        "sourceGradientManualColors": {
+          "type": {
+            "text": true
+          }
+        },
         "sourceCategoricalPalette": {
           "type": {
             "enumeration": []
@@ -864,6 +934,16 @@
         "targetGradientDefinedInterval": {
           "type": {
             "numeric": true
+          }
+        },
+        "targetGradientManualBreaks": {
+          "type": {
+            "text": true
+          }
+        },
+        "targetGradientManualColors": {
+          "type": {
+            "text": true
           }
         },
         "targetCategoricalPalette": {
@@ -925,6 +1005,16 @@
             "numeric": true
           }
         },
+        "lineGradientManualBreaks": {
+          "type": {
+            "text": true
+          }
+        },
+        "lineGradientManualColors": {
+          "type": {
+            "text": true
+          }
+        },
         "lineCategoricalPalette": {
           "type": {
             "enumeration": []
@@ -948,6 +1038,16 @@
         "fillGradientDefinedInterval": {
           "type": {
             "numeric": true
+          }
+        },
+        "fillGradientManualBreaks": {
+          "type": {
+            "text": true
+          }
+        },
+        "fillGradientManualColors": {
+          "type": {
+            "text": true
           }
         },
         "fillCategoricalPalette": {
@@ -1312,7 +1412,8 @@
         "https://a.basemaps.cartocdn.com",
         "https://b.basemaps.cartocdn.com",
         "https://c.basemaps.cartocdn.com",
-        "https://d.basemaps.cartocdn.com"
+        "https://d.basemaps.cartocdn.com",
+        "https://tiles.openfreemap.org"
       ]
     }
   ]

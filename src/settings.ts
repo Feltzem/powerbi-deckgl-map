@@ -5,6 +5,8 @@ import {
   defaultGradientBinningMethod,
   defaultGradientClassCount,
   defaultGradientDefinedInterval,
+  defaultGradientManualBreaks,
+  defaultGradientManualColors,
   GradientBinningMethod,
   getGradientBinningMethodDisplayName,
   gradientBinningMethodItems,
@@ -27,6 +29,8 @@ import {
   getScatterSymbol,
   scatterSymbolItems,
 } from "./scatterSymbols";
+import { basemapOptions, DEFAULT_BASEMAP_ID } from "./basemaps";
+import { DEFAULT_3D_BUILDINGS_MIN_ZOOM } from "./buildings";
 
 import FormattingSettingsCard = formattingSettings.SimpleCard;
 import FormattingSettingsSlice = formattingSettings.Slice;
@@ -285,12 +289,16 @@ interface NumericGradientSettingsOptions {
   binningMethodName: string;
   classCountName: string;
   definedIntervalName: string;
+  manualBreaksName: string;
+  manualColorsName: string;
   fieldLabel: string;
   displayPrefix?: string;
   defaultPreset?: GradientPresetKey;
   defaultBinningMethod?: GradientBinningMethod;
   defaultClassCount?: number;
   defaultDefinedInterval?: number;
+  defaultManualBreaks?: string;
+  defaultManualColors?: string;
 }
 
 export class NumericGradientSettings extends FormattingSettingsCard {
@@ -298,6 +306,8 @@ export class NumericGradientSettings extends FormattingSettingsCard {
   binningMethod: formattingSettings.ItemDropdown;
   classCount: formattingSettings.NumUpDown;
   definedInterval: formattingSettings.NumUpDown;
+  manualBreaks: formattingSettings.TextInput;
+  manualColors: formattingSettings.TextInput;
   slices: Array<FormattingSettingsSlice> = [];
 
   constructor(options: NumericGradientSettingsOptions) {
@@ -366,11 +376,31 @@ export class NumericGradientSettings extends FormattingSettingsCard {
       },
     });
 
+    this.manualBreaks = new formattingSettings.TextInput({
+      name: options.manualBreaksName,
+      displayName: `${displayPrefix}Manual interval breaks`,
+      description:
+        "Comma-separated break values for manual interval classification (e.g. 0,10,50,100). Used when classification method is set to manual interval.",
+      value: options.defaultManualBreaks ?? defaultGradientManualBreaks,
+      placeholder: "e.g. 0, 10, 50, 100, 500",
+    });
+
+    this.manualColors = new formattingSettings.TextInput({
+      name: options.manualColorsName,
+      displayName: `${displayPrefix}Manual interval colours`,
+      description:
+        "Comma-separated hex colours for each manual interval class (e.g. #ff0000, #ffaa00, #00cc00). One colour per class; extras are ignored, missing classes repeat the last colour. Used when classification method is set to manual interval.",
+      value: options.defaultManualColors ?? defaultGradientManualColors,
+      placeholder: "e.g. #ff0000, #ffaa00, #00cc00",
+    });
+
     this.slices = [
       this.preset,
       this.binningMethod,
       this.classCount,
       this.definedInterval,
+      this.manualBreaks,
+      this.manualColors,
     ];
   }
 }
@@ -417,6 +447,8 @@ export class ScatterCardSettings extends FormattingSettingsCard {
     binningMethodName: "lineGradientBinningMethod",
     classCountName: "lineGradientClassCount",
     definedIntervalName: "lineGradientDefinedInterval",
+    manualBreaksName: "lineGradientManualBreaks",
+    manualColorsName: "lineGradientManualColors",
     fieldLabel: "scatter line color",
     displayPrefix: "Line",
   });
@@ -425,6 +457,8 @@ export class ScatterCardSettings extends FormattingSettingsCard {
     binningMethodName: "fillGradientBinningMethod",
     classCountName: "fillGradientClassCount",
     definedIntervalName: "fillGradientDefinedInterval",
+    manualBreaksName: "fillGradientManualBreaks",
+    manualColorsName: "fillGradientManualColors",
     fieldLabel: "scatter fill color",
     displayPrefix: "Fill",
   });
@@ -688,6 +722,8 @@ export class H3HexagonCardSettings extends FormattingSettingsCard {
     binningMethodName: "fillGradientBinningMethod",
     classCountName: "fillGradientClassCount",
     definedIntervalName: "fillGradientDefinedInterval",
+    manualBreaksName: "fillGradientManualBreaks",
+    manualColorsName: "fillGradientManualColors",
     fieldLabel: "H3 fill point count",
     displayPrefix: "Fill",
   });
@@ -750,6 +786,8 @@ export class LineCardSettings extends FormattingSettingsCard {
     binningMethodName: "gradientBinningMethod",
     classCountName: "gradientClassCount",
     definedIntervalName: "gradientDefinedInterval",
+    manualBreaksName: "gradientManualBreaks",
+    manualColorsName: "gradientManualColors",
     fieldLabel: "line color",
   });
   categoricalPalette = new CategoricalPaletteSettings({
@@ -783,6 +821,8 @@ export class ArcCardSettings extends FormattingSettingsCard {
     binningMethodName: "sourceGradientBinningMethod",
     classCountName: "sourceGradientClassCount",
     definedIntervalName: "sourceGradientDefinedInterval",
+    manualBreaksName: "sourceGradientManualBreaks",
+    manualColorsName: "sourceGradientManualColors",
     fieldLabel: "arc source color",
     displayPrefix: "Source",
   });
@@ -791,6 +831,8 @@ export class ArcCardSettings extends FormattingSettingsCard {
     binningMethodName: "targetGradientBinningMethod",
     classCountName: "targetGradientClassCount",
     definedIntervalName: "targetGradientDefinedInterval",
+    manualBreaksName: "targetGradientManualBreaks",
+    manualColorsName: "targetGradientManualColors",
     fieldLabel: "arc target color",
     displayPrefix: "Target",
   });
@@ -924,6 +966,8 @@ export class PathCardSettings extends FormattingSettingsCard {
     binningMethodName: "gradientBinningMethod",
     classCountName: "gradientClassCount",
     definedIntervalName: "gradientDefinedInterval",
+    manualBreaksName: "gradientManualBreaks",
+    manualColorsName: "gradientManualColors",
     fieldLabel: "path color",
   });
   categoricalPalette = new CategoricalPaletteSettings({
@@ -961,6 +1005,8 @@ export class PolygonCardSettings extends FormattingSettingsCard {
     binningMethodName: "lineGradientBinningMethod",
     classCountName: "lineGradientClassCount",
     definedIntervalName: "lineGradientDefinedInterval",
+    manualBreaksName: "lineGradientManualBreaks",
+    manualColorsName: "lineGradientManualColors",
     fieldLabel: "polygon line color",
     displayPrefix: "Line",
   });
@@ -970,6 +1016,8 @@ export class PolygonCardSettings extends FormattingSettingsCard {
     binningMethodName: "fillGradientBinningMethod",
     classCountName: "fillGradientClassCount",
     definedIntervalName: "fillGradientDefinedInterval",
+    manualBreaksName: "fillGradientManualBreaks",
+    manualColorsName: "fillGradientManualColors",
     fieldLabel: "polygon fill color",
     displayPrefix: "Fill",
   });
@@ -1046,30 +1094,34 @@ export class PolygonCardSettings extends FormattingSettingsCard {
 export class MapCardSettings extends FormattingSettingsCard {
   baseMap = new formattingSettings.ItemDropdown({
     name: "baseMap",
-    displayName: "Base Map",
+    displayName: "Basemap",
     description: "The base map to show",
-    value: { value: "light_all", displayName: "light_all" },
-    items: [
-      { value: "light_all", displayName: "light_all" },
-      { value: "dark_all", displayName: "dark_all" },
-      { value: "light_nolabels", displayName: "light_nolabels" },
-      { value: "light_only_labels", displayName: "light_only_labels" },
-      { value: "dark_nolabels", displayName: "dark_nolabels" },
-      { value: "dark_only_labels", displayName: "dark_only_labels" },
-      { value: "rastertiles/voyager", displayName: "rastertiles/voyager" },
-      {
-        value: "rastertiles/voyager_nolabels",
-        displayName: "rastertiles/voyager_nolabels",
+    value: { value: DEFAULT_BASEMAP_ID, displayName: DEFAULT_BASEMAP_ID },
+    items: basemapOptions,
+  });
+
+  show3DBuildings = new formattingSettings.ToggleSwitch({
+    name: "show3DBuildings",
+    displayName: "Show 3D buildings",
+    description: "Display OpenStreetMap building extrusions at high zoom",
+    value: true,
+  });
+
+  buildingsMinZoom = new formattingSettings.NumUpDown({
+    name: "buildingsMinZoom",
+    displayName: "3D buildings zoom",
+    description: "Zoom level where buildings appear at full height",
+    value: DEFAULT_3D_BUILDINGS_MIN_ZOOM,
+    options: {
+      minValue: {
+        type: powerbi.visuals.ValidatorType.Min,
+        value: 0,
       },
-      {
-        value: "rastertiles/voyager_only_labels",
-        displayName: "rastertiles/voyager_only_labels",
+      maxValue: {
+        type: powerbi.visuals.ValidatorType.Max,
+        value: 24,
       },
-      {
-        value: "rastertiles/voyager_labels_under",
-        displayName: "rastertiles/voyager_labels_under",
-      },
-    ],
+    },
   });
 
   initialSouth = new formattingSettings.NumUpDown({
@@ -1186,6 +1238,8 @@ export class MapCardSettings extends FormattingSettingsCard {
   displayName: string = "Map properties";
   slices: Array<FormattingSettingsSlice> = [
     this.baseMap,
+    this.show3DBuildings,
+    this.buildingsMinZoom,
     this.initialSouth,
     this.initialWest,
     this.initialNorth,

@@ -50,12 +50,16 @@ export default function getArcLayer(
       .value as GradientBinningMethod,
     classCount: settings.sourceGradient.classCount.value,
     definedInterval: settings.sourceGradient.definedInterval.value,
+    manualBreaks: settings.sourceGradient.manualBreaks.value,
+    manualColors: settings.sourceGradient.manualColors.value,
   };
   const targetGradientSettings = {
     method: settings.targetGradient.binningMethod.value
       .value as GradientBinningMethod,
     classCount: settings.targetGradient.classCount.value,
     definedInterval: settings.targetGradient.definedInterval.value,
+    manualBreaks: settings.targetGradient.manualBreaks.value,
+    manualColors: settings.targetGradient.manualColors.value,
   };
   const sourceColor = createLayerColorAccessor<OurData>({
     items: data,
@@ -142,6 +146,8 @@ export default function getArcLayer(
           settings.sourceGradient.binningMethod.value.value,
           settings.sourceGradient.classCount.value,
           settings.sourceGradient.definedInterval.value,
+          settings.sourceGradient.manualBreaks.value,
+          settings.sourceGradient.manualColors.value,
           getNumericColorBinsSignature(sourceColor.bins),
         ],
         [
@@ -163,6 +169,8 @@ export default function getArcLayer(
           settings.targetGradient.binningMethod.value.value,
           settings.targetGradient.classCount.value,
           settings.targetGradient.definedInterval.value,
+          settings.targetGradient.manualBreaks.value,
+          settings.targetGradient.manualColors.value,
           getNumericColorBinsSignature(targetColor.bins),
         ],
         [

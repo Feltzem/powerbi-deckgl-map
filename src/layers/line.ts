@@ -46,6 +46,8 @@ export default function getLineLayer(
       .value as GradientBinningMethod,
     classCount: settings.gradient.classCount.value,
     definedInterval: settings.gradient.definedInterval.value,
+    manualBreaks: settings.gradient.manualBreaks.value,
+    manualColors: settings.gradient.manualColors.value,
   };
   const lineColor = createLayerColorAccessor<OurData>({
     items: data,
@@ -113,6 +115,8 @@ export default function getLineLayer(
           settings.gradient.binningMethod.value.value,
           settings.gradient.classCount.value,
           settings.gradient.definedInterval.value,
+          settings.gradient.manualBreaks.value,
+          settings.gradient.manualColors.value,
           getNumericColorBinsSignature(lineColor.bins),
         ],
         [

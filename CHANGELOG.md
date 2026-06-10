@@ -1,5 +1,32 @@
 # Changelog
 
+## 1.7.3.0 - 2026-06-11
+
+### Added
+
+- Added a **Manual interval colours** text field alongside the existing manual interval breaks field. Enter comma-separated hex colours (e.g. `#ff0000, #ffaa00, #00cc00`) to assign a specific colour to each manual interval class. If fewer colours than classes are provided the last colour repeats; if the field is left blank the gradient scale is used as normal. Colours are applied to both the map layer and the legend.
+- Updated release metadata to version `1.7.3.0`.
+
+## 1.7.2.0 - 2026-06-11
+
+### Added
+
+- Added a **Manual interval** classification method for all numeric colour gradients (scatter fill/line, polygon fill/line, line, path, arc source/target, H3 hexagon). The user enters comma-separated break values (e.g. `0, 10, 50, 100, 500`) and the visual creates one colour class per gap. Values outside the defined range fall into the first or last class.
+- Updated release metadata to version `1.7.2.0`.
+
+## 1.7.1.0 - 2026-06-02
+
+### Added
+
+- Added tests for basemap option ordering, legacy alias resolution, and style generation.
+- Added a MapLibre 3D buildings overlay with configurable full-height zoom threshold.
+
+### Changed
+
+- Simplified the Basemap dropdown to seven clear report-author choices while keeping legacy basemap IDs compatible through aliases.
+- Updated basemap handling to use resilient CARTO-backed styles for the curated map options.
+- Updated release metadata to version `1.7.1.0`.
+
 ## 1.7.0.0 - 2026-05-28
 
 ### Added

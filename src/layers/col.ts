@@ -3,6 +3,7 @@ import {
   getCachedNumericColorBins,
   getGradientClassColors,
   getGradientColorForValueFromClasses,
+  getManualClassColors,
   NumericColorBins,
   NumericColorBinsCache,
   NumericGradientClassificationSettings,
@@ -206,8 +207,17 @@ export const createLayerColorAccessor = <T>({
       colorStats,
     );
     const gradient = getGradient();
-    const classColors =
+    const gradientClassColors =
       bins && bins.classCount > 0 ? getGradientClassColors(bins, gradient) : [];
+    const manualOverride =
+      bins && gradientSettings.method === "manual-interval"
+        ? getManualClassColors(
+            bins,
+            gradientSettings.manualColors ?? "",
+            gradient.lowColor[3],
+          )
+        : null;
+    const classColors = manualOverride ?? gradientClassColors;
 
     if (shouldApplyFade) {
       return {

@@ -40,7 +40,7 @@ The demo dashboard is intentionally Hamilton-sized so it opens quickly and stays
 - Numeric gradients: numeric colour fields can be mapped through preset gradients with natural breaks, quantile, equal interval, or defined interval classification. Active numeric colour fields render scrollable gradient legends.
 - Categorical palettes: non-empty text that is not a valid direct colour and not a strict number is mapped through a qualitative palette such as Modern, Dark, or Neon. Active categorical colour fields render category legends.
 - Legend formatting: the `Legend` Format pane card controls colour legend visibility, background opacity, heading/value fonts, classification type text, and colour scale bars. Each legend heading shows the compact geometry-type icon for its layer. Classification type text and colour scale bars apply to numeric legends only.
-- 3D camera: polygons can be extruded using a height field or default settings. When extruded polygons or valid arcs are currently rendered, the map automatically tilts to 45 degrees.
+- 3D camera: polygons can be extruded using a height field or default settings. `Map properties` > `Show 3D buildings` adds OpenStreetMap building extrusions; `3D buildings zoom` controls the zoom level where they appear at full height. When buildings, extruded polygons, or valid arcs are currently rendered, the map automatically tilts to 45 degrees.
 - Tooltips: bind `Tooltip HTML` for custom sanitized HTML tooltips. Multi-layer tooltips follow the current visual layer order and show a compact geometry-type icon in the top-right of each feature section. H3 hexagons show their joined point count from the aggregate cell, separately from the `Tooltip HTML` bucket.
 - Interaction: click selection/highlighting, hover highlighting, configurable fade for unselected polygons, reset view, fly-to, and selectable base maps.
 - Layer ordering: multi-geometry visuals can reorder layer stacking directly on the map. The compact on-map layer order pane is off by default; turn on `Layer controls` > `Show layer order control` to use it. The visual persists the order with the report.
@@ -174,7 +174,9 @@ If a colour bucket contains numbers instead of colour strings, the visual maps t
 - `Polygon properties`: separate `Fill ...` and `Line ...` gradient settings.
 - `Arc properties`: separate `Source ...` and `Target ...` gradient settings.
 
-The supported classification methods are `Natural breaks`, `Quantile`, `Equal interval`, and `Defined interval`. When a numeric field is active, the visual also renders a matching legend for the active classes.
+The supported classification methods are `Natural breaks`, `Quantile`, `Equal interval`, `Defined interval`, and `Manual interval`. When a numeric field is active, the visual also renders a matching legend for the active classes.
+
+**Manual interval** lets you define your own class boundaries. Enter comma-separated break values in the *Manual interval breaks* field (e.g. `0, 10, 50, 100, 500`); the visual creates one colour class per gap between adjacent values. Values below the first break fall into the first class; values above the last break fall into the last class. Optionally enter comma-separated hex colours in the *Manual interval colours* field (e.g. `#e41a1c, #ff7f00, #4daf4a`) to assign a specific colour to each class. If fewer colours than classes are provided the last colour repeats. If the colours field is left blank the chosen gradient scale is used. The *Default fill/line opacity* slider applies to manual colours automatically, the same way it does to gradient colours.
 
 ## Format Pane Options For Categorical Fields
 

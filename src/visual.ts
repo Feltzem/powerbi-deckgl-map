@@ -54,6 +54,15 @@ import {
 } from "./layerState";
 import { getAggregatedTooltipHtml } from "./tooltip";
 import { getScatterSymbol, getScatterSymbolType } from "./scatterSymbols";
+import { getBasemapStyle, resolveBasemap } from "./basemaps";
+import {
+  BUILDINGS_LAYER_ID,
+  BUILDINGS_SOURCE_ID,
+  clamp3DBuildingsMinZoom,
+  create3DBuildingsLayer,
+  create3DBuildingsSource,
+  getFirstSymbolLayerId,
+} from "./buildings";
 
 const createEmptyDatasetSnapshot = (version = "0"): DatasetSnapshot => ({
   layers: createEmptyLayerDataStore(),
@@ -121,6 +130,7 @@ export class Visual implements IVisual {
   private layerOrderControl: LayerOrderControl | null;
   private lastPerspectiveLayerShown: boolean | null;
   private automaticPitchOwned: boolean;
+  private buildingLayerSignature: string | null;
 
   private createResetViewControl() {
     const container = document.createElement("div");
@@ -270,11 +280,7 @@ export class Visual implements IVisual {
   }
 
   private isDarkBaseMap(baseMap: string): boolean {
-    const normalizedBaseMap = baseMap.toLowerCase();
-    return (
-      normalizedBaseMap.startsWith("dark") ||
-      normalizedBaseMap.includes("/dark")
-    );
+    return resolveBasemap(baseMap).dark;
   }
 
   private syncBaseMapTheme(baseMap: string) {
@@ -282,6 +288,83 @@ export class Visual implements IVisual {
       "deckgl-map-visual--dark-basemap",
       this.isDarkBaseMap(baseMap),
     );
+  }
+
+  private is3DBuildingsEnabled(): boolean {
+    return this.formattingSettings.map.show3DBuildings.value === true;
+  }
+
+  private get3DBuildingsMinZoom(): number {
+    return clamp3DBuildingsMinZoom(
+      this.formattingSettings.map.buildingsMinZoom.value,
+    );
+  }
+
+  private get3DBuildingsLayerSignature(): string {
+    return this.is3DBuildingsEnabled()
+      ? `on:${this.get3DBuildingsMinZoom()}`
+      : "off";
+  }
+
+  private remove3DBuildingsLayer() {
+    const map = this.map as any;
+
+    if (!map) {
+      return;
+    }
+
+    if (map.getLayer?.(BUILDINGS_LAYER_ID)) {
+      map.removeLayer?.(BUILDINGS_LAYER_ID);
+    }
+
+    if (map.getSource?.(BUILDINGS_SOURCE_ID)) {
+      map.removeSource?.(BUILDINGS_SOURCE_ID);
+    }
+  }
+
+  private sync3DBuildingsLayer() {
+    const map = this.map as any;
+
+    if (!map?.isStyleLoaded?.()) {
+      return;
+    }
+
+    const signature = this.get3DBuildingsLayerSignature();
+    const hasLayer = !!map.getLayer?.(BUILDINGS_LAYER_ID);
+    const hasSource = !!map.getSource?.(BUILDINGS_SOURCE_ID);
+
+    if (!this.is3DBuildingsEnabled()) {
+      if (hasLayer || hasSource) {
+        this.remove3DBuildingsLayer();
+      }
+      this.buildingLayerSignature = signature;
+      return;
+    }
+
+    if (hasLayer && hasSource && this.buildingLayerSignature === signature) {
+      return;
+    }
+
+    if (hasLayer) {
+      map.removeLayer?.(BUILDINGS_LAYER_ID);
+    }
+
+    if (!hasSource) {
+      map.addSource?.(BUILDINGS_SOURCE_ID, create3DBuildingsSource());
+    }
+
+    const labelLayerId = getFirstSymbolLayerId(map.getStyle?.().layers ?? []);
+    const buildingsLayer = create3DBuildingsLayer(
+      this.get3DBuildingsMinZoom(),
+    );
+
+    if (labelLayerId) {
+      map.addLayer?.(buildingsLayer, labelLayerId);
+    } else {
+      map.addLayer?.(buildingsLayer);
+    }
+
+    this.buildingLayerSignature = signature;
   }
 
   private getVisibleGeometryTypes(): Set<RenderableGeometryType> {
@@ -315,7 +398,9 @@ export class Visual implements IVisual {
     const arcLayerShown =
       visibleGeometryTypes.has("arc") && this.hasRenderableArcData();
 
-    return extrudedPolygonLayerShown || arcLayerShown;
+    return (
+      this.is3DBuildingsEnabled() || extrudedPolygonLayerShown || arcLayerShown
+    );
   }
 
   private getMapPitch(): number | null {
@@ -477,6 +562,7 @@ export class Visual implements IVisual {
     this.layerOrderControl = null;
     this.lastPerspectiveLayerShown = null;
     this.automaticPitchOwned = false;
+    this.buildingLayerSignature = null;
     this.rootElement = options.element;
 
     const settings =
@@ -492,10 +578,11 @@ export class Visual implements IVisual {
       this.rootElement.classList.add("deckgl-map-visual");
       this.map = new MapLibreMap({
         container: this.rootElement,
-        style: this.getMapStyle(settings.map.baseMap.value.value as string),
+        style: getBasemapStyle(settings.map.baseMap.value.value) as any,
         canvasContextAttributes: { antialias: true },
         maxZoom: 20,
       });
+      this.map.on("styledata", () => this.sync3DBuildingsLayer());
       this.legendContainer = document.createElement("div");
       this.legendContainer.className =
         "deckgl-gradient-legend deckgl-gradient-legend--hidden";
@@ -576,6 +663,7 @@ export class Visual implements IVisual {
         this.map.addControl(this.createResetViewControl(), "top-left");
         this.layerOrderControl = this.createLayerOrderControl();
         this.map.addControl(this.layerOrderControl, "bottom-right");
+        this.sync3DBuildingsLayer();
 
         const pendingOptions = this.pendingOptions;
         this.pendingOptions = null;
@@ -584,35 +672,6 @@ export class Visual implements IVisual {
         }
       });
     }
-  }
-
-  private getMapStyle(baseMap: string) {
-    return {
-      version: 8 as const,
-      sources: {
-        "raster-tiles": {
-          type: "raster" as const,
-          tiles: [
-            `https://a.basemaps.cartocdn.com/${baseMap}/{z}/{x}/{y}{r}.png`,
-            `https://b.basemaps.cartocdn.com/${baseMap}/{z}/{x}/{y}{r}.png`,
-            `https://c.basemaps.cartocdn.com/${baseMap}/{z}/{x}/{y}{r}.png`,
-            `https://d.basemaps.cartocdn.com/${baseMap}/{z}/{x}/{y}{r}.png`,
-          ],
-          tileSize: 256,
-          attribution:
-            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        },
-      },
-      layers: [
-        {
-          id: "simple-tiles",
-          type: "raster" as const,
-          source: "raster-tiles",
-          minzoom: 0,
-          maxzoom: 20,
-        },
-      ],
-    };
   }
 
   private hasUpdateType(
@@ -715,8 +774,11 @@ export class Visual implements IVisual {
     const newBaseMap = this.formattingSettings.map.baseMap.value.value as string;
     this.syncBaseMapTheme(newBaseMap);
     if (newBaseMap !== this.currentBaseMap) {
-      this.map?.setStyle?.(this.getMapStyle(newBaseMap));
+      this.buildingLayerSignature = null;
+      this.map?.setStyle?.(getBasemapStyle(newBaseMap) as any);
       this.currentBaseMap = newBaseMap;
+    } else {
+      this.sync3DBuildingsLayer();
     }
   }
 

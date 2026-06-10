@@ -52,12 +52,16 @@ export default function getScatterLayer(
       .value as GradientBinningMethod,
     classCount: settings.fillGradient.classCount.value,
     definedInterval: settings.fillGradient.definedInterval.value,
+    manualBreaks: settings.fillGradient.manualBreaks.value,
+    manualColors: settings.fillGradient.manualColors.value,
   };
   const lineGradientSettings = {
     method: settings.lineGradient.binningMethod.value
       .value as GradientBinningMethod,
     classCount: settings.lineGradient.classCount.value,
     definedInterval: settings.lineGradient.definedInterval.value,
+    manualBreaks: settings.lineGradient.manualBreaks.value,
+    manualColors: settings.lineGradient.manualColors.value,
   };
   const fillColor = createLayerColorAccessor<OurData>({
     items: data,
@@ -139,6 +143,8 @@ export default function getScatterLayer(
         settings.fillGradient.binningMethod.value.value,
         settings.fillGradient.classCount.value,
         settings.fillGradient.definedInterval.value,
+        settings.fillGradient.manualBreaks.value,
+        settings.fillGradient.manualColors.value,
         getNumericColorBinsSignature(fillColor.bins),
       ],
       [
@@ -160,6 +166,8 @@ export default function getScatterLayer(
         settings.lineGradient.binningMethod.value.value,
         settings.lineGradient.classCount.value,
         settings.lineGradient.definedInterval.value,
+        settings.lineGradient.manualBreaks.value,
+        settings.lineGradient.manualColors.value,
         getNumericColorBinsSignature(lineColor.bins),
       ],
       [
