@@ -3,6 +3,7 @@ import VisualUpdateOptions = powerbi.extensibility.visual.VisualUpdateOptions;
 import ISelectionId = powerbi.visuals.ISelectionId;
 import IVisualHost = powerbi.extensibility.visual.IVisualHost;
 import { decodeAsGeometry } from "./encoding";
+import { geometryHasZ } from "./geometryZ";
 import {
   DatasetSnapshot,
   ColorRoleStatsStore,
@@ -536,6 +537,7 @@ const addDataPointToLayerStore = (
       selectionId: data.selectionId,
       tooltipHtml: data.tooltipHtml,
       id: String(data.id),
+      hasZ: geometryHasZ(data.pathData),
     });
   } else if (
     data.type === InputLayerType.Polygon &&
@@ -549,6 +551,7 @@ const addDataPointToLayerStore = (
       selectionId: data.selectionId,
       tooltipHtml: data.tooltipHtml,
       id: String(data.id),
+      hasZ: geometryHasZ(data.polygonData),
     });
   }
 };

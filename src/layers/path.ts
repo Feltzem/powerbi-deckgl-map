@@ -76,10 +76,15 @@ export default function getPathLayer(
     selectedIds,
   });
 
+  const hasZ = data.some((feature) => feature.hasZ);
+
   return new GeoJsonLayer({
     id: LAYER_IDS.path,
     data,
     pickable: true,
+    // 3D WKP paths decode to [x, y, z]; tell deck.gl to read the Z so the
+    // line floats at its baked elevation instead of being truncated to ground.
+    positionFormat: hasZ ? "XYZ" : "XY",
     getLineWidth: (d) => {
       const w = d.properties?.lineWidth;
       if (typeof w === "number" && isFinite(w) && w > 0) {

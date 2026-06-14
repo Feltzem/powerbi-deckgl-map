@@ -90,6 +90,8 @@ export interface PathFeature {
   selectionId: ISelectionId;
   tooltipHtml: string | null;
   id: string;
+  /** True when the geometry carries a finite Z ordinate (3D WKP). */
+  hasZ: boolean;
 }
 
 export interface PolygonFeature {
@@ -99,6 +101,8 @@ export interface PolygonFeature {
   selectionId: ISelectionId;
   tooltipHtml: string | null;
   id: string;
+  /** True when the ring vertices carry a finite Z ordinate (3D WKP). */
+  hasZ: boolean;
 }
 
 export interface LayerDataStore {

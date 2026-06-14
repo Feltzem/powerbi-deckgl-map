@@ -114,10 +114,15 @@ export default function getPolygonLayer(
     selectedIds,
   });
 
+  const hasZ = data.some((feature) => feature.hasZ);
+
   return new GeoJsonLayer({
     id: LAYER_IDS.polygon,
     data,
     pickable: true,
+    // 3D WKP polygons decode to rings of [x, y, z]; reading the Z lets the ring
+    // sit at its baked base elevation (the floating-prism base in slice 2).
+    positionFormat: hasZ ? "XYZ" : "XY",
     stroked: settings.stroked.value,
     getLineColor: lineColor.accessor,
     getLineWidth: (d) => {
