@@ -391,8 +391,14 @@ export class Visual implements IVisual {
 
   private isPerspectiveLayerShown(): boolean {
     const visibleGeometryTypes = this.getVisibleGeometryTypes();
+    // 3D-WKP polygons auto-extrude into floating prisms (see getPolygonLayer),
+    // so treat ring-Z as an extruded layer for the auto-tilt even when the user
+    // has left the Extruded toggle off.
+    const polygonExtrudedOrFloating =
+      this.formattingSettings.polygon.extruded.value === true ||
+      this.dataset.layers.polygon.some((feature) => feature.hasZ);
     const extrudedPolygonLayerShown =
-      this.formattingSettings.polygon.extruded.value === true &&
+      polygonExtrudedOrFloating &&
       this.dataset.layers.polygon.length > 0 &&
       visibleGeometryTypes.has("polygon");
     const arcLayerShown =
