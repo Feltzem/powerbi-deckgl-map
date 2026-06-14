@@ -543,3 +543,79 @@ test("createDatasetSnapshot infers scatter rows from heatmap weight evidence", (
   assert.equal(snapshot.layers.scatter.length, 1);
   assert.equal(snapshot.layers.scatter[0].scatterData?.heatmapWeight, 4);
 });
+
+test("createDatasetSnapshot stamps hasZ on 3D path and polygon features", () => {
+  const warnings: string[] = [];
+  const settings = new VisualFormattingSettingsModel();
+  const options = {
+    dataViews: [
+      {
+        categorical: {
+          categories: [
+            makeCategory("geometryId", ["path-3d", "poly-3d"], "geometry_id"),
+          ],
+          values: makeValues([], undefined, [
+            makeColumn("layerType", ["path", "polygon"]),
+            makeColumn("wkt", [
+              "LINESTRING Z (175 -37.8 5, 175.001 -37.799 10)",
+              "POLYGON Z ((175 -37 100, 175.1 -37 100, 175.1 -37.1 100, 175 -37 100))",
+            ]),
+          ]),
+        },
+        metadata: {},
+      },
+    ],
+  } as powerbi.extensibility.visual.VisualUpdateOptions;
+
+  const snapshot = createDatasetSnapshot(
+    options,
+    settings,
+    makeHost(warnings),
+    new Map(),
+    "test",
+  );
+
+  assert.deepEqual(warnings, []);
+  assert.equal(snapshot.layers.path.length, 1);
+  assert.equal(snapshot.layers.path[0].hasZ, true);
+  assert.equal(snapshot.layers.polygon.length, 1);
+  assert.equal(snapshot.layers.polygon[0].hasZ, true);
+});
+
+test("createDatasetSnapshot leaves hasZ false for 2D path and polygon features", () => {
+  const warnings: string[] = [];
+  const settings = new VisualFormattingSettingsModel();
+  const options = {
+    dataViews: [
+      {
+        categorical: {
+          categories: [
+            makeCategory("geometryId", ["path-2d", "poly-2d"], "geometry_id"),
+          ],
+          values: makeValues([], undefined, [
+            makeColumn("layerType", ["path", "polygon"]),
+            makeColumn("wkt", [
+              "LINESTRING (175 -37.8, 175.001 -37.799)",
+              "POLYGON ((175 -37, 175.1 -37, 175.1 -37.1, 175 -37))",
+            ]),
+          ]),
+        },
+        metadata: {},
+      },
+    ],
+  } as powerbi.extensibility.visual.VisualUpdateOptions;
+
+  const snapshot = createDatasetSnapshot(
+    options,
+    settings,
+    makeHost(warnings),
+    new Map(),
+    "test",
+  );
+
+  assert.deepEqual(warnings, []);
+  assert.equal(snapshot.layers.path.length, 1);
+  assert.equal(snapshot.layers.path[0].hasZ, false);
+  assert.equal(snapshot.layers.polygon.length, 1);
+  assert.equal(snapshot.layers.polygon[0].hasZ, false);
+});
