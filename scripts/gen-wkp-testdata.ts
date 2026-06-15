@@ -41,10 +41,15 @@ const OUT_FILE = path.join(OUT_DIR, "wkp_time_animation_sample.csv");
 const ANCHOR_LON = 175.27;
 const ANCHOR_LAT = -37.79;
 
-// One simulated "day" of seconds (epoch) so the timestamp renders as a real
-// datetime in the animation-time tooltip.
+// Short, fast-cycling time window so the trailing-window sweep is obvious:
+// a 10-minute domain with a 2-minute trail means ~20% of points are visible at
+// once, and at the default speed (60 sim-sec/real-sec) the whole sweep takes
+// ~10 real seconds. The timestamp is still a real epoch so the tooltip shows a
+// readable time.
 const T0 = Math.floor(Date.parse("2026-06-15T08:00:00Z") / 1000);
-const DAY = 12 * 3600; // 12 hours of simulated time
+const DURATION = 10 * 60; // 10 minutes of simulated time
+// Scatter radius (metres) large enough to be clearly visible at city zoom.
+const SCATTER_RADIUS_M = 80;
 
 const csvEscape = (value: string | number): string => {
   const s = String(value);
@@ -84,6 +89,7 @@ interface Row {
   layer_type: string;
   wkp: string;
   timestamp: number;
+  scatter_radius: string;
   scatter_fill: string;
   polygon_fill: string;
   polygon_extrude_elevation: string;
@@ -94,11 +100,11 @@ const main = async () => {
   const enc = await createEncoder();
   const rows: Row[] = [];
 
-  // 1) A point cloud of 3D-less scatter rows spread across the day. The visual
-  //    derives their height from the timestamp (Max height), so these form the
-  //    vertical "time rug". Scatter has no WKP; lat/lon come from separate
-  //    columns, so we emit those too (added below as point columns).
-  const SCATTER_N = 60;
+  // 1) A dense point cloud of scatter rows spread across the time domain. The
+  //    visual derives their height from the timestamp (Max height), so these
+  //    form the vertical "time rug" that sweeps as the trailing window slides.
+  //    Scatter has no WKP; lat/lon come from separate point columns.
+  const SCATTER_N = 200;
   const scatterRows: Array<{
     id: string;
     lat: number;
@@ -108,18 +114,20 @@ const main = async () => {
   }> = [];
   for (let i = 0; i < SCATTER_N; i += 1) {
     const frac = i / (SCATTER_N - 1);
-    const t = T0 + Math.round(frac * DAY);
-    // Spiral the points around the anchor so the rug is legible.
-    const angle = frac * Math.PI * 6;
-    const radius = 0.004 + frac * 0.01;
+    const t = T0 + Math.round(frac * DURATION);
+    // A tight phyllotaxis spiral around the anchor so the rug reads as a column
+    // of points rather than a sparse scatter.
+    const angle = i * 2.399963; // golden angle
+    const radius = 0.0016 * Math.sqrt(i);
     const lon = ANCHOR_LON + Math.cos(angle) * radius;
     const lat = ANCHOR_LAT + Math.sin(angle) * radius * 0.8;
-    // Sequential fill (blue -> red) by time.
+    // Sequential fill (blue -> red) by time so the leading edge of the window
+    // is visually distinct as it sweeps.
     const r = Math.round(frac * 200 + 40);
     const b = Math.round((1 - frac) * 200 + 40);
     const fill = `#${r.toString(16).padStart(2, "0")}55${b
       .toString(16)
-      .padStart(2, "0")}cc`;
+      .padStart(2, "0")}ee`;
     scatterRows.push({ id: `pt-${i}`, lat, lon, t, fill });
   }
 
@@ -129,7 +137,7 @@ const main = async () => {
   const paths: Array<{ id: string; wkp: string; t: number }> = [];
   for (let i = 0; i < PATH_N; i += 1) {
     const frac = i / (PATH_N - 1);
-    const t = T0 + Math.round(frac * DAY);
+    const t = T0 + Math.round(frac * DURATION);
     const baseZ = 200 + frac * 600; // floating elevation in meters
     const lon0 = ANCHOR_LON - 0.02 + i * 0.006;
     const lat0 = ANCHOR_LAT - 0.015;
@@ -152,7 +160,7 @@ const main = async () => {
   }> = [];
   for (let i = 0; i < 2; i += 1) {
     const frac = i / 1;
-    const t = T0 + Math.round(frac * DAY);
+    const t = T0 + Math.round(frac * DURATION);
     const baseZ = 100 + i * 400;
     const cLon = ANCHOR_LON + 0.02 + i * 0.012;
     const cLat = ANCHOR_LAT + 0.012;
@@ -180,6 +188,7 @@ const main = async () => {
       layer_type: "scatter",
       wkp: "",
       timestamp: s.t,
+      scatter_radius: String(SCATTER_RADIUS_M),
       scatter_fill: s.fill,
       polygon_fill: "",
       polygon_extrude_elevation: "",
@@ -192,6 +201,7 @@ const main = async () => {
       layer_type: "path",
       wkp: p.wkp,
       timestamp: p.t,
+      scatter_radius: "",
       scatter_fill: "",
       polygon_fill: "",
       polygon_extrude_elevation: "",
@@ -204,6 +214,7 @@ const main = async () => {
       layer_type: "polygon",
       wkp: p.wkp,
       timestamp: p.t,
+      scatter_radius: "",
       scatter_fill: "",
       polygon_fill: p.fill,
       polygon_extrude_elevation: String(p.height),
@@ -219,6 +230,7 @@ const main = async () => {
     "point1_latitude",
     "point1_longitude",
     "timestamp",
+    "scatter_radius",
     "scatter_fill",
     "polygon_fill",
     "polygon_extrude_elevation",
@@ -236,6 +248,7 @@ const main = async () => {
         s ? s.lat.toFixed(6) : "",
         s ? s.lon.toFixed(6) : "",
         row.timestamp,
+        row.scatter_radius,
         row.scatter_fill,
         row.polygon_fill,
         row.polygon_extrude_elevation,
@@ -250,7 +263,11 @@ const main = async () => {
   await writeFile(OUT_FILE, lines.join("\n") + "\n", "utf8");
   console.log(`Wrote ${rows.length} rows to ${path.relative(process.cwd(), OUT_FILE)}`);
   console.log(
-    `Time domain: ${new Date(T0 * 1000).toISOString()} .. ${new Date((T0 + DAY) * 1000).toISOString()}`,
+    `Time domain: ${new Date(T0 * 1000).toISOString()} .. ${new Date((T0 + DURATION) * 1000).toISOString()}`,
+  );
+  console.log(
+    `Suggested settings: Trail length 120, Animation speed 60, Max height 1500. ` +
+      `Domain is ${DURATION / 60} min; the sweep cycles in ~${Math.round(DURATION / 60)} s at speed 60.`,
   );
 };
 
