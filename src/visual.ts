@@ -362,23 +362,27 @@ export class Visual implements IVisual {
       );
     };
     playButton.onclick = () => {
-      if (this.animationController.isPlaying()) {
-        this.animationController.pause();
-        this.formattingSettings.animation.play.value = false;
-      } else {
-        this.animationController.play();
-        this.formattingSettings.animation.play.value = true;
-      }
+      this.setPlaying(!this.animationController.isPlaying());
       this.renderTimeSliderControl();
     };
     range.oninput = () => {
       // Scrubbing pauses playback, mirroring the source TimeSlider.
       if (this.animationController.isPlaying()) {
-        this.animationController.pause();
-        this.formattingSettings.animation.play.value = false;
+        this.setPlaying(false);
       }
       this.animationController.seek(Number(range.value));
     };
+
+    // render() runs on every animation frame, so only touch the DOM when a
+    // value actually changes. In particular the label uses Intl date formatting
+    // (~tens of microseconds), which is wasteful to recompute 60x/second.
+    const playSpan = playButton.firstChild as HTMLSpanElement | null;
+    let lastT0: number | null = null;
+    let lastT1: number | null = null;
+    let lastRangeValue: string | null = null;
+    let lastLabelTime: number | null = null;
+    let lastLabelRealMs = 0;
+    let lastPlaying: boolean | null = null;
 
     const render = () => {
       const domain = this.dataset.timeDomain;
@@ -392,21 +396,47 @@ export class Visual implements IVisual {
       }
 
       const time = this.animationController.getTime();
-      range.min = String(domain.t0);
-      range.max = String(domain.t1);
+      if (domain.t0 !== lastT0) {
+        range.min = String(domain.t0);
+        lastT0 = domain.t0;
+      }
+      if (domain.t1 !== lastT1) {
+        range.max = String(domain.t1);
+        lastT1 = domain.t1;
+      }
       // Reflect the playhead unless the user is mid-drag on this element.
       if (document.activeElement !== range) {
-        range.value = String(time);
+        const nextValue = String(time);
+        if (nextValue !== lastRangeValue) {
+          range.value = nextValue;
+          lastRangeValue = nextValue;
+        }
       }
-      label.textContent = formatAnimationTime(time);
-
       const playing = this.animationController.isPlaying();
-      const playSpan = playButton.firstChild as HTMLSpanElement | null;
-      if (playSpan) {
-        playSpan.textContent = playing ? "⏸" : "▶";
+
+      // The label is human-readable text and Intl date formatting is costly to
+      // run every frame. During playback, throttle reformatting to ~4 Hz of
+      // wall-clock time (vs 60 Hz). When paused, scrub/step are discrete and
+      // low-frequency, so always reflect the exact playhead with no lag.
+      const nowMs =
+        typeof performance !== "undefined" ? performance.now() : Date.now();
+      const labelChanged = time !== lastLabelTime;
+      const shouldReformat =
+        lastLabelTime === null ||
+        (labelChanged && (!playing || nowMs - lastLabelRealMs >= 250));
+      if (shouldReformat) {
+        label.textContent = formatAnimationTime(time);
+        lastLabelTime = time;
+        lastLabelRealMs = nowMs;
       }
-      playButton.title = playing ? "Pause" : "Play";
-      playButton.setAttribute("aria-label", playButton.title);
+      if (playing !== lastPlaying) {
+        if (playSpan) {
+          playSpan.textContent = playing ? "⏸" : "▶";
+        }
+        playButton.title = playing ? "Pause" : "Play";
+        playButton.setAttribute("aria-label", playButton.title);
+        lastPlaying = playing;
+      }
     };
 
     return {
@@ -431,6 +461,33 @@ export class Visual implements IVisual {
 
   private renderTimeSliderControl() {
     this.timeSliderControl?.render();
+  }
+
+  /**
+   * Toggle playback from an on-map control. Drives the controller, keeps the
+   * in-memory Animation `play` setting in sync, and persists it so the format
+   * pane reflects the change and a later update() does not stop playback by
+   * re-reading a stale persisted value.
+   */
+  private setPlaying(play: boolean) {
+    if (play) {
+      this.animationController.play();
+    } else {
+      this.animationController.pause();
+    }
+    if (this.formattingSettings.animation.play.value === play) {
+      return;
+    }
+    this.formattingSettings.animation.play.value = play;
+    this.host.persistProperties({
+      merge: [
+        {
+          objectName: "animationProps",
+          selector: null,
+          properties: { play },
+        },
+      ],
+    });
   }
 
   private isDarkBaseMap(baseMap: string): boolean {
