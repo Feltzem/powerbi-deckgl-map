@@ -1258,6 +1258,14 @@ export class LayerControlsCardSettings extends FormattingSettingsCard {
     value: false,
   });
 
+  showTimeSlider = new formattingSettings.ToggleSwitch({
+    name: "showTimeSlider",
+    displayName: "Show time slider",
+    description:
+      "Show the on-map time slider for scrubbing and playing the animation. Only appears when a Timestamp field is bound.",
+    value: false,
+  });
+
   layerDrawOrder = new formattingSettings.TextInput({
     name: "layerDrawOrder",
     displayName: "Layer draw order (bottom to top)",
@@ -1272,6 +1280,7 @@ export class LayerControlsCardSettings extends FormattingSettingsCard {
   displayName: string = "Layer controls";
   slices: Array<FormattingSettingsSlice> = [
     this.showLayerOrderControl,
+    this.showTimeSlider,
     this.layerDrawOrder,
   ];
 }

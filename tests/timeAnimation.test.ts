@@ -148,3 +148,44 @@ test("controller keeps looping at the end when loop is on", () => {
   assert.equal(controller.isPlaying(), true);
   assert.equal(pendingFrames(), 1);
 });
+
+test("seek jumps the playhead and fires onTick", () => {
+  const { controller, ticks } = makeHarness();
+  controller.setDomain({ t0: 0, t1: 100 });
+  controller.seek(42);
+  assert.equal(controller.getTime(), 42);
+  assert.deepEqual(ticks, [42]);
+});
+
+test("seek clamps into the domain", () => {
+  const { controller } = makeHarness();
+  controller.setDomain({ t0: 10, t1: 50 });
+  controller.seek(-5);
+  assert.equal(controller.getTime(), 10);
+  controller.seek(999);
+  assert.equal(controller.getTime(), 50);
+});
+
+test("seek is a no-op without a domain or for non-finite input", () => {
+  const { controller, ticks } = makeHarness();
+  controller.seek(42);
+  assert.equal(controller.getTime(), 0);
+  controller.setDomain({ t0: 0, t1: 100 });
+  controller.seek(Number.NaN);
+  assert.equal(controller.getTime(), 0);
+  assert.deepEqual(ticks, []);
+});
+
+test("a play frame after seek advances from the sought time without jumping", () => {
+  const { controller, runFrame, advanceClock } = makeHarness();
+  controller.setDomain({ t0: 0, t1: 100 });
+  controller.setConfig({ animationSpeed: 10, loop: true });
+  controller.seek(40);
+  controller.play();
+
+  // Baseline frame (delta 0), then 1s at 10x => +10 from the sought 40.
+  runFrame();
+  advanceClock(1000);
+  runFrame();
+  assert.equal(controller.getTime(), 50);
+});

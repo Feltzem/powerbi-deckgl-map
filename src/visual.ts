@@ -57,7 +57,10 @@ import {
   parseLayerDrawOrder,
 } from "./layerState";
 import { getAggregatedTooltipHtml } from "./tooltip";
-import { getAnimationTimeTooltipHtml } from "./animationTooltip";
+import {
+  formatAnimationTime,
+  getAnimationTimeTooltipHtml,
+} from "./animationTooltip";
 import { getScatterSymbol, getScatterSymbolType } from "./scatterSymbols";
 import { getBasemapStyle, resolveBasemap } from "./basemaps";
 import {
@@ -98,6 +101,9 @@ interface LayerOrderControl {
   render: () => void;
 }
 
+// Same shape as LayerOrderControl: an on-map control with a re-render hook.
+type MapOverlayControl = LayerOrderControl;
+
 interface ModifierKeyEvent {
   ctrlKey?: boolean;
   metaKey?: boolean;
@@ -134,6 +140,7 @@ export class Visual implements IVisual {
   private currentActiveGeometryTypes: Set<RenderableGeometryType>;
   private currentLayerDrawOrder: RenderableGeometryType[];
   private layerOrderControl: LayerOrderControl | null;
+  private timeSliderControl: MapOverlayControl | null;
   private lastPerspectiveLayerShown: boolean | null;
   private automaticPitchOwned: boolean;
   private buildingLayerSignature: string | null;
@@ -285,6 +292,145 @@ export class Visual implements IVisual {
       },
       render,
     };
+  }
+
+  private createTimeSliderControl(): MapOverlayControl {
+    const container = document.createElement("div");
+    container.className =
+      "maplibregl-ctrl deckgl-time-slider deckgl-time-slider--hidden";
+    container.setAttribute("aria-label", "Time slider");
+
+    // Keep slider drags/clicks from panning or zooming the map.
+    const stopPropagation = (event: Event) => event.stopPropagation();
+    for (const type of ["mousedown", "dblclick", "wheel"]) {
+      container.addEventListener(type, stopPropagation);
+    }
+
+    const makeButton = (label: string, title: string): HTMLButtonElement => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "deckgl-time-slider__button";
+      button.title = title;
+      button.setAttribute("aria-label", title);
+      const span = document.createElement("span");
+      span.setAttribute("aria-hidden", "true");
+      span.textContent = label;
+      button.appendChild(span);
+      return button;
+    };
+
+    const skipBackButton = makeButton("⏪", "Step backward");
+    const playButton = makeButton("▶", "Play");
+    const skipForwardButton = makeButton("⏩", "Step forward");
+
+    const range = document.createElement("input");
+    range.type = "range";
+    range.className = "deckgl-time-slider__range";
+    range.min = "0";
+    range.max = "1";
+    range.step = "1";
+    range.value = "0";
+    range.setAttribute("aria-label", "Animation time");
+
+    const label = document.createElement("span");
+    label.className = "deckgl-time-slider__label";
+
+    container.append(
+      skipBackButton,
+      playButton,
+      skipForwardButton,
+      range,
+      label,
+    );
+
+    const getSkipStep = (): number => {
+      const domain = this.dataset.timeDomain;
+      if (!domain) {
+        return 1;
+      }
+      return Math.max(1, (domain.t1 - domain.t0) / 20);
+    };
+
+    skipBackButton.onclick = () => {
+      this.animationController.seek(
+        this.animationController.getTime() - getSkipStep(),
+      );
+    };
+    skipForwardButton.onclick = () => {
+      this.animationController.seek(
+        this.animationController.getTime() + getSkipStep(),
+      );
+    };
+    playButton.onclick = () => {
+      if (this.animationController.isPlaying()) {
+        this.animationController.pause();
+        this.formattingSettings.animation.play.value = false;
+      } else {
+        this.animationController.play();
+        this.formattingSettings.animation.play.value = true;
+      }
+      this.renderTimeSliderControl();
+    };
+    range.oninput = () => {
+      // Scrubbing pauses playback, mirroring the source TimeSlider.
+      if (this.animationController.isPlaying()) {
+        this.animationController.pause();
+        this.formattingSettings.animation.play.value = false;
+      }
+      this.animationController.seek(Number(range.value));
+    };
+
+    const render = () => {
+      const domain = this.dataset.timeDomain;
+      const shouldShow =
+        this.formattingSettings.layerControls.showTimeSlider.value === true &&
+        domain !== null;
+
+      container.classList.toggle("deckgl-time-slider--hidden", !shouldShow);
+      if (!shouldShow || !domain) {
+        return;
+      }
+
+      const time = this.animationController.getTime();
+      range.min = String(domain.t0);
+      range.max = String(domain.t1);
+      // Reflect the playhead unless the user is mid-drag on this element.
+      if (document.activeElement !== range) {
+        range.value = String(time);
+      }
+      label.textContent = formatAnimationTime(time);
+
+      const playing = this.animationController.isPlaying();
+      const playSpan = playButton.firstChild as HTMLSpanElement | null;
+      if (playSpan) {
+        playSpan.textContent = playing ? "⏸" : "▶";
+      }
+      playButton.title = playing ? "Pause" : "Play";
+      playButton.setAttribute("aria-label", playButton.title);
+    };
+
+    return {
+      onAdd: () => {
+        render();
+        return container;
+      },
+      onRemove: () => {
+        skipBackButton.onclick = null;
+        skipForwardButton.onclick = null;
+        playButton.onclick = null;
+        range.oninput = null;
+        for (const type of ["mousedown", "dblclick", "wheel"]) {
+          container.removeEventListener(type, stopPropagation);
+        }
+        container.replaceChildren();
+        container.remove();
+      },
+      render,
+    };
+  }
+
+  private renderTimeSliderControl() {
+    this.timeSliderControl?.render();
   }
 
   private isDarkBaseMap(baseMap: string): boolean {
@@ -644,6 +790,7 @@ export class Visual implements IVisual {
     this.currentActiveGeometryTypes = new Set();
     this.currentLayerDrawOrder = [...DEFAULT_LAYER_DRAW_ORDER];
     this.layerOrderControl = null;
+    this.timeSliderControl = null;
     this.lastPerspectiveLayerShown = null;
     this.automaticPitchOwned = false;
     this.buildingLayerSignature = null;
@@ -651,6 +798,8 @@ export class Visual implements IVisual {
     this.animationController = new TimeAnimationController((time) => {
       this.animationTime = time;
       this.pushAnimationFrame();
+      // Keep the time-slider thumb/label tracking autoplay.
+      this.renderTimeSliderControl();
     });
     this.rootElement = options.element;
 
@@ -768,6 +917,8 @@ export class Visual implements IVisual {
         this.map.addControl(this.createResetViewControl(), "top-left");
         this.layerOrderControl = this.createLayerOrderControl();
         this.map.addControl(this.layerOrderControl, "bottom-right");
+        this.timeSliderControl = this.createTimeSliderControl();
+        this.map.addControl(this.timeSliderControl, "bottom-left");
         this.sync3DBuildingsLayer();
 
         const pendingOptions = this.pendingOptions;
@@ -982,6 +1133,7 @@ export class Visual implements IVisual {
       );
     }
     this.renderLayerOrderControl();
+    this.renderTimeSliderControl();
     this.updateOverlayLayout();
     this.applyAutomaticPitch();
   }
@@ -1385,6 +1537,7 @@ export class Visual implements IVisual {
       this.currentActiveGeometryTypes = activeGeometryTypes;
       this.deckOverlay!.setProps({ layers });
       this.renderLayerOrderControl();
+    this.renderTimeSliderControl();
       this.renderLegend(dataView);
       this.updateOverlayLayout();
     });
@@ -1412,6 +1565,7 @@ export class Visual implements IVisual {
     }
     this.updateBaseMap();
     this.renderLayerOrderControl();
+    this.renderTimeSliderControl();
     this.updateOverlayLayout();
 
     if (!dataView) {
@@ -1467,6 +1621,7 @@ export class Visual implements IVisual {
     }
     this.deckOverlay = null;
     this.layerOrderControl = null;
+    this.timeSliderControl = null;
     try {
       this.map?.remove?.();
     } catch {

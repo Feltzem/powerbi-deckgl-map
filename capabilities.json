@@ -296,6 +296,11 @@
             "bool": true
           }
         },
+        "showTimeSlider": {
+          "type": {
+            "bool": true
+          }
+        },
         "layerDrawOrder": {
           "type": {
             "text": true

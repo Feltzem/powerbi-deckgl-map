@@ -111,6 +111,24 @@ export class TimeAnimationController {
     this.config = config;
   }
 
+  /**
+   * Jump the playhead to a specific time (clamped into the domain), e.g. from a
+   * time-slider scrub. Resets the delta baseline so a subsequent play frame does
+   * not jump, and reports the new time through onTick so the visual re-renders.
+   * No-op without a domain.
+   */
+  seek(time: number): void {
+    if (!this.domain || !Number.isFinite(time)) {
+      return;
+    }
+    const next = Math.min(this.domain.t1, Math.max(this.domain.t0, time));
+    this.lastTickMs = null;
+    if (next !== this.time) {
+      this.time = next;
+      this.onTick(next);
+    }
+  }
+
   /** Begin (or continue) playback. No-op without a domain. */
   play(): void {
     if (!this.domain || this.playing) {

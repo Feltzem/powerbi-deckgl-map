@@ -119,6 +119,66 @@
   opacity: 0.32;
 }
 
+.deckgl-time-slider {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: min(420px, calc(100vw - 24px));
+  padding: 4px 8px;
+  border: 1px solid rgba(34, 49, 63, 0.14);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 10px 24px rgba(20, 31, 43, 0.16);
+  backdrop-filter: blur(8px);
+  color: #243341;
+  pointer-events: auto;
+}
+
+.deckgl-time-slider--hidden {
+  display: none;
+}
+
+.deckgl-time-slider__button {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #2f3b4a;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.deckgl-time-slider__button:hover,
+.deckgl-time-slider__button:active {
+  background-color: #f2f5f8;
+}
+
+.deckgl-time-slider__range {
+  flex: 1 1 auto;
+  min-width: 80px;
+  height: 4px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: #2f6fed;
+}
+
+.deckgl-time-slider__label {
+  flex: 0 0 auto;
+  min-width: 96px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
 .deckgl-map-visual {
   position: relative;
 }
