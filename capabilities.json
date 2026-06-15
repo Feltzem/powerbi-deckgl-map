@@ -218,6 +218,20 @@
       "name": "tooltipHtml",
       "kind": "Measure",
       "description": "The HTML to display in the tooltip. You can use CSS = )"
+    },
+    {
+      "displayName": "Timestamp",
+      "name": "timestamp",
+      "kind": "GroupingOrMeasure",
+      "description": "Per-row time used to drive the animation and the time-as-height encoding. Accepts a datetime or a numeric value in seconds. When bound, the Animation card controls the trailing-window playback.",
+      "preferredTypes": [
+        {
+          "dateTime": true
+        },
+        {
+          "numeric": true
+        }
+      ]
     }
   ],
   "supportsHighlight": false,
@@ -385,6 +399,36 @@
         "validateGeometries": {
           "type": {
             "bool": true
+          }
+        }
+      }
+    },
+    "animationProps": {
+      "displayName": "Animation properties",
+      "properties": {
+        "play": {
+          "type": {
+            "bool": true
+          }
+        },
+        "loop": {
+          "type": {
+            "bool": true
+          }
+        },
+        "animationSpeed": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "trailLength": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "maxHeight": {
+          "type": {
+            "numeric": true
           }
         }
       }
@@ -1252,6 +1296,11 @@
                 "bind": {
                   "to": "tooltipHtml"
                 }
+              },
+              {
+                "bind": {
+                  "to": "timestamp"
+                }
               }
             ]
         }
@@ -1396,6 +1445,11 @@
             {
               "bind": {
                 "to": "tooltipHtml"
+              }
+            },
+            {
+              "bind": {
+                "to": "timestamp"
               }
             }
           ]

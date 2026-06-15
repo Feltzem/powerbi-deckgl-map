@@ -9,6 +9,7 @@ import {
   MultiLineString,
 } from "geojson";
 import { RGBAColor } from "./col";
+import { TimeDomain } from "./time";
 
 type PrimitiveValue = powerbi.PrimitiveValue;
 
@@ -81,6 +82,8 @@ export interface OurData {
   isHighlightedFromData?: boolean;
   selectionId: ISelectionId;
   tooltipHtml: string | null;
+  /** Bound timestamp normalised to Unix seconds, or null when unbound/blank. */
+  timestampSeconds: number | null;
 }
 
 export interface PathFeature {
@@ -92,6 +95,8 @@ export interface PathFeature {
   id: string;
   /** True when the geometry carries a finite Z ordinate (3D WKP). */
   hasZ: boolean;
+  /** Bound timestamp normalised to Unix seconds, or null when unbound/blank. */
+  timestampSeconds: number | null;
 }
 
 export interface PolygonFeature {
@@ -103,6 +108,8 @@ export interface PolygonFeature {
   id: string;
   /** True when the ring vertices carry a finite Z ordinate (3D WKP). */
   hasZ: boolean;
+  /** Bound timestamp normalised to Unix seconds, or null when unbound/blank. */
+  timestampSeconds: number | null;
 }
 
 export interface LayerDataStore {
@@ -144,6 +151,11 @@ export interface DatasetSnapshot {
   dataHighlightedIds: string[];
   bounds: BoundingBox | null;
   version: string;
+  /**
+   * [t0, t1] in Unix seconds across all bound timestamps, or null when no
+   * timestamp role is bound (animation inert).
+   */
+  timeDomain: TimeDomain | null;
 }
 
 export type GeometryCache = Map<string, Geometry>;
@@ -174,6 +186,7 @@ export interface RowValues {
   arcSourceColor: PrimitiveValue | null;
   arcTargetColor: PrimitiveValue | null;
   tooltip: PrimitiveValue | null;
+  timestamp: PrimitiveValue | null;
 }
 
 export type RowValueArrays = {

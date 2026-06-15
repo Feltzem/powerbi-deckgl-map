@@ -4,6 +4,7 @@ import ISelectionId = powerbi.visuals.ISelectionId;
 import IVisualHost = powerbi.extensibility.visual.IVisualHost;
 import { decodeAsGeometry } from "./encoding";
 import { geometryHasZ } from "./geometryZ";
+import { computeTimeDomain, toUnixSeconds } from "./time";
 import {
   DatasetSnapshot,
   ColorRoleStatsStore,
@@ -62,6 +63,7 @@ const roleMappings: Array<[keyof RowValues, string]> = [
   ["arcSourceColor", "arcSourceColor"],
   ["arcTargetColor", "arcTargetColor"],
   ["tooltip", "tooltipHtml"],
+  ["timestamp", "timestamp"],
 ];
 
 type RoleColumnCandidate = RoleColumn;
@@ -432,6 +434,7 @@ const getRowValues = (
   arcSourceColor: rowValueArrays.arcSourceColor?.[index] ?? null,
   arcTargetColor: rowValueArrays.arcTargetColor?.[index] ?? null,
   tooltip: rowValueArrays.tooltip?.[index] ?? null,
+  timestamp: rowValueArrays.timestamp?.[index] ?? null,
 });
 
 const getDataPointType = (
@@ -538,6 +541,7 @@ const addDataPointToLayerStore = (
       tooltipHtml: data.tooltipHtml,
       id: String(data.id),
       hasZ: geometryHasZ(data.pathData),
+      timestampSeconds: data.timestampSeconds,
     });
   } else if (
     data.type === InputLayerType.Polygon &&
@@ -552,6 +556,7 @@ const addDataPointToLayerStore = (
       tooltipHtml: data.tooltipHtml,
       id: String(data.id),
       hasZ: geometryHasZ(data.polygonData),
+      timestampSeconds: data.timestampSeconds,
     });
   }
 };
@@ -652,6 +657,7 @@ export function createDatasetSnapshot(
     dataHighlightedIds,
     bounds: null,
     version,
+    timeDomain: null,
   });
 
   const dataViews = options.dataViews;
@@ -707,6 +713,7 @@ export function createDatasetSnapshot(
     arcSourceColor: getColumnValues(roleColumns.arcSourceColor ?? null),
     arcTargetColor: getColumnValues(roleColumns.arcTargetColor ?? null),
     tooltip: getColumnValues(roleColumns.tooltip ?? null),
+    timestamp: getColumnValues(roleColumns.timestamp ?? null),
   };
 
   if (!rowValueArrays.geometryId || !rowValueArrays.layerType) {
@@ -739,6 +746,7 @@ export function createDatasetSnapshot(
     arcSourceColor: !!rowValueArrays.arcSourceColor,
     arcTargetColor: !!rowValueArrays.arcTargetColor,
     tooltip: !!rowValueArrays.tooltip,
+    timestamp: !!rowValueArrays.timestamp,
   };
 
   const errorMessages: string[] = [];
@@ -838,6 +846,7 @@ export function createDatasetSnapshot(
       isHighlightedFromData,
       selectionId: selectionId,
       tooltipHtml: sanitizeTooltipHtml(rowValues.tooltip),
+      timestampSeconds: toUnixSeconds(rowValues.timestamp),
     };
 
     if (dataType === InputLayerType.Scatter) {
@@ -905,6 +914,9 @@ export function createDatasetSnapshot(
     dataHighlightedIds,
     bounds: getDataBoundingBox(layerData.all),
     version,
+    timeDomain: computeTimeDomain(
+      layerData.all.map((point) => point.timestampSeconds),
+    ),
   };
 }
 

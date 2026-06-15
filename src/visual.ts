@@ -72,6 +72,7 @@ const createEmptyDatasetSnapshot = (version = "0"): DatasetSnapshot => ({
   dataHighlightedIds: [],
   bounds: null,
   version,
+  timeDomain: null,
 });
 
 const AUTO_3D_PITCH = 45;

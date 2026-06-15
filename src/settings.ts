@@ -1393,6 +1393,79 @@ export class ValidationPropertiesCardSettings extends FormattingSettingsCard {
   slices: Array<FormattingSettingsSlice> = [this.validateGeometries];
 }
 
+export class AnimationCardSettings extends FormattingSettingsCard {
+  play = new formattingSettings.ToggleSwitch({
+    name: "play",
+    displayName: "Play",
+    description:
+      "Play the trailing-window animation. Requires the Timestamp field to be bound.",
+    value: false,
+  });
+
+  loop = new formattingSettings.ToggleSwitch({
+    name: "loop",
+    displayName: "Loop",
+    description: "Restart from the beginning when playback reaches the end.",
+    value: true,
+  });
+
+  animationSpeed = new formattingSettings.NumUpDown({
+    name: "animationSpeed",
+    displayName: "Animation speed (sim seconds / real second)",
+    description:
+      "How many simulated seconds elapse per real second of playback. The Parking review page uses 60.",
+    value: 60,
+    options: {
+      minValue: {
+        type: powerbi.visuals.ValidatorType.Min,
+        value: 0,
+      },
+      maxValue: {
+        type: powerbi.visuals.ValidatorType.Max,
+        value: 100000,
+      },
+    },
+  });
+
+  trailLength = new formattingSettings.NumUpDown({
+    name: "trailLength",
+    displayName: "Trail length (seconds)",
+    description:
+      "Width of the trailing time window. Geometry whose timestamp falls within [time - trail length, time] is visible.",
+    value: 3600,
+    options: {
+      minValue: {
+        type: powerbi.visuals.ValidatorType.Min,
+        value: 0,
+      },
+    },
+  });
+
+  maxHeight = new formattingSettings.NumUpDown({
+    name: "maxHeight",
+    displayName: "Max height (meters)",
+    description:
+      "Height assigned to the latest timestamp when deriving time-as-height for points and paths that do not already carry a baked Z.",
+    value: 1000,
+    options: {
+      minValue: {
+        type: powerbi.visuals.ValidatorType.Min,
+        value: 0,
+      },
+    },
+  });
+
+  name: string = "animationProps";
+  displayName: string = "Animation properties";
+  slices: Array<FormattingSettingsSlice> = [
+    this.play,
+    this.loop,
+    this.animationSpeed,
+    this.trailLength,
+    this.maxHeight,
+  ];
+}
+
 export class VisualFormattingSettingsModel extends FormattingSettingsModel {
   scatter = new ScatterCardSettings();
   heatmap = new HeatmapCardSettings();
@@ -1406,12 +1479,14 @@ export class VisualFormattingSettingsModel extends FormattingSettingsModel {
   polygon = new PolygonCardSettings();
   highlighting = new HighlightingCardSettings();
   validation = new ValidationPropertiesCardSettings();
+  animation = new AnimationCardSettings();
   cards = [
     this.map,
     this.layerControls,
     this.legend,
     this.validation,
     this.highlighting,
+    this.animation,
     this.scatter,
     this.heatmap,
     this.h3Hexagon,
