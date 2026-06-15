@@ -1,5 +1,5 @@
 import { GeoJsonLayer } from "@deck.gl/layers";
-import type { PickingInfo } from "@deck.gl/core";
+import type { PickingInfo, Position } from "@deck.gl/core";
 import { ColorRoleStatsStore, PathFeature } from "../dataTypes";
 import { withOpacity, decodeHex } from "../col";
 import {
@@ -15,6 +15,34 @@ import {
   createLayerColorAccessor,
   getLayerColorUpdateTriggers,
 } from "./col";
+import TemporallyAppearingPathLayer from "./temporallyAppearingPathLayer";
+import { AnimationContext } from "../timeAnimation";
+
+/** One drawable path with a back-reference to its source feature. */
+interface FlatPath {
+  path: Position[];
+  feature: PathFeature;
+}
+
+/**
+ * Flatten path features into one entry per LineString. A MultiLineString
+ * becomes several entries that share the same source feature (and timestamp),
+ * because the raw PathLayer draws one path per data item.
+ */
+const flattenPaths = (data: PathFeature[]): FlatPath[] => {
+  const flat: FlatPath[] = [];
+  for (const feature of data) {
+    const geometry = feature.geometry;
+    if (geometry.type === "LineString") {
+      flat.push({ path: geometry.coordinates as Position[], feature });
+    } else if (geometry.type === "MultiLineString") {
+      for (const line of geometry.coordinates) {
+        flat.push({ path: line as Position[], feature });
+      }
+    }
+  }
+  return flat;
+};
 
 export default function getPathLayer(
   data: PathFeature[],
@@ -26,6 +54,7 @@ export default function getPathLayer(
   classificationCache: NumericColorBinsCache,
   dataVersion: string,
   onClick: (info: PickingInfo, event: unknown) => void,
+  animation: AnimationContext | null = null,
 ) {
   const defaultLineColor = withOpacity(
     decodeHex(settings.line.color.defaultLineColor.value.value, [0, 0, 0, 100]),
@@ -77,6 +106,77 @@ export default function getPathLayer(
   });
 
   const hasZ = data.some((feature) => feature.hasZ);
+
+  const resolveLineWidth = (feature: PathFeature): number => {
+    const w = feature.properties?.lineWidth;
+    if (typeof w === "number" && isFinite(w) && w > 0) {
+      return w;
+    }
+    return settings.line.width.defaultLineWidth.value;
+  };
+  const resolveLineColor = (feature: PathFeature) =>
+    typeof lineColor.accessor === "function"
+      ? lineColor.accessor(feature)
+      : lineColor.accessor;
+
+  if (animation?.active) {
+    const flat = flattenPaths(data);
+    return new TemporallyAppearingPathLayer<FlatPath>({
+      id: LAYER_IDS.path,
+      data: flat,
+      pickable: true,
+      positionFormat: hasZ ? "XYZ" : "XY",
+      getPath: (d) => d.path,
+      getColor: (d) => resolveLineColor(d.feature),
+      getWidth: (d) => resolveLineWidth(d.feature),
+      // One timestamp per feature, so the whole path appears/disappears
+      // together within the trailing window.
+      getSourceTimestamp: (d) => d.feature.timestampSeconds ?? Number.NaN,
+      getTargetTimestamp: (d) => d.feature.timestampSeconds ?? Number.NaN,
+      timeRange: [
+        animation.time - animation.trailLength,
+        animation.time,
+      ],
+      widthUnits: "meters",
+      widthMinPixels: settings.line.width.lineWidthMinPixels.value,
+      widthMaxPixels: settings.line.width.lineWidthMaxPixels.value,
+      capRounded: settings.path.lineCapRounded.value,
+      jointRounded: settings.path.lineJointRounded.value,
+      miterLimit: settings.path.lineMiterLimit.value,
+      billboard: settings.billboard.billboard.value,
+      autoHighlight: highlighting.autoHighlight.value,
+      highlightColor: autoHighlightColor,
+      onClick: (info, event) => onClick(info, event),
+      updateTriggers: {
+        getColor: getLayerColorUpdateTriggers(
+          [
+            settings.line.color.defaultLineColor.value.value,
+            settings.line.color.defaultLineOpacity.value,
+          ],
+          [
+            settings.gradient.preset.value.value,
+            settings.gradient.binningMethod.value.value,
+            settings.gradient.classCount.value,
+            settings.gradient.definedInterval.value,
+            settings.gradient.manualBreaks.value,
+            settings.gradient.manualColors.value,
+            getNumericColorBinsSignature(lineColor.bins),
+          ],
+          [
+            settings.categoricalPalette.palette.value.value,
+            lineColor.categoricalSignature,
+          ],
+          lineColor,
+          highlighting.highlightOnClick.value,
+          highlighting.unselectedFadeOpacity.value,
+          selectedSignature,
+        ),
+        getWidth: [settings.line.width.defaultLineWidth.value],
+        getSourceTimestamp: [dataVersion],
+        getTargetTimestamp: [dataVersion],
+      },
+    });
+  }
 
   return new GeoJsonLayer({
     id: LAYER_IDS.path,

@@ -1331,6 +1331,7 @@ export class Visual implements IVisual {
               this.classificationCache,
               this.dataset.version,
               this.onClick,
+              this.getAnimationContext(),
             ),
           );
         } else if (geometryType === "polygon") {
