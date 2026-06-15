@@ -226,9 +226,6 @@
       "description": "Per-row time used to drive the animation and the time-as-height encoding. Accepts a datetime or a numeric value in seconds. When bound, the Animation card controls the trailing-window playback.",
       "preferredTypes": [
         {
-          "dateTime": true
-        },
-        {
           "numeric": true
         }
       ]
