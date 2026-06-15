@@ -44,14 +44,18 @@ The demo dashboard is intentionally Hamilton-sized so it opens quickly and stays
 - 3D geometry (Z): paths and polygons supplied as 3D WKT (`LINESTRING Z`,
   `POLYGON Z`) or 3D WKP carry a per-vertex Z. Paths float at their baked
   elevation, and 3D polygons render as floating prisms whose base is the ring
-  Z and whose height is the `Polygon extrude elevation` measure. 2D geometry is
-  unchanged.
+  Z and whose height is the `Polygon extrude elevation` measure. Encoding a
+  value range as base-plus-height lets features stack into columns (for example
+  restriction validity windows along a road). 2D geometry is unchanged. See
+  [3D Geometry (Z) and Stacked Prisms](#3d-geometry-z-and-stacked-prisms).
 - Time animation: bind a `Timestamp` field (datetime or numeric seconds) and
   use the `Animation properties` card to play a trailing-window animation
   inside the visual. Scatter points form a vertical time-rug whose height comes
   from each row's timestamp (`Max height`), points and paths outside the
   `Trail length` window are hidden, and `Animation speed`, `Play`, and `Loop`
-  control playback. The card is hidden when no timestamp is bound.
+  control playback. While playing, the tooltip shows the current playhead time.
+  The card is hidden when no timestamp is bound. See
+  [Time-Based Animation](#time-based-animation).
 - Tooltips: bind `Tooltip HTML` for custom sanitized HTML tooltips. Multi-layer tooltips follow the current visual layer order and show a compact geometry-type icon in the top-right of each feature section. H3 hexagons show their joined point count from the aggregate cell, separately from the `Tooltip HTML` bucket.
 - Interaction: click selection/highlighting, hover highlighting, configurable fade for unselected polygons, reset view, fly-to, and selectable base maps.
 - Layer ordering: multi-geometry visuals can reorder layer stacking directly on the map. The compact on-map layer order pane is off by default; turn on `Layer controls` > `Show layer order control` to use it. The visual persists the order with the report.
@@ -67,7 +71,71 @@ To render a scatter heatmap, add scatter rows as usual, then turn on `Heatmap pr
 
 To render H3 hexagons from scatter rows, turn on `H3 hexagon properties` > `Show H3 hexagons`. Each scatter row contributes one point to its H3 cell; only occupied cells render. Use `H3 resolution` to choose the standard H3 cell size. The fill gradient follows joined point count, while the dark grey outline uses the same count-based opacity settings. Hover a hexagon to see its joined point count; the H3 tooltip does not use the `Tooltip HTML` bucket.
 
-To animate over time, bind the `Timestamp` field (a datetime column or a numeric column already in seconds). The visual derives a `[t0, t1]` time domain across all rows and shows the `Animation properties` card. Turn on `Play` to advance a trailing window `[time - Trail length, time]`: scatter points rise to a height proportional to their timestamp (up to `Max height`) forming a vertical "time rug", and points and paths whose timestamp falls outside the window are hidden. `Animation speed` is simulated seconds per real second, and `Loop` restarts at the end. Geometry that already carries a baked Z (3D WKT/WKP) keeps that elevation; rows without a timestamp stay at ground level and remain visible. Playback runs entirely inside the visual, so it does not re-query Power BI per frame.
+## 3D Geometry (Z) and Stacked Prisms
+
+The visual reads a per-vertex Z (height, in metres) from any 3D path or polygon geometry. This is what lets you stack geometry by a time or numeric attribute without any animation — the height is baked into the geometry itself.
+
+### Supplying Z
+
+Z can come from either geometry encoding:
+
+- **3D WKT**: `LINESTRING Z (lon lat z, ...)` or `POLYGON Z ((lon lat z, ...))`. Any 2D WKT (no `Z`) is unchanged.
+- **3D WKP**: a WKP string whose dimension header declares 3 dimensions, so every vertex carries `[lon, lat, z]`. 2D WKP is unchanged.
+
+When any vertex of a feature carries a finite Z, the visual switches that layer to read the Z; otherwise it behaves exactly as before. You do not toggle anything — supplying 3D geometry is enough.
+
+### How Z renders per geometry type
+
+- **Paths** float at their baked Z. A `LINESTRING Z` whose vertices share `z = 500` draws the whole line 500 m above the basemap. The Z can also vary per vertex to draw a sloping line.
+- **Polygons** become **floating prisms**. The ring's Z is the **base** of the prism, and the `Polygon extrude elevation` field (or the Format pane default) is the **height added on top**. So a polygon with ring `z = 300` and an extrude elevation of `200` renders a prism whose floor is at 300 m and whose roof is at 500 m. A 3D polygon is auto-extruded even if the `Extruded` toggle is off, and the camera auto-tilts to 45° so the prisms are visible.
+
+2D polygons keep the existing behaviour: flat on the ground unless you turn on `Polygon properties` > `Extruded`.
+
+### Stacking geometry by a time or numeric attribute
+
+Because the base and the height are independent, you can encode a value range as a floating block. The pattern that drives the parking-review-style "walls" is:
+
+- Map a feature's start value to the **base Z** (`h0 = (start - min) / (max - min) * MAX_HEIGHT`), baked into the ring.
+- Map its span to the **height** (`(end - start) / (max - min) * MAX_HEIGHT`), bound to `Polygon extrude elevation`.
+
+Features that share a footprint but cover **sequential, non-overlapping** value ranges then stack base-to-top into a column — for example, successive validity windows of a parking restriction, or sequential time buckets at the same location. Lay those columns along a road centreline and you get the stacked "Gantt in 3D" look: each restriction version is a prism whose floor and ceiling mark when it was in force, coloured by type or zone via the standard polygon fill (see colour buckets below).
+
+This stacking is **static** — it is baked into the exported geometry and does not depend on the animation playhead. Bind `Polygon fill` to a categorical field (e.g. parking type) for a category legend, or to a numeric measure (e.g. occupancy) for a gradient ramp.
+
+A ready-made example is in [`samples/animation/wkp_road_prisms_sample.csv`](samples/animation/wkp_road_prisms_sample.csv) (generated by [`scripts/gen-wkp-road-prisms.ts`](scripts/gen-wkp-road-prisms.ts)). Import it and bind `geometry_id`, `layer_type`, `wkp`, `polygon_fill`, `polygon_extrude_elevation`, and `tooltip_html`; no Animation card is needed.
+
+## Time-Based Animation
+
+When you bind a `Timestamp` field, the visual can play a smooth, in-visual animation that sweeps a trailing time window across the data — points and paths appear and disappear as the playhead moves, and points rise into a vertical "time rug". Playback runs entirely inside the visual on the GPU, so it does **not** re-query Power BI per frame and stays smooth where a slicer-driven re-query could not.
+
+### Setup
+
+1. Bind the `Timestamp` field. It accepts a **datetime** column or a **numeric** column already expressed in **seconds**. The visual normalises both to Unix seconds and derives a `[t0, t1]` time domain across every bound row. With no timestamp bound, the animation is inert and the `Animation properties` card is hidden, so existing reports are unaffected.
+2. Open `Animation properties` and turn on `Play`.
+
+### The Animation properties card
+
+- **Play** — start/stop the in-visual playback loop. The loop advances continuously (independent of the frame rate) using a real-time clock.
+- **Loop** — restart from the beginning when the playhead reaches the end; otherwise it stops at the end.
+- **Animation speed (sim seconds / real second)** — how much simulated time elapses per real second of playback. `60` means one real second covers a simulated minute.
+- **Trail length (seconds)** — the width of the visible trailing window. A feature is visible only when its timestamp falls within `[time - trail length, time]`.
+- **Max height (meters)** — the height assigned to the latest timestamp when deriving height from time (see below).
+
+### What animates
+
+- **Scatter points** form the vertical **time rug**: each point's height is `(timestamp - t0) / (t1 - t0) * Max height`, so the newest points sit highest. As the trailing window slides, points outside it are hidden, so the rug sweeps through time. Bind `Scatter radius` and `Scatter fill` to make the rug legible (a sequential fill by time reads as a moving leading edge).
+- **Paths** appear and disappear as a whole when their timestamp enters or leaves the trailing window (efficient GPU discard — the layer is not rebuilt per frame).
+- **Rows without a timestamp** stay at ground level and remain visible throughout, so static context geometry can share the same table.
+
+Geometry that already carries a **baked Z** (3D WKT/WKP, above) keeps that elevation — the timestamp then only controls trailing-window visibility, not height. So you can mix authoring styles: 2D points whose height the visual derives from time, alongside 3D geometry whose height is baked in.
+
+While the animation is playing, hovering any feature shows the current playhead time at the top of the tooltip (a localized date/time for datetime sources, or the raw value for arbitrary numeric ones).
+
+A ready-made example is in [`samples/animation/wkp_time_animation_sample.csv`](samples/animation/wkp_time_animation_sample.csv) (generated by [`scripts/gen-wkp-testdata.ts`](scripts/gen-wkp-testdata.ts)): a dense scatter rug plus 3D-WKP paths and prisms. For an obvious demo set `Trail length` to `120`, `Animation speed` to `60`, `Max height` to `1500`, and turn on `Loop`.
+
+### Combining with the time-slicer for coarse filtering
+
+The animation loop handles **fine, smooth playback**. To also scrub a **coarse range** (a single day, a zone), add the [powerbi-time-slicer](https://github.com/Feltzem/powerbi-time-slicer) to the page and bind it to the same datetime column. As a filter-based slicer it narrows the rows that reach this visual; the visual recomputes its `[t0, t1]` domain from whatever arrives and animates within that. So the slicer picks the slice of time, and the in-visual loop plays smoothly inside it. (The slicer's own "play" steps via data-model re-queries and is best used for coarse stepping, not frame-by-frame motion.)
 
 Terminology and options closely match deck.gl:
 
@@ -103,6 +171,13 @@ Secondly, you can filter the selected shapes by click. This is two way:
 - Hamilton TLA boundary artifact: `samples/hamilton/statsnz_hamilton_territorial_authority_2023_generalised.geojson`
 - Combined Hamilton map table: `samples/hamilton/hamilton_multigeometry_road_density_map.csv`
 - Matching Python transform script: `scripts/build_powerbi_table.py`
+
+### 3D Z and animation samples
+
+- Time-animation table: [`samples/animation/wkp_time_animation_sample.csv`](samples/animation/wkp_time_animation_sample.csv) — a dense scatter time-rug with 3D-WKP paths and prisms, for the **Time-Based Animation** section above. Regenerate with `node --import tsx scripts/gen-wkp-testdata.ts`.
+- Stacked road-prism table: [`samples/animation/wkp_road_prisms_sample.csv`](samples/animation/wkp_road_prisms_sample.csv) — restriction-style floating prisms stacked by validity window along a road, for the **Stacked Prisms** section above. Regenerate with `node --import tsx scripts/gen-wkp-road-prisms.ts`.
+
+Both generators encode 3D WKP in Node by feeding the embedded WASM the geometry directly (the `@wkpjs/web` bundle is otherwise browser-only); see the script headers for details.
 
 ## Future Ideas
 
