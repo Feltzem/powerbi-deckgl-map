@@ -57,6 +57,7 @@ import {
   parseLayerDrawOrder,
 } from "./layerState";
 import { getAggregatedTooltipHtml } from "./tooltip";
+import { getAnimationTimeTooltipHtml } from "./animationTooltip";
 import { getScatterSymbol, getScatterSymbolType } from "./scatterSymbols";
 import { getBasemapStyle, resolveBasemap } from "./basemaps";
 import {
@@ -698,10 +699,17 @@ export class Visual implements IVisual {
           },
           pickingRadius: 5,
           getTooltip: (hoverInfo) => {
+            // Show the current playhead time only while actively playing.
+            const animationHtml = this.animationController.isPlaying()
+              ? getAnimationTimeTooltipHtml(this.getAnimationContext())
+              : null;
+
             const h3TooltipHtml = getH3HexagonTooltipHtml(hoverInfo);
             if (h3TooltipHtml) {
               return {
-                html: h3TooltipHtml,
+                html: animationHtml
+                  ? animationHtml + h3TooltipHtml
+                  : h3TooltipHtml,
                 style: {
                   "z-index": 2,
                   color: "#dbe6ef",
@@ -726,12 +734,21 @@ export class Visual implements IVisual {
               depth: 25,
             });
 
-            if (!tooltipHtml) {
+            // Don't float a lone time banner when nothing is actually hovered.
+            if (!tooltipHtml && (!animationHtml || !hoverInfo?.object)) {
+              return null;
+            }
+
+            const combined = animationHtml
+              ? animationHtml + (tooltipHtml ?? "")
+              : (tooltipHtml ?? "");
+
+            if (!combined) {
               return null;
             }
 
             return {
-              html: tooltipHtml,
+              html: combined,
               style: {
                 "z-index": 2,
                 color: "#a0a7b4",
