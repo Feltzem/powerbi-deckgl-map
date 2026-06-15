@@ -1241,6 +1241,7 @@ export class Visual implements IVisual {
       const layerData = this.dataset.layers;
       const layerDrawOrder = this.getLayerDrawOrder();
       const activeGeometryTypes = new Set<RenderableGeometryType>();
+      const animation = this.getAnimationContext();
       const layers = [];
 
       for (const geometryType of layerDrawOrder) {
@@ -1287,7 +1288,7 @@ export class Visual implements IVisual {
                 this.classificationCache,
                 this.dataset.version,
                 this.onClick,
-                this.getAnimationContext(),
+                animation,
               ),
             );
           }
@@ -1331,7 +1332,7 @@ export class Visual implements IVisual {
               this.classificationCache,
               this.dataset.version,
               this.onClick,
-              this.getAnimationContext(),
+              animation,
             ),
           );
         } else if (geometryType === "polygon") {

@@ -60,7 +60,8 @@ const makeHarness = () => {
   const advanceClock = (ms: number) => {
     nowMs += ms;
   };
-  return { controller, ticks, runFrame, advanceClock };
+  const pendingFrames = () => frames.length;
+  return { controller, ticks, runFrame, advanceClock, pendingFrames };
 };
 
 test("controller resets to t0 on a new domain and stays inert until play", () => {
@@ -113,4 +114,37 @@ test("controller setDomain(null) stops playback", () => {
   controller.setDomain(null);
   assert.equal(controller.isPlaying(), false);
   assert.equal(controller.getTime(), 0);
+});
+
+test("controller stops scheduling frames once it clamps at t1 (loop off)", () => {
+  const { controller, runFrame, advanceClock, pendingFrames } = makeHarness();
+  controller.setDomain({ t0: 0, t1: 10 });
+  controller.setConfig({ animationSpeed: 100, loop: false });
+  controller.play();
+
+  // Baseline frame, then a big step that clamps to t1.
+  runFrame();
+  advanceClock(1000);
+  runFrame();
+  assert.equal(controller.getTime(), 10);
+  // A further frame at t1 detects no change and stops scheduling.
+  advanceClock(1000);
+  runFrame();
+  assert.equal(controller.isPlaying(), false);
+  assert.equal(pendingFrames(), 0);
+});
+
+test("controller keeps looping at the end when loop is on", () => {
+  const { controller, runFrame, advanceClock, pendingFrames } = makeHarness();
+  controller.setDomain({ t0: 0, t1: 10 });
+  controller.setConfig({ animationSpeed: 100, loop: true });
+  controller.play();
+
+  runFrame();
+  advanceClock(1000);
+  runFrame();
+  // Wrapped back to t0, still playing with a frame queued.
+  assert.equal(controller.getTime(), 0);
+  assert.equal(controller.isPlaying(), true);
+  assert.equal(pendingFrames(), 1);
 });

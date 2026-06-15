@@ -218,7 +218,8 @@ export default function getScatterLayer(
     return new TemporalScatterLayer<OurData>({
       ...layerProps,
       symbolType,
-      getTimestamp: (d: OurData) => d.timestampSeconds ?? Number.NaN,
+      getTimestamp: (d: OurData) => d.timestampSeconds ?? 0,
+      getHasTimestamp: (d: OurData) => (d.timestampSeconds === null ? 0 : 1),
       time: animation.time,
       t0: animation.domain.t0,
       dt: span > 0 ? span : 1,
@@ -230,6 +231,7 @@ export default function getScatterLayer(
       updateTriggers: {
         ...updateTriggers,
         getTimestamp: [dataVersion],
+        getHasTimestamp: [dataVersion],
       },
     });
   }

@@ -44,6 +44,27 @@ const flattenPaths = (data: PathFeature[]): FlatPath[] => {
   return flat;
 };
 
+/**
+ * Cache the flattened paths per data version so the animated PathLayer keeps a
+ * stable `data` reference across frames. A fresh array each frame would force
+ * deck.gl to re-tesselate every path on every tick.
+ */
+let flatPathCache: { version: string; source: PathFeature[]; flat: FlatPath[] } | null =
+  null;
+
+const getFlatPaths = (data: PathFeature[], version: string): FlatPath[] => {
+  if (
+    flatPathCache &&
+    flatPathCache.version === version &&
+    flatPathCache.source === data
+  ) {
+    return flatPathCache.flat;
+  }
+  const flat = flattenPaths(data);
+  flatPathCache = { version, source: data, flat };
+  return flat;
+};
+
 export default function getPathLayer(
   data: PathFeature[],
   settings: PathCardSettings,
@@ -120,7 +141,7 @@ export default function getPathLayer(
       : lineColor.accessor;
 
   if (animation?.active) {
-    const flat = flattenPaths(data);
+    const flat = getFlatPaths(data, dataVersion);
     return new TemporallyAppearingPathLayer<FlatPath>({
       id: LAYER_IDS.path,
       data: flat,
@@ -130,9 +151,11 @@ export default function getPathLayer(
       getColor: (d) => resolveLineColor(d.feature),
       getWidth: (d) => resolveLineWidth(d.feature),
       // One timestamp per feature, so the whole path appears/disappears
-      // together within the trailing window.
-      getSourceTimestamp: (d) => d.feature.timestampSeconds ?? Number.NaN,
-      getTargetTimestamp: (d) => d.feature.timestampSeconds ?? Number.NaN,
+      // together within the trailing window. Untimed paths carry the flag 0
+      // and always render.
+      getSourceTimestamp: (d) => d.feature.timestampSeconds ?? 0,
+      getTargetTimestamp: (d) => d.feature.timestampSeconds ?? 0,
+      getHasTimestamp: (d) => (d.feature.timestampSeconds === null ? 0 : 1),
       timeRange: [
         animation.time - animation.trailLength,
         animation.time,
@@ -174,6 +197,7 @@ export default function getPathLayer(
         getWidth: [settings.line.width.defaultLineWidth.value],
         getSourceTimestamp: [dataVersion],
         getTargetTimestamp: [dataVersion],
+        getHasTimestamp: [dataVersion],
       },
     });
   }

@@ -16,6 +16,26 @@ import ScatterSymbolLayer, {
  * position in the projection calls instead of duplicating the whole program.
  */
 
+/**
+ * Apply a shader-source substitution and throw if it matched nothing, so a
+ * future deck.gl/ScatterSymbolLayer shader change that breaks an anchor fails
+ * loudly at layer construction rather than silently dropping the animation.
+ */
+const replaceOrThrow = (
+  source: string,
+  pattern: string | RegExp,
+  replacement: string,
+  label: string,
+): string => {
+  const next = source.replace(pattern, replacement);
+  if (next === source) {
+    throw new Error(
+      `TemporalScatterLayer: shader anchor not found for ${label}; the base ScatterSymbolLayer shader may have changed.`,
+    );
+  }
+  return next;
+};
+
 interface TemporalScatterUniformProps {
   time: number;
   t0: number;
@@ -58,7 +78,10 @@ const temporalScatterUniforms = {
 
 export interface TemporalScatterLayerProps<DataT = unknown>
   extends ScatterSymbolLayerProps<DataT> {
+  /** Per-point timestamp in Unix seconds. */
   getTimestamp?: Accessor<DataT, number>;
+  /** Per-point flag: 1 when the row has a usable timestamp, else 0. */
+  getHasTimestamp?: Accessor<DataT, number>;
   time?: number;
   t0?: number;
   dt?: number;
@@ -70,6 +93,7 @@ export interface TemporalScatterLayerProps<DataT = unknown>
 
 const defaultProps: DefaultProps<TemporalScatterLayerProps> = {
   getTimestamp: { type: "accessor", value: 0 },
+  getHasTimestamp: { type: "accessor", value: 1 },
   time: { type: "number", value: 0 },
   t0: { type: "number", value: 0 },
   dt: { type: "number", value: 1 },
@@ -91,43 +115,59 @@ export default class TemporalScatterLayer<
     shaders.modules = [...shaders.modules, temporalScatterUniforms];
 
     // Compute the animated world position once, then route the projection
-    // calls through it instead of the raw instancePositions attribute.
-    // Rows without a bound timestamp arrive as NaN; they keep their ground Z
-    // and are exempt from the window discard so static points stay visible.
+    // calls through it instead of the raw instancePositions attribute. Rows
+    // without a bound timestamp carry instanceHasTimestamp = 0; they keep their
+    // ground Z and are exempt from the window discard so static points stay
+    // visible. We use an explicit 0/1 flag rather than isnan(), which several
+    // GPU drivers fold to a constant under fast-math.
+    // The derived Z is a fresh single-precision value, so its fp64 "low" part
+    // is 0; copy the original 64-low for x/y and zero z to keep the high/low
+    // pair consistent for project_position_to_clipspace.
     const animatedPositionSetup = `
-  bool hasTimestamp = !isnan(instanceTimestamp);
+  bool hasTimestamp = instanceHasTimestamp > 0.5;
   vec3 animatedInstancePositions = instancePositions;
+  vec3 animatedInstancePositions64Low = instancePositions64Low;
   if (hasTimestamp && temporalScatter.deriveHeight > 0.5 && temporalScatter.dt > 0.0) {
     float frac = clamp(
       (instanceTimestamp - temporalScatter.t0) / temporalScatter.dt, 0.0, 1.0
     );
     animatedInstancePositions.z = frac * temporalScatter.maxHeight;
+    animatedInstancePositions64Low.z = 0.0;
   }
 `;
 
     let vs = shaders.vs as string;
-    vs = vs.replace(
+    vs = replaceOrThrow(
+      vs,
       "void main(void) {",
-      `in float instanceTimestamp;\nout float vTimestamp;\nvoid main(void) {${animatedPositionSetup}  vTimestamp = instanceTimestamp;\n`,
+      `in float instanceTimestamp;\nin float instanceHasTimestamp;\nout float vTimestamp;\nout float vHasTimestamp;\nvoid main(void) {${animatedPositionSetup}  vTimestamp = instanceTimestamp;\n  vHasTimestamp = instanceHasTimestamp;\n`,
+      "vs main entry",
     );
-    // Project from the animated position so the Z lifts the point.
-    vs = vs.replace(
-      /project_position_to_clipspace\(\s*instancePositions,/g,
-      "project_position_to_clipspace(animatedInstancePositions,",
+    // Project from the animated position (with its matching 64-low) so the Z
+    // lifts the point without breaking double-precision projection.
+    vs = replaceOrThrow(
+      vs,
+      /project_position_to_clipspace\(\s*instancePositions,\s*instancePositions64Low,/g,
+      "project_position_to_clipspace(animatedInstancePositions, animatedInstancePositions64Low,",
+      "vs projection call",
     );
-    vs = vs.replace(
+    vs = replaceOrThrow(
+      vs,
       "geometry.worldPosition = instancePositions;",
       "geometry.worldPosition = animatedInstancePositions;",
+      "vs worldPosition",
     );
     shaders.vs = vs;
 
-    // Discard points outside the trailing window in the fragment shader.
-    let fs = shaders.fs as string;
-    fs = fs.replace(
+    // Discard points outside the trailing window in the fragment shader. A
+    // vHasTimestamp >= 0.5 guard keeps untimed points visible without relying
+    // on isnan().
+    shaders.fs = replaceOrThrow(
+      shaders.fs as string,
       "void main(void) {",
-      "in float vTimestamp;\nvoid main(void) {\n  if (temporalScatter.windowActive > 0.5 && !isnan(vTimestamp) && (vTimestamp > temporalScatter.time || vTimestamp < temporalScatter.time - temporalScatter.trailLength)) {\n    discard;\n  }\n",
+      "in float vTimestamp;\nin float vHasTimestamp;\nvoid main(void) {\n  if (temporalScatter.windowActive > 0.5 && vHasTimestamp > 0.5 && (vTimestamp > temporalScatter.time || vTimestamp < temporalScatter.time - temporalScatter.trailLength)) {\n    discard;\n  }\n",
+      "fs main entry",
     );
-    shaders.fs = fs;
 
     return shaders;
   }
@@ -139,6 +179,11 @@ export default class TemporalScatterLayer<
         size: 1,
         accessor: "getTimestamp",
         defaultValue: 0,
+      },
+      instanceHasTimestamp: {
+        size: 1,
+        accessor: "getHasTimestamp",
+        defaultValue: 1,
       },
     });
   }

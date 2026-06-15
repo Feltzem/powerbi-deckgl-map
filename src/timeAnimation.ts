@@ -156,6 +156,22 @@ export class TimeAnimationController {
     if (changed) {
       this.onTick(next);
     }
+
+    // When not looping and the playhead has reached t1 (after at least one real
+    // delta), playback is finished; stop scheduling frames so we don't burn a
+    // RAF every tick doing nothing. The initial baseline frame (realDelta === 0)
+    // is exempt so play() from t1 with a fresh domain still settles correctly.
+    if (
+      !this.config.loop &&
+      !changed &&
+      realDelta > 0 &&
+      this.time >= this.domain.t1
+    ) {
+      this.playing = false;
+      this.lastTickMs = null;
+      return;
+    }
+
     this.scheduleFrame();
   }
 }

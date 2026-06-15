@@ -36,10 +36,12 @@ const temporalPathUniforms = {
 
 export interface TemporallyAppearingPathLayerProps<DataT = unknown>
   extends PathLayerProps<DataT> {
-  /** Per-segment source vertex timestamp (Unix seconds). */
+  /** Per-path source vertex timestamp (Unix seconds). */
   getSourceTimestamp?: Accessor<DataT, number>;
-  /** Per-segment target vertex timestamp (Unix seconds). */
+  /** Per-path target vertex timestamp (Unix seconds). */
   getTargetTimestamp?: Accessor<DataT, number>;
+  /** Per-path flag: 1 when the path has a usable timestamp, else 0. */
+  getHasTimestamp?: Accessor<DataT, number>;
   /** Visible window [start, end] in Unix seconds; segments outside discard. */
   timeRange?: TimeRange;
 }
@@ -47,6 +49,7 @@ export interface TemporallyAppearingPathLayerProps<DataT = unknown>
 const defaultProps: DefaultProps<TemporallyAppearingPathLayerProps> = {
   getSourceTimestamp: { type: "accessor", value: 0 },
   getTargetTimestamp: { type: "accessor", value: 0 },
+  getHasTimestamp: { type: "accessor", value: 1 },
   timeRange: { type: "array", compare: true, value: [0, 0] },
 };
 
@@ -66,23 +69,30 @@ export default class TemporallyAppearingPathLayer<
 ${shaders.inject?.["vs:#decl"] ?? ""}
 in float instanceSourceTimestamp;
 in float instanceTargetTimestamp;
+in float instanceHasTimestamp;
 out float vSourceTimestamp;
 out float vTargetTimestamp;
+out float vHasTimestamp;
 `,
       "vs:#main-end": `\
 ${shaders.inject?.["vs:#main-end"] ?? ""}
 vSourceTimestamp = instanceSourceTimestamp;
 vTargetTimestamp = instanceTargetTimestamp;
+vHasTimestamp = instanceHasTimestamp;
 `,
       "fs:#decl": `\
 ${shaders.inject?.["fs:#decl"] ?? ""}
 in float vSourceTimestamp;
 in float vTargetTimestamp;
+in float vHasTimestamp;
 `,
+      // Untimed paths (vHasTimestamp < 0.5) always render; timed paths discard
+      // when their interval is entirely outside the window.
       "fs:#main-start": `\
 ${shaders.inject?.["fs:#main-start"] ?? ""}
-if (vSourceTimestamp > temporalPath.timeRange.y ||
-    vTargetTimestamp < temporalPath.timeRange.x) {
+if (vHasTimestamp > 0.5 &&
+    (vSourceTimestamp > temporalPath.timeRange.y ||
+     vTargetTimestamp < temporalPath.timeRange.x)) {
   discard;
 }
 `,
@@ -97,10 +107,17 @@ if (vSourceTimestamp > temporalPath.timeRange.y ||
       instanceSourceTimestamp: {
         size: 1,
         accessor: "getSourceTimestamp",
+        defaultValue: 0,
       },
       instanceTargetTimestamp: {
         size: 1,
         accessor: "getTargetTimestamp",
+        defaultValue: 0,
+      },
+      instanceHasTimestamp: {
+        size: 1,
+        accessor: "getHasTimestamp",
+        defaultValue: 1,
       },
     });
   }
