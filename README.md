@@ -41,6 +41,17 @@ The demo dashboard is intentionally Hamilton-sized so it opens quickly and stays
 - Categorical palettes: non-empty text that is not a valid direct colour and not a strict number is mapped through a qualitative palette such as Modern, Dark, or Neon. Active categorical colour fields render category legends.
 - Legend formatting: the `Legend` Format pane card controls colour legend visibility, background opacity, heading/value fonts, classification type text, and colour scale bars. Each legend heading shows the compact geometry-type icon for its layer. Classification type text and colour scale bars apply to numeric legends only.
 - 3D camera: polygons can be extruded using a height field or default settings. `Map properties` > `Show 3D buildings` adds OpenStreetMap building extrusions; `3D buildings zoom` controls the zoom level where they appear at full height. When buildings, extruded polygons, or valid arcs are currently rendered, the map automatically tilts to 45 degrees.
+- 3D geometry (Z): paths and polygons supplied as 3D WKT (`LINESTRING Z`,
+  `POLYGON Z`) or 3D WKP carry a per-vertex Z. Paths float at their baked
+  elevation, and 3D polygons render as floating prisms whose base is the ring
+  Z and whose height is the `Polygon extrude elevation` measure. 2D geometry is
+  unchanged.
+- Time animation: bind a `Timestamp` field (datetime or numeric seconds) and
+  use the `Animation properties` card to play a trailing-window animation
+  inside the visual. Scatter points form a vertical time-rug whose height comes
+  from each row's timestamp (`Max height`), points and paths outside the
+  `Trail length` window are hidden, and `Animation speed`, `Play`, and `Loop`
+  control playback. The card is hidden when no timestamp is bound.
 - Tooltips: bind `Tooltip HTML` for custom sanitized HTML tooltips. Multi-layer tooltips follow the current visual layer order and show a compact geometry-type icon in the top-right of each feature section. H3 hexagons show their joined point count from the aggregate cell, separately from the `Tooltip HTML` bucket.
 - Interaction: click selection/highlighting, hover highlighting, configurable fade for unselected polygons, reset view, fly-to, and selectable base maps.
 - Layer ordering: multi-geometry visuals can reorder layer stacking directly on the map. The compact on-map layer order pane is off by default; turn on `Layer controls` > `Show layer order control` to use it. The visual persists the order with the report.
@@ -55,6 +66,8 @@ Because Power BI custom visuals receive one categorical data view, multi-layer m
 To render a scatter heatmap, add scatter rows as usual, then turn on `Heatmap properties` > `Show heatmap`. Bind `Heatmap weight` when each point should contribute a numeric amount; otherwise each scatter point contributes equally. Use `Show scatter points` to keep or hide the original point layer while the heatmap is active.
 
 To render H3 hexagons from scatter rows, turn on `H3 hexagon properties` > `Show H3 hexagons`. Each scatter row contributes one point to its H3 cell; only occupied cells render. Use `H3 resolution` to choose the standard H3 cell size. The fill gradient follows joined point count, while the dark grey outline uses the same count-based opacity settings. Hover a hexagon to see its joined point count; the H3 tooltip does not use the `Tooltip HTML` bucket.
+
+To animate over time, bind the `Timestamp` field (a datetime column or a numeric column already in seconds). The visual derives a `[t0, t1]` time domain across all rows and shows the `Animation properties` card. Turn on `Play` to advance a trailing window `[time - Trail length, time]`: scatter points rise to a height proportional to their timestamp (up to `Max height`) forming a vertical "time rug", and points and paths whose timestamp falls outside the window are hidden. `Animation speed` is simulated seconds per real second, and `Loop` restarts at the end. Geometry that already carries a baked Z (3D WKT/WKP) keeps that elevation; rows without a timestamp stay at ground level and remain visible. Playback runs entirely inside the visual, so it does not re-query Power BI per frame.
 
 Terminology and options closely match deck.gl:
 
@@ -93,7 +106,7 @@ Secondly, you can filter the selected shapes by click. This is two way:
 
 ## Future Ideas
 
-Potential future enhancements include Z-coordinate support for path and polygon geometry, satellite basemaps, Power BI standard highlight integration, and additional deck.gl layers such as column layers.
+Potential future enhancements include satellite basemaps, Power BI standard highlight integration, and additional deck.gl layers such as column layers.
 
 ## Developing
 
