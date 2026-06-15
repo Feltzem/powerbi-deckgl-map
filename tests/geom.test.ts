@@ -10,6 +10,7 @@ const makeData = (overrides: Partial<OurData>): OurData => ({
   type: null,
   selectionId: {} as powerbi.visuals.ISelectionId,
   tooltipHtml: null,
+  timestampSeconds: null,
   ...overrides,
 });
 

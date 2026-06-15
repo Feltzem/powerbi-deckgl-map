@@ -619,3 +619,78 @@ test("createDatasetSnapshot leaves hasZ false for 2D path and polygon features",
   assert.equal(snapshot.layers.polygon.length, 1);
   assert.equal(snapshot.layers.polygon[0].hasZ, false);
 });
+
+test("createDatasetSnapshot derives a time domain and per-row timestamps", () => {
+  const warnings: string[] = [];
+  const settings = new VisualFormattingSettingsModel();
+  const options = {
+    dataViews: [
+      {
+        categorical: {
+          categories: [
+            makeCategory(
+              "geometryId",
+              ["point-1", "point-2", "point-3"],
+              "geometry_id",
+            ),
+          ],
+          values: makeValues([], undefined, [
+            makeColumn("layerType", ["scatter", "scatter", "scatter"]),
+            makeColumn("point1Latitude", [-37.8, -37.81, -37.82]),
+            makeColumn("point1Longitude", [175.2, 175.21, 175.22]),
+            // seconds since epoch: 100, 50, 200 -> domain [50, 200]
+            makeColumn("timestamp", [100, 50, 200]),
+          ]),
+        },
+        metadata: {},
+      },
+    ],
+  } as powerbi.extensibility.visual.VisualUpdateOptions;
+
+  const snapshot = createDatasetSnapshot(
+    options,
+    settings,
+    makeHost(warnings),
+    new Map(),
+    "test",
+  );
+
+  assert.deepEqual(warnings, []);
+  assert.deepEqual(snapshot.timeDomain, { t0: 50, t1: 200 });
+  assert.deepEqual(
+    snapshot.layers.scatter.map((p) => p.timestampSeconds),
+    [100, 50, 200],
+  );
+});
+
+test("createDatasetSnapshot leaves timeDomain null without a timestamp", () => {
+  const warnings: string[] = [];
+  const settings = new VisualFormattingSettingsModel();
+  const options = {
+    dataViews: [
+      {
+        categorical: {
+          categories: [makeCategory("geometryId", ["point-1"], "geometry_id")],
+          values: makeValues([], undefined, [
+            makeColumn("layerType", ["scatter"]),
+            makeColumn("point1Latitude", [-37.8]),
+            makeColumn("point1Longitude", [175.2]),
+          ]),
+        },
+        metadata: {},
+      },
+    ],
+  } as powerbi.extensibility.visual.VisualUpdateOptions;
+
+  const snapshot = createDatasetSnapshot(
+    options,
+    settings,
+    makeHost(warnings),
+    new Map(),
+    "test",
+  );
+
+  assert.deepEqual(warnings, []);
+  assert.equal(snapshot.timeDomain, null);
+  assert.equal(snapshot.layers.scatter[0].timestampSeconds, null);
+});

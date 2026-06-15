@@ -35,6 +35,10 @@ import {
   createEmptyLayerDataStore,
 } from "./dataTypes";
 import { NumericColorBinsCache } from "./gradientClassification";
+import {
+  AnimationContext,
+  TimeAnimationController,
+} from "./timeAnimation";
 import getScatterLayer from "./layers/scatter";
 import getHeatmapLayer from "./layers/heatmap";
 import getH3HexagonLayer, {
@@ -132,6 +136,8 @@ export class Visual implements IVisual {
   private lastPerspectiveLayerShown: boolean | null;
   private automaticPitchOwned: boolean;
   private buildingLayerSignature: string | null;
+  private animationController: TimeAnimationController;
+  private animationTime: number;
 
   private createResetViewControl() {
     const container = document.createElement("div");
@@ -467,6 +473,76 @@ export class Visual implements IVisual {
     this.lastPerspectiveLayerShown = this.isPerspectiveLayerShown();
   }
 
+  /** True when a timestamp is bound and there is a usable time domain. */
+  private isAnimationAvailable(): boolean {
+    return this.dataset.timeDomain !== null;
+  }
+
+  /**
+   * Build the per-frame animation context, or null when no timestamp is bound
+   * (layers then render exactly as before).
+   */
+  private getAnimationContext(): AnimationContext | null {
+    const domain = this.dataset.timeDomain;
+    if (!domain) {
+      return null;
+    }
+    const animation = this.formattingSettings.animation;
+    const time = Math.min(
+      domain.t1,
+      Math.max(domain.t0, this.animationTime),
+    );
+    return {
+      active: true,
+      domain,
+      time,
+      trailLength: Math.max(0, animation.trailLength.value),
+      maxHeight: Math.max(0, animation.maxHeight.value),
+    };
+  }
+
+  /**
+   * Sync the animation controller with the current dataset and settings, and
+   * start/stop playback to match the Play toggle. Called on each data/format
+   * update (not per frame).
+   */
+  private syncAnimationController(): void {
+    const domain = this.dataset.timeDomain;
+    this.animationController.setDomain(domain);
+    if (!domain) {
+      this.animationTime = 0;
+      return;
+    }
+    const animation = this.formattingSettings.animation;
+    this.animationController.setConfig({
+      animationSpeed: animation.animationSpeed.value,
+      loop: animation.loop.value,
+    });
+    this.animationTime = this.animationController.getTime();
+    if (animation.play.value) {
+      this.animationController.play();
+    } else {
+      this.animationController.pause();
+    }
+  }
+
+  /**
+   * Re-render with the advanced playhead. Rebuilds only the deck layers and
+   * pushes them; the temporal layers change just their time uniform, so deck.gl
+   * diffs to a uniform update rather than re-tesselating attributes. Legend,
+   * layer-order control, and overlay layout are unchanged per frame and skipped.
+   */
+  private pushAnimationFrame(): void {
+    if (!this.deckOverlay) {
+      return;
+    }
+    const { layers, layerDrawOrder, activeGeometryTypes } =
+      this.buildDeckLayers();
+    this.currentLayerDrawOrder = layerDrawOrder;
+    this.currentActiveGeometryTypes = activeGeometryTypes;
+    this.deckOverlay.setProps({ layers });
+  }
+
   private applyAutomaticPitch(): boolean {
     if (!this.map) {
       return false;
@@ -570,6 +646,11 @@ export class Visual implements IVisual {
     this.lastPerspectiveLayerShown = null;
     this.automaticPitchOwned = false;
     this.buildingLayerSignature = null;
+    this.animationTime = 0;
+    this.animationController = new TimeAnimationController((time) => {
+      this.animationTime = time;
+      this.pushAnimationFrame();
+    });
     this.rootElement = options.element;
 
     const settings =
@@ -865,6 +946,8 @@ export class Visual implements IVisual {
 
   private clearData() {
     this.dataVersionCounter += 1;
+    this.animationController.setDomain(null);
+    this.animationTime = 0;
     this.dataset = createEmptyDatasetSnapshot(String(this.dataVersionCounter));
     this.dataPoints = this.dataset.layers.all;
     this.selectedIds.clear();
@@ -1146,12 +1229,12 @@ export class Visual implements IVisual {
     this.lastLegendSignature = signature;
   }
 
-  private renderCurrentState(dataView = this.lastOptions?.dataViews?.[0]) {
-    if (!this.deckOverlay) {
-      return;
-    }
-
-    this.measureTask("powerbi-deckgl-map:render", () => {
+  private buildDeckLayers(): {
+    layers: any[];
+    layerDrawOrder: RenderableGeometryType[];
+    activeGeometryTypes: Set<RenderableGeometryType>;
+  } {
+    {
       const visualSelectedIds = this.getVisualSelectedIds();
       const selectedSignature = this.getSetSignature(visualSelectedIds);
       const settings = this.formattingSettings;
@@ -1204,6 +1287,7 @@ export class Visual implements IVisual {
                 this.classificationCache,
                 this.dataset.version,
                 this.onClick,
+                this.getAnimationContext(),
               ),
             );
           }
@@ -1266,9 +1350,21 @@ export class Visual implements IVisual {
         }
       }
 
+      return { layers, layerDrawOrder, activeGeometryTypes };
+    }
+  }
+
+  private renderCurrentState(dataView = this.lastOptions?.dataViews?.[0]) {
+    if (!this.deckOverlay) {
+      return;
+    }
+
+    this.measureTask("powerbi-deckgl-map:render", () => {
+      const { layers, layerDrawOrder, activeGeometryTypes } =
+        this.buildDeckLayers();
       this.currentLayerDrawOrder = layerDrawOrder;
       this.currentActiveGeometryTypes = activeGeometryTypes;
-      this.deckOverlay.setProps({ layers });
+      this.deckOverlay!.setProps({ layers });
       this.renderLayerOrderControl();
       this.renderLegend(dataView);
       this.updateOverlayLayout();
@@ -1312,6 +1408,7 @@ export class Visual implements IVisual {
     const parseData = this.shouldParseData(options, dataView);
     if (parseData) {
       this.processData(options, dataView);
+      this.syncAnimationController();
       this.renderCurrentState(dataView);
       const didFlyTo = this.applyFlyTo(dataView);
       if (!didFlyTo) {
@@ -1324,11 +1421,15 @@ export class Visual implements IVisual {
       return;
     }
 
+    this.syncAnimationController();
     this.renderCurrentState(dataView);
     this.applyAutomaticPitch();
   }
 
   public getFormattingModel(): powerbi.visuals.FormattingModel {
+    // Hide the Animation card unless a timestamp is bound, so its controls
+    // don't appear when they cannot do anything.
+    this.formattingSettings.animation.visible = this.isAnimationAvailable();
     return this.formattingSettingsService.buildFormattingModel(
       this.formattingSettings,
     );
@@ -1336,6 +1437,7 @@ export class Visual implements IVisual {
 
   public destroy(): void {
     this.pendingOptions = null;
+    this.animationController.stop();
     this.selectedIds.clear();
     this.geometryCache.clear();
     this.classificationCache.clear();

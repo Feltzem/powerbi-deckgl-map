@@ -44,6 +44,7 @@ const makeRow = (overrides: Partial<RowValues> = {}): RowValues => ({
   arcSourceColor: null,
   arcTargetColor: null,
   tooltip: null,
+  timestamp: null,
   ...overrides,
 });
 
@@ -62,6 +63,7 @@ const makeData = (): OurData => ({
   polygonProperties: null,
   selectionId: {} as powerbi.visuals.ISelectionId,
   tooltipHtml: null,
+  timestampSeconds: null,
 });
 
 test("parseScatter accepts finite coordinates", () => {

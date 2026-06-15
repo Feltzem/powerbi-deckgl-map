@@ -1,5 +1,18 @@
 import { TimeDomain } from "./time";
 
+/**
+ * Per-frame animation state passed to the layer builders. `active` is false
+ * when no timestamp is bound, in which case layers render exactly as before.
+ */
+export interface AnimationContext {
+  active: boolean;
+  domain: TimeDomain;
+  /** Current playhead in Unix seconds. */
+  time: number;
+  trailLength: number;
+  maxHeight: number;
+}
+
 export interface AnimationConfig {
   /** Simulated seconds advanced per real second of wall-clock playback. */
   animationSpeed: number;

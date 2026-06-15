@@ -17,6 +17,8 @@ import {
   getLayerColorUpdateTriggers,
 } from "./col";
 import ScatterSymbolLayer from "./scatterSymbolLayer";
+import TemporalScatterLayer from "./temporalScatterLayer";
+import { AnimationContext } from "../timeAnimation";
 
 export default function getScatterLayer(
   data: OurData[],
@@ -28,6 +30,7 @@ export default function getScatterLayer(
   classificationCache: NumericColorBinsCache,
   dataVersion: string,
   onClick: (info: PickingInfo, event: unknown) => void,
+  animation: AnimationContext | null = null,
 ) {
   const defaultFillColor = withOpacity(
     decodeHex(settings.fill.defaultFillColor.value.value, [0, 0, 0, 100]),
@@ -209,6 +212,27 @@ export default function getScatterLayer(
     onClick: (info: PickingInfo, event: unknown) => onClick(info, event),
     updateTriggers,
   };
+
+  if (animation?.active) {
+    const span = animation.domain.t1 - animation.domain.t0;
+    return new TemporalScatterLayer<OurData>({
+      ...layerProps,
+      symbolType,
+      getTimestamp: (d: OurData) => d.timestampSeconds ?? Number.NaN,
+      time: animation.time,
+      t0: animation.domain.t0,
+      dt: span > 0 ? span : 1,
+      maxHeight: animation.maxHeight,
+      trailLength: animation.trailLength,
+      // Scatter rows carry no baked Z, so derive height from the timestamp.
+      deriveHeight: true,
+      windowActive: true,
+      updateTriggers: {
+        ...updateTriggers,
+        getTimestamp: [dataVersion],
+      },
+    });
+  }
 
   if (symbolType !== "circle") {
     return new ScatterSymbolLayer<OurData>({

@@ -69,6 +69,7 @@ const makeScatterPoint = (): OurData => ({
   polygonProperties: null,
   selectionId: {} as powerbi.visuals.ISelectionId,
   tooltipHtml: null,
+  timestampSeconds: null,
 });
 
 const makeScatterLayer = (symbolType: string) => {
