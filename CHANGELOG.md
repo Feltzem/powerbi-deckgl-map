@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.8.0.0 - 2026-06-15
+
+### Added
+
+- Added **3D Z height** for path and polygon geometry. Paths and polygons supplied as 3D WKT (`LINESTRING Z`, `POLYGON Z`) or 3D WKP carry a per-vertex Z: paths float at their baked elevation, and 3D polygons render as floating prisms whose base is the ring Z and whose height is the existing `Polygon extrude elevation` measure. 2D geometry is unchanged.
+- Added a **Timestamp** data role (datetime or numeric seconds) and an **Animation properties** card for in-visual time playback. Turn on `Play` to advance a trailing window `[time - Trail length, time]`: scatter points rise to a height proportional to their timestamp (up to `Max height`) as a vertical time rug, and points and paths whose timestamp falls outside the window are hidden. `Animation speed` (simulated seconds per real second) and `Loop` control playback. Geometry that already carries a baked Z keeps that elevation; untimed rows stay at ground level and remain visible. Playback runs entirely inside the visual and does not re-query Power BI per frame.
+- Added an **animation-time tooltip**: while the animation is playing, hovering a feature shows the current playhead time. Plausible datetime values render as a localized date/time; arbitrary numeric timestamps render as the raw value.
+- Updated release metadata to version `1.8.0.0`.
+
 ## 1.7.3.0 - 2026-06-11
 
 ### Added
