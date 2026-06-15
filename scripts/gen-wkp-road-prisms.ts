@@ -4,6 +4,14 @@
 // Run: node --import tsx scripts/gen-wkp-road-prisms.ts
 // Output: samples/animation/wkp_road_prisms_sample.csv
 //
+// Colour the prisms by parking type in one of two ways:
+//   - Bind `parking_type` (text: "P$" / "ADPP") to Polygon fill -> the visual's
+//     categorical palette colours them and renders a legend. RECOMMENDED.
+//   - Bind `polygon_fill` (an #RRGGBBAA hex) to Polygon fill for an exact colour
+//     with no legend. If Power BI groups a low-cardinality text colour column
+//     as a category (the field-well shows it grouping the data), wrap it in a
+//     measure, e.g. First polygon_fill, so it arrives as a per-row value.
+//
 // Model (matches app.jsx heightenedRestrictions): each restriction segment has a
 // validity window [from, to] inside the dataset's full time range [T0, T1]. Its
 // floating prism is STATIC (it does NOT move with the animation playhead):
@@ -96,6 +104,7 @@ interface PrismRow {
   geometry_id: string;
   layer_type: "polygon";
   wkp: string;
+  parking_type: string;
   polygon_fill: string;
   polygon_extrude_elevation: string;
   valid_from: string;
@@ -151,16 +160,18 @@ const main = async () => {
       });
 
       const isGreen = (spot + v) % 2 === 0;
+      const parkingType = isGreen ? "P$" : "ADPP";
       const id = `wall-${spot}-${v}`;
       rows.push({
         geometry_id: id,
         layer_type: "polygon",
         wkp: encodePolygon(ring),
+        parking_type: parkingType,
         polygon_fill: isGreen ? TYPE_GREEN : TYPE_MAGENTA,
         polygon_extrude_elevation: height.toFixed(2),
         valid_from: new Date(from * 1000).toISOString(),
         valid_to: new Date(to * 1000).toISOString(),
-        tooltip_html: `<b>${id}</b><br>${isGreen ? "P$" : "ADPP"}<br>${new Date(
+        tooltip_html: `<b>${id}</b><br>${parkingType}<br>${new Date(
           from * 1000,
         ).toISOString().slice(0, 10)} → ${new Date(to * 1000)
           .toISOString()
@@ -173,6 +184,7 @@ const main = async () => {
     "geometry_id",
     "layer_type",
     "wkp",
+    "parking_type",
     "polygon_fill",
     "polygon_extrude_elevation",
     "valid_from",
@@ -186,6 +198,7 @@ const main = async () => {
         r.geometry_id,
         r.layer_type,
         r.wkp,
+        r.parking_type,
         r.polygon_fill,
         r.polygon_extrude_elevation,
         r.valid_from,
