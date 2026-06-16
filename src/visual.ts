@@ -516,7 +516,9 @@ export class Visual implements IVisual {
   }
 
   /** Speed multipliers the on-map slider cycles through. */
-  private static readonly SPEED_PRESETS = [1, 5, 15, 30, 60, 120, 300];
+  private static readonly SPEED_PRESETS = [
+    1, 5, 15, 30, 60, 120, 300, 600, 1200,
+  ];
 
   /**
    * Set the playback speed from an on-map control: reconfigure the controller,
@@ -1704,6 +1706,9 @@ export class Visual implements IVisual {
     // Hide the Animation card unless a timestamp is bound, so its controls
     // don't appear when they cannot do anything.
     this.formattingSettings.animation.visible = this.isAnimationAvailable();
+    // Show only the classification inputs that apply to each gradient's
+    // selected method, so irrelevant boxes don't appear in the pane.
+    this.formattingSettings.applyConditionalVisibility();
     return this.formattingSettingsService.buildFormattingModel(
       this.formattingSettings,
     );
