@@ -57,6 +57,7 @@ import {
   parseLayerDrawOrder,
 } from "./layerState";
 import { getAggregatedTooltipHtml } from "./tooltip";
+import { getDataViewSignature } from "./roleColumnUtils";
 import {
   formatAnimationTime,
   getAnimationTimeTooltipHtml,
@@ -81,6 +82,7 @@ const createEmptyDatasetSnapshot = (version = "0"): DatasetSnapshot => ({
   bounds: null,
   version,
   timeDomain: null,
+  elevationFieldBound: false,
 });
 
 const AUTO_3D_PITCH = 45;
@@ -659,14 +661,15 @@ export class Visual implements IVisual {
 
   private isPerspectiveLayerShown(): boolean {
     const visibleGeometryTypes = this.getVisibleGeometryTypes();
-    // 3D-WKP polygons auto-extrude into floating prisms (see getPolygonLayer),
-    // so treat ring-Z as an extruded layer for the auto-tilt even when the user
-    // has left the Extruded toggle off.
-    const polygonExtrudedOrFloating =
-      this.formattingSettings.polygon.extruded.value === true ||
+    // Auto-tilt for polygons only when there is real height to show: a bound
+    // elevation field, or ring-Z 3D-WKP polygons that auto-extrude into floating
+    // prisms (see getPolygonLayer). The bare Extruded toggle no longer tilts the
+    // camera on its own — with no elevation it would just extrude to 0 height.
+    const polygonHasHeight =
+      this.dataset.elevationFieldBound ||
       this.dataset.layers.polygon.some((feature) => feature.hasZ);
     const extrudedPolygonLayerShown =
-      polygonExtrudedOrFloating &&
+      polygonHasHeight &&
       this.dataset.layers.polygon.length > 0 &&
       visibleGeometryTypes.has("polygon");
     const arcLayerShown =
@@ -1078,39 +1081,7 @@ export class Visual implements IVisual {
   }
 
   private getDataSignature(dataView: powerbi.DataView): string {
-    const categorical = dataView.categorical;
-    const category = categorical?.categories?.[0];
-    const rowCount = category?.values?.length ?? 0;
-    const sampleIndexes =
-      rowCount > 0
-        ? [0, Math.floor(rowCount / 2), rowCount - 1]
-        : [];
-    const categorySamples = sampleIndexes
-      .map((index) => String(category?.values?.[index] ?? ""))
-      .join("|");
-    const valueSignature = (categorical?.values ?? [])
-      .map((column) => {
-        const roleSignature = Object.entries(column.source?.roles ?? {})
-          .filter(([, enabled]) => enabled)
-          .map(([role]) => role)
-          .sort()
-          .join(",");
-        const values = column.values;
-        const samples = sampleIndexes
-          .map((index) => String(values?.[index] ?? ""))
-          .join(",");
-        return `${column.source?.queryName ?? column.source?.displayName}:${roleSignature}:${values?.length ?? 0}:${samples}`;
-      })
-      .join(";");
-
-    return [
-      rowCount,
-      category?.source?.queryName ?? category?.source?.displayName ?? "",
-      categorySamples,
-      valueSignature,
-      dataView.metadata?.segment ? "segmented" : "complete",
-      this.isDataFilterApplied(dataView) ? "filtered" : "unfiltered",
-    ].join("::");
+    return getDataViewSignature(dataView);
   }
 
   private shouldParseData(
