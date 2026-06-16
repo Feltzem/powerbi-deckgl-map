@@ -323,6 +323,9 @@ export class Visual implements IVisual {
     const playButton = makeButton("▶", "Play");
     const skipForwardButton = makeButton("⏩", "Step forward");
 
+    const speedButton = makeButton("", "Playback speed (click to change)");
+    speedButton.classList.add("deckgl-time-slider__speed");
+
     const range = document.createElement("input");
     range.type = "range";
     range.className = "deckgl-time-slider__range";
@@ -341,6 +344,7 @@ export class Visual implements IVisual {
       skipForwardButton,
       range,
       label,
+      speedButton,
     );
 
     const getSkipStep = (): number => {
@@ -372,6 +376,11 @@ export class Visual implements IVisual {
       }
       this.animationController.seek(Number(range.value));
     };
+    speedButton.onclick = () => {
+      const current = this.formattingSettings.animation.animationSpeed.value;
+      this.setAnimationSpeed(this.nextAnimationSpeed(current));
+      this.renderTimeSliderControl();
+    };
 
     // render() runs on every animation frame, so only touch the DOM when a
     // value actually changes. In particular the label uses Intl date formatting
@@ -383,6 +392,7 @@ export class Visual implements IVisual {
     let lastLabelTime: number | null = null;
     let lastLabelRealMs = 0;
     let lastPlaying: boolean | null = null;
+    let lastSpeed: number | null = null;
 
     const render = () => {
       const domain = this.dataset.timeDomain;
@@ -437,6 +447,17 @@ export class Visual implements IVisual {
         playButton.setAttribute("aria-label", playButton.title);
         lastPlaying = playing;
       }
+
+      const speed = this.formattingSettings.animation.animationSpeed.value;
+      if (speed !== lastSpeed) {
+        const speedSpan = speedButton.firstChild as HTMLSpanElement | null;
+        if (speedSpan) {
+          speedSpan.textContent = `${speed}×`;
+        }
+        speedButton.title = `Playback speed ${speed}× (click to change)`;
+        speedButton.setAttribute("aria-label", speedButton.title);
+        lastSpeed = speed;
+      }
     };
 
     return {
@@ -448,6 +469,7 @@ export class Visual implements IVisual {
         skipBackButton.onclick = null;
         skipForwardButton.onclick = null;
         playButton.onclick = null;
+        speedButton.onclick = null;
         range.oninput = null;
         for (const type of ["mousedown", "dblclick", "wheel"]) {
           container.removeEventListener(type, stopPropagation);
@@ -488,6 +510,41 @@ export class Visual implements IVisual {
         },
       ],
     });
+  }
+
+  /** Speed multipliers the on-map slider cycles through. */
+  private static readonly SPEED_PRESETS = [1, 5, 15, 30, 60, 120, 300];
+
+  /**
+   * Set the playback speed from an on-map control: reconfigure the controller,
+   * keep the Animation `animationSpeed` setting in sync, and persist it.
+   */
+  private setAnimationSpeed(speed: number) {
+    const animation = this.formattingSettings.animation;
+    if (animation.animationSpeed.value === speed) {
+      return;
+    }
+    animation.animationSpeed.value = speed;
+    this.animationController.setConfig({
+      animationSpeed: speed,
+      loop: animation.loop.value,
+    });
+    this.host.persistProperties({
+      merge: [
+        {
+          objectName: "animationProps",
+          selector: null,
+          properties: { animationSpeed: speed },
+        },
+      ],
+    });
+  }
+
+  /** Next speed preset above the current value, wrapping to the first. */
+  private nextAnimationSpeed(current: number): number {
+    const presets = Visual.SPEED_PRESETS;
+    const next = presets.find((p) => p > current);
+    return next ?? presets[0];
   }
 
   private isDarkBaseMap(baseMap: string): boolean {

@@ -139,6 +139,7 @@ For interactive exploration, turn on `Layer controls` > `Show time slider`. A co
 - **Drag the timeline** to scrub directly to any instant; the geometry updates to that moment. Scrubbing pauses playback.
 - **Play/pause** on the bar mirrors the `Animation properties` > `Play` toggle (they stay in sync).
 - **Step** buttons jump backward/forward by a fraction of the time range.
+- **Speed** button cycles the playback speed (1× → 5× → 15× → 30× → 60× → 120× → 300×) and stays in sync with `Animation properties` > `Animation speed`.
 
 This slider scrubs the **in-visual playhead** — a GPU frame position. It is deliberately different from the [powerbi-time-slicer](https://github.com/Feltzem/powerbi-time-slicer): the time-slicer applies a Power BI filter that re-queries the data model (good for coarse, cross-page range selection), whereas the on-map slider moves the animation frame smoothly without re-querying. Use the time-slicer to pick the slice of data, and the on-map slider (or `Play`) to move through it.
 
