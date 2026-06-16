@@ -10,6 +10,24 @@ export type GroupedRoleValueMerger<TRoleKey extends string> = (
 ) => powerbi.PrimitiveValue | null | undefined;
 
 /**
+ * True when any category or value column in the data view is bound to the given
+ * role. Used to detect that a field (e.g. a Timestamp) has just been bound, so
+ * derived state can be re-parsed even when the data-view signature alone would
+ * not flag a change.
+ */
+export const dataViewHasRole = (
+  dataView: powerbi.DataView,
+  roleName: string,
+): boolean => {
+  const categorical = dataView.categorical;
+  const columns: RoleColumn[] = [
+    ...(categorical?.categories ?? []),
+    ...((categorical?.values ?? []) as unknown as RoleColumn[]),
+  ];
+  return columns.some((column) => column.source?.roles?.[roleName] === true);
+};
+
+/**
  * A stable signature of a categorical data view, used to decide whether the
  * dataset must be re-parsed. It signs every category AND value column's
  * identity and bound roles, plus a few sampled values, so that binding a field

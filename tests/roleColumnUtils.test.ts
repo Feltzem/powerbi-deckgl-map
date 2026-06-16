@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import powerbi from "powerbi-visuals-api";
 
 import {
+  dataViewHasRole,
   getDataViewSignature,
   getGroupedRoleColumns,
   isMeaningfulPrimitiveValue,
@@ -203,5 +204,26 @@ test("getDataViewSignature is stable for identical data views", () => {
   assert.equal(
     getDataViewSignature(makeDataView([cat], [val])),
     getDataViewSignature(makeDataView([cat], [val])),
+  );
+});
+
+test("dataViewHasRole detects a role bound on a category or a value column", () => {
+  const idCat = makeCategoryColumn("geometryId", ["a", "b"], "geometry_id");
+  const tsCat = makeCategoryColumn("timestamp", [1, 2], "event_time");
+  const layerVal = makeColumn("layerType", ["scatter", "scatter"]);
+
+  assert.equal(
+    dataViewHasRole(makeDataView([idCat, tsCat], [layerVal]), "timestamp"),
+    true,
+  );
+  assert.equal(
+    dataViewHasRole(makeDataView([idCat], [layerVal]), "timestamp"),
+    false,
+  );
+  // Also finds it when bound as a value column rather than a category.
+  const tsVal = makeColumn("timestamp", [1, 2], "event_time");
+  assert.equal(
+    dataViewHasRole(makeDataView([idCat], [layerVal, tsVal]), "timestamp"),
+    true,
   );
 });

@@ -57,7 +57,7 @@ import {
   parseLayerDrawOrder,
 } from "./layerState";
 import { getAggregatedTooltipHtml } from "./tooltip";
-import { getDataViewSignature } from "./roleColumnUtils";
+import { dataViewHasRole, getDataViewSignature } from "./roleColumnUtils";
 import {
   formatAnimationTime,
   getAnimationTimeTooltipHtml,
@@ -138,6 +138,7 @@ export class Visual implements IVisual {
   private legendContainer: HTMLDivElement | null;
   private lastLegendSignature: string | null;
   private lastDataSignature: string | null;
+  private lastParseHadTimestampRole: boolean;
   private dataVersionCounter: number;
   private currentActiveGeometryTypes: Set<RenderableGeometryType>;
   private currentLayerDrawOrder: RenderableGeometryType[];
@@ -903,6 +904,7 @@ export class Visual implements IVisual {
     this.legendContainer = null;
     this.lastLegendSignature = null;
     this.lastDataSignature = null;
+    this.lastParseHadTimestampRole = false;
     this.dataVersionCounter = 0;
     this.currentActiveGeometryTypes = new Set();
     this.currentLayerDrawOrder = [...DEFAULT_LAYER_DRAW_ORDER];
@@ -1103,6 +1105,18 @@ export class Visual implements IVisual {
       return true;
     }
 
+    // Self-heal: if a timestamp role became bound since the last parse, force a
+    // re-parse even if the data-view signature did not otherwise change. This
+    // recovers the animation when a timestamp field is added after the first
+    // render (Power BI may deliver it without flagging a data update). Gated on
+    // "newly bound" so an empty-but-bound timestamp does not re-parse forever.
+    if (
+      dataViewHasRole(dataView, "timestamp") &&
+      !this.lastParseHadTimestampRole
+    ) {
+      return true;
+    }
+
     return this.getDataSignature(dataView) !== this.lastDataSignature;
   }
 
@@ -1205,6 +1219,7 @@ export class Visual implements IVisual {
     this.dataPoints = this.dataset.layers.all;
     this.selectedIds.clear();
     this.lastDataSignature = null;
+    this.lastParseHadTimestampRole = false;
     this.lastLegendSignature = null;
     this.hasInitialViewBeenSet = false;
     this.currentActiveGeometryTypes = new Set();
@@ -1237,6 +1252,7 @@ export class Visual implements IVisual {
       );
       this.dataPoints = this.dataset.layers.all;
       this.lastDataSignature = this.getDataSignature(dataView);
+      this.lastParseHadTimestampRole = dataViewHasRole(dataView, "timestamp");
       this.pruneSelectionToVisibleIds();
       if (this.dataPoints.length === 0) {
         this.hasInitialViewBeenSet = false;
