@@ -37,8 +37,9 @@ const replaceOrThrow = (
 };
 
 interface TemporalScatterUniformProps {
+  /** Current playhead, in seconds relative to the domain start (t0). */
   time: number;
-  t0: number;
+  /** Domain span (t1 - t0), seconds. */
   dt: number;
   maxHeight: number;
   trailLength: number;
@@ -51,7 +52,6 @@ interface TemporalScatterUniformProps {
 const temporalScatterUniformBlock = `\
 uniform temporalScatterUniforms {
   float time;
-  float t0;
   float dt;
   float maxHeight;
   float trailLength;
@@ -67,7 +67,6 @@ const temporalScatterUniforms = {
   source: "",
   uniformTypes: {
     time: "f32",
-    t0: "f32",
     dt: "f32",
     maxHeight: "f32",
     trailLength: "f32",
@@ -78,12 +77,12 @@ const temporalScatterUniforms = {
 
 export interface TemporalScatterLayerProps<DataT = unknown>
   extends ScatterSymbolLayerProps<DataT> {
-  /** Per-point timestamp in Unix seconds. */
+  /** Per-point timestamp in seconds relative to the domain start (t0). */
   getTimestamp?: Accessor<DataT, number>;
   /** Per-point flag: 1 when the row has a usable timestamp, else 0. */
   getHasTimestamp?: Accessor<DataT, number>;
+  /** Current playhead, in seconds relative to t0. */
   time?: number;
-  t0?: number;
   dt?: number;
   maxHeight?: number;
   trailLength?: number;
@@ -95,7 +94,6 @@ const defaultProps: DefaultProps<TemporalScatterLayerProps> = {
   getTimestamp: { type: "accessor", value: 0 },
   getHasTimestamp: { type: "accessor", value: 1 },
   time: { type: "number", value: 0 },
-  t0: { type: "number", value: 0 },
   dt: { type: "number", value: 1 },
   maxHeight: { type: "number", value: 0 },
   trailLength: { type: "number", value: 0 },
@@ -129,7 +127,7 @@ export default class TemporalScatterLayer<
   vec3 animatedInstancePositions64Low = instancePositions64Low;
   if (hasTimestamp && temporalScatter.deriveHeight > 0.5 && temporalScatter.dt > 0.0) {
     float frac = clamp(
-      (instanceTimestamp - temporalScatter.t0) / temporalScatter.dt, 0.0, 1.0
+      instanceTimestamp / temporalScatter.dt, 0.0, 1.0
     );
     animatedInstancePositions.z = frac * temporalScatter.maxHeight;
     animatedInstancePositions64Low.z = 0.0;
@@ -193,7 +191,6 @@ export default class TemporalScatterLayer<
     model?.shaderInputs.setProps({
       temporalScatter: {
         time: this.props.time ?? 0,
-        t0: this.props.t0 ?? 0,
         dt: this.props.dt ?? 1,
         maxHeight: this.props.maxHeight ?? 0,
         trailLength: this.props.trailLength ?? 0,

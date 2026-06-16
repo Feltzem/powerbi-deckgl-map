@@ -214,14 +214,19 @@ export default function getScatterLayer(
   };
 
   if (animation?.active) {
-    const span = animation.domain.t1 - animation.domain.t0;
+    const t0 = animation.domain.t0;
+    const span = animation.domain.t1 - t0;
+    // Work in time relative to t0 so the GPU sees small values. Absolute Unix
+    // seconds (~1.78e9) exceed float32 precision (~128 s ULP), which freezes the
+    // time uniform and flattens the height; subtracting t0 on the CPU keeps
+    // everything exact to ~1 s.
     return new TemporalScatterLayer<OurData>({
       ...layerProps,
       symbolType,
-      getTimestamp: (d: OurData) => d.timestampSeconds ?? 0,
+      getTimestamp: (d: OurData) =>
+        d.timestampSeconds === null ? 0 : d.timestampSeconds - t0,
       getHasTimestamp: (d: OurData) => (d.timestampSeconds === null ? 0 : 1),
-      time: animation.time,
-      t0: animation.domain.t0,
+      time: animation.time - t0,
       dt: span > 0 ? span : 1,
       maxHeight: animation.maxHeight,
       trailLength: animation.trailLength,
@@ -230,7 +235,7 @@ export default function getScatterLayer(
       windowActive: true,
       updateTriggers: {
         ...updateTriggers,
-        getTimestamp: [dataVersion],
+        getTimestamp: [dataVersion, t0],
         getHasTimestamp: [dataVersion],
       },
     });

@@ -42,3 +42,21 @@ test("computeTimeDomain returns null when no finite timestamps exist", () => {
   assert.equal(computeTimeDomain([]), null);
   assert.equal(computeTimeDomain([Number.NaN, Number.POSITIVE_INFINITY]), null);
 });
+
+// Rationale guard for the temporal layers: absolute Unix-second epochs exceed
+// float32 precision, so the layers feed the GPU time relative to t0. This
+// confirms why that matters — absolute epochs are lossy in float32 while the
+// relative values are exact.
+test("epoch seconds lose float32 precision but relative-to-t0 values do not", () => {
+  const toF32 = (value: number): number => Math.fround(value);
+  const domain = computeTimeDomain([
+    Date.parse("2026-06-15T08:00:00Z") / 1000,
+    Date.parse("2026-06-15T19:00:00Z") / 1000,
+  ]);
+  assert.ok(domain);
+  const ts = Date.parse("2026-06-15T09:00:00Z") / 1000;
+  // Absolute epoch is not float32-exact (ULP ~128 s at this magnitude).
+  assert.notEqual(toF32(ts), ts);
+  // Relative to t0 (small value) round-trips exactly through float32.
+  assert.equal(toF32(ts - domain.t0), ts - domain.t0);
+});

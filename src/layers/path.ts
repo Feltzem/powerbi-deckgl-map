@@ -142,6 +142,9 @@ export default function getPathLayer(
 
   if (animation?.active) {
     const flat = getFlatPaths(data, dataVersion);
+    // Work in time relative to t0 so the GPU sees small values; absolute Unix
+    // seconds exceed float32 precision (see TemporalScatterLayer).
+    const t0 = animation.domain.t0;
     return new TemporallyAppearingPathLayer<FlatPath>({
       id: LAYER_IDS.path,
       data: flat,
@@ -153,12 +156,14 @@ export default function getPathLayer(
       // One timestamp per feature, so the whole path appears/disappears
       // together within the trailing window. Untimed paths carry the flag 0
       // and always render.
-      getSourceTimestamp: (d) => d.feature.timestampSeconds ?? 0,
-      getTargetTimestamp: (d) => d.feature.timestampSeconds ?? 0,
+      getSourceTimestamp: (d) =>
+        d.feature.timestampSeconds === null ? 0 : d.feature.timestampSeconds - t0,
+      getTargetTimestamp: (d) =>
+        d.feature.timestampSeconds === null ? 0 : d.feature.timestampSeconds - t0,
       getHasTimestamp: (d) => (d.feature.timestampSeconds === null ? 0 : 1),
       timeRange: [
-        animation.time - animation.trailLength,
-        animation.time,
+        animation.time - t0 - animation.trailLength,
+        animation.time - t0,
       ],
       widthUnits: "meters",
       widthMinPixels: settings.line.width.lineWidthMinPixels.value,
@@ -195,8 +200,8 @@ export default function getPathLayer(
           selectedSignature,
         ),
         getWidth: [settings.line.width.defaultLineWidth.value],
-        getSourceTimestamp: [dataVersion],
-        getTargetTimestamp: [dataVersion],
+        getSourceTimestamp: [dataVersion, t0],
+        getTargetTimestamp: [dataVersion, t0],
         getHasTimestamp: [dataVersion],
       },
     });
