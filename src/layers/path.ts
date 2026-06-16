@@ -146,7 +146,11 @@ export default function getPathLayer(
     // seconds exceed float32 precision (see TemporalScatterLayer).
     const t0 = animation.domain.t0;
     return new TemporallyAppearingPathLayer<FlatPath>({
-      id: LAYER_IDS.path,
+      // Distinct id from the non-animated GeoJsonLayer so deck.gl cleanly
+      // replaces (not updates-in-place) across the layer-class swap when
+      // animation activates. The "-temporal" suffix still resolves to path in
+      // getGeometryTypeForLayerId, so tooltips keep working.
+      id: `${LAYER_IDS.path}-temporal`,
       data: flat,
       pickable: true,
       positionFormat: hasZ ? "XYZ" : "XY",

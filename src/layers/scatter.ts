@@ -222,6 +222,14 @@ export default function getScatterLayer(
     // everything exact to ~1 s.
     return new TemporalScatterLayer<OurData>({
       ...layerProps,
+      // Distinct id: the temporal layer is a different deck.gl class lineage
+      // than the non-animated ScatterplotLayer. Sharing one id makes deck.gl
+      // try to update in place across the type swap when animation activates,
+      // which fails to re-init the shader (points render flat and unfiltered
+      // until the visual is recreated). A distinct id forces a clean
+      // remove/add. The "-temporal" suffix still resolves to scatter in
+      // getGeometryTypeForLayerId, so tooltips keep working.
+      id: `${LAYER_IDS.scatter}-temporal`,
       symbolType,
       getTimestamp: (d: OurData) =>
         d.timestampSeconds === null ? 0 : d.timestampSeconds - t0,
