@@ -7,7 +7,7 @@ import powerbi from "powerbi-visuals-api";
 
 import { createEmptyColorRoleStatsStore } from "../src/colorRoles";
 import { InputLayerType, OurData } from "../src/dataTypes";
-import getScatterLayer from "../src/layers/scatter";
+import getScatterLayer, { getScatterPosition } from "../src/layers/scatter";
 import ScatterSymbolLayer from "../src/layers/scatterSymbolLayer";
 import {
   defaultScatterSymbolType,
@@ -50,6 +50,7 @@ const makeScatterPoint = (): OurData => ({
     lat: -37.8,
     lon: 175.2,
     radius: 25,
+    elevation: null,
     heatmapWeight: null,
   },
   scatterProperties: {
@@ -69,6 +70,7 @@ const makeScatterPoint = (): OurData => ({
   polygonProperties: null,
   selectionId: {} as powerbi.visuals.ISelectionId,
   tooltipHtml: null,
+  timestampSeconds: null,
 });
 
 const makeScatterLayer = (symbolType: string) => {
@@ -132,6 +134,17 @@ test("scatter symbol registry exposes exactly the supported symbols", () => {
   );
 });
 
+test("getScatterPosition uses explicit elevation when present", () => {
+  const point = makeScatterPoint();
+  point.scatterData!.elevation = 325;
+
+  assert.deepEqual(getScatterPosition(point), [175.2, -37.8, 325]);
+});
+
+test("getScatterPosition keeps points near ground without elevation", () => {
+  assert.deepEqual(getScatterPosition(makeScatterPoint()), [175.2, -37.8, 0.1]);
+});
+
 test("scatter symbol lookup falls back to circle for invalid settings", () => {
   assert.equal(getScatterSymbolType("diamond"), "diamond");
   assert.equal(getScatterSymbolType("Diamond"), "diamond");
@@ -161,6 +174,19 @@ test("capabilities exposes scatter symbolType as a format enumeration", () => {
     capabilities.objects.scatterProps.properties.symbolType.type,
     { enumeration: [] },
   );
+});
+
+test("capabilities exposes scatter elevation as a numeric data role", () => {
+  const capabilities = JSON.parse(
+    readFileSync(new URL("../capabilities.json", import.meta.url), "utf8"),
+  );
+  const role = capabilities.dataRoles.find(
+    (dataRole: { name?: string }) => dataRole.name === "scatterElevation",
+  );
+
+  assert.equal(role?.displayName, "Scatter elevation (m)");
+  assert.equal(role?.kind, "Measure");
+  assert.equal(role?.preferredTypes?.[0]?.numeric, true);
 });
 
 test("getScatterLayer keeps circle on ScatterplotLayer", () => {

@@ -3,6 +3,8 @@ import VisualUpdateOptions = powerbi.extensibility.visual.VisualUpdateOptions;
 import ISelectionId = powerbi.visuals.ISelectionId;
 import IVisualHost = powerbi.extensibility.visual.IVisualHost;
 import { decodeAsGeometry } from "./encoding";
+import { geometryHasZ } from "./geometryZ";
+import { computeTimeDomain, toUnixSeconds } from "./time";
 import {
   DatasetSnapshot,
   ColorRoleStatsStore,
@@ -45,6 +47,7 @@ const roleMappings: Array<[keyof RowValues, string]> = [
   ["point2Latitude", "point2Latitude"],
   ["point2Longitude", "point2Longitude"],
   ["scatterRadius", "scatterRadius"],
+  ["scatterElevation", "scatterElevation"],
   ["heatmapWeight", "heatmapWeight"],
   ["scatterLineColor", "scatterLineColor"],
   ["scatterLineWidth", "scatterLineWidth"],
@@ -61,6 +64,7 @@ const roleMappings: Array<[keyof RowValues, string]> = [
   ["arcSourceColor", "arcSourceColor"],
   ["arcTargetColor", "arcTargetColor"],
   ["tooltip", "tooltipHtml"],
+  ["timestamp", "timestamp"],
 ];
 
 type RoleColumnCandidate = RoleColumn;
@@ -76,7 +80,11 @@ const colorRoleFields = new Set<keyof RowValues>([
   "arcTargetColor",
 ]);
 
-const numericRoleFields = new Set<keyof RowValues>(["heatmapWeight"]);
+const numericRoleFields = new Set<keyof RowValues>([
+  "scatterElevation",
+  "heatmapWeight",
+  "polygonExtrudeElevation",
+]);
 
 const tooltipHtmlMaxLength = 4000;
 const groupedNumericTolerance = 1e-12;
@@ -414,6 +422,7 @@ const getRowValues = (
   point2Latitude: rowValueArrays.point2Latitude?.[index] ?? null,
   point2Longitude: rowValueArrays.point2Longitude?.[index] ?? null,
   scatterRadius: rowValueArrays.scatterRadius?.[index] ?? null,
+  scatterElevation: rowValueArrays.scatterElevation?.[index] ?? null,
   heatmapWeight: rowValueArrays.heatmapWeight?.[index] ?? null,
   scatterLineColor: rowValueArrays.scatterLineColor?.[index] ?? null,
   scatterLineWidth: rowValueArrays.scatterLineWidth?.[index] ?? null,
@@ -431,6 +440,7 @@ const getRowValues = (
   arcSourceColor: rowValueArrays.arcSourceColor?.[index] ?? null,
   arcTargetColor: rowValueArrays.arcTargetColor?.[index] ?? null,
   tooltip: rowValueArrays.tooltip?.[index] ?? null,
+  timestamp: rowValueArrays.timestamp?.[index] ?? null,
 });
 
 const getDataPointType = (
@@ -482,6 +492,7 @@ const dataPointTypeRoleEvidence: Array<[InputLayerType, Array<keyof RowValues>]>
     InputLayerType.Scatter,
     [
       "scatterRadius",
+      "scatterElevation",
       "heatmapWeight",
       "scatterLineColor",
       "scatterLineWidth",
@@ -536,6 +547,8 @@ const addDataPointToLayerStore = (
       selectionId: data.selectionId,
       tooltipHtml: data.tooltipHtml,
       id: String(data.id),
+      hasZ: geometryHasZ(data.pathData),
+      timestampSeconds: data.timestampSeconds,
     });
   } else if (
     data.type === InputLayerType.Polygon &&
@@ -549,6 +562,8 @@ const addDataPointToLayerStore = (
       selectionId: data.selectionId,
       tooltipHtml: data.tooltipHtml,
       id: String(data.id),
+      hasZ: geometryHasZ(data.polygonData),
+      timestampSeconds: data.timestampSeconds,
     });
   }
 };
@@ -629,6 +644,15 @@ const updateDataPointColorRoleStats = (
   }
 };
 
+const hasVisibleScatterElevation = (data: OurData): boolean => {
+  const elevation = data.scatterData?.elevation;
+  return (
+    typeof elevation === "number" &&
+    Number.isFinite(elevation) &&
+    elevation !== 0
+  );
+};
+
 export function createDatasetSnapshot(
   options: VisualUpdateOptions,
   settings: VisualFormattingSettingsModel,
@@ -649,6 +673,10 @@ export function createDatasetSnapshot(
     dataHighlightedIds,
     bounds: null,
     version,
+    timeDomain: null,
+    elevationFieldBound: false,
+    scatterElevationFieldBound: false,
+    scatterHasVisibleElevation: false,
   });
 
   const dataViews = options.dataViews;
@@ -686,6 +714,7 @@ export function createDatasetSnapshot(
     point2Latitude: getColumnValues(roleColumns.point2Latitude ?? null),
     point2Longitude: getColumnValues(roleColumns.point2Longitude ?? null),
     scatterRadius: getColumnValues(roleColumns.scatterRadius ?? null),
+    scatterElevation: getColumnValues(roleColumns.scatterElevation ?? null),
     heatmapWeight: getColumnValues(roleColumns.heatmapWeight ?? null),
     scatterLineColor: getColumnValues(roleColumns.scatterLineColor ?? null),
     scatterLineWidth: getColumnValues(roleColumns.scatterLineWidth ?? null),
@@ -704,6 +733,7 @@ export function createDatasetSnapshot(
     arcSourceColor: getColumnValues(roleColumns.arcSourceColor ?? null),
     arcTargetColor: getColumnValues(roleColumns.arcTargetColor ?? null),
     tooltip: getColumnValues(roleColumns.tooltip ?? null),
+    timestamp: getColumnValues(roleColumns.timestamp ?? null),
   };
 
   if (!rowValueArrays.geometryId || !rowValueArrays.layerType) {
@@ -720,6 +750,7 @@ export function createDatasetSnapshot(
     point2Latitude: !!rowValueArrays.point2Latitude,
     point2Longitude: !!rowValueArrays.point2Longitude,
     scatterRadius: !!rowValueArrays.scatterRadius,
+    scatterElevation: !!rowValueArrays.scatterElevation,
     heatmapWeight: !!rowValueArrays.heatmapWeight,
     scatterLineColor: !!rowValueArrays.scatterLineColor,
     scatterLineWidth: !!rowValueArrays.scatterLineWidth,
@@ -736,6 +767,7 @@ export function createDatasetSnapshot(
     arcSourceColor: !!rowValueArrays.arcSourceColor,
     arcTargetColor: !!rowValueArrays.arcTargetColor,
     tooltip: !!rowValueArrays.tooltip,
+    timestamp: !!rowValueArrays.timestamp,
   };
 
   const errorMessages: string[] = [];
@@ -835,6 +867,7 @@ export function createDatasetSnapshot(
       isHighlightedFromData,
       selectionId: selectionId,
       tooltipHtml: sanitizeTooltipHtml(rowValues.tooltip),
+      timestampSeconds: toUnixSeconds(rowValues.timestamp),
     };
 
     if (dataType === InputLayerType.Scatter) {
@@ -902,6 +935,14 @@ export function createDatasetSnapshot(
     dataHighlightedIds,
     bounds: getDataBoundingBox(layerData.all),
     version,
+    timeDomain: computeTimeDomain(
+      layerData.all.map((point) => point.timestampSeconds),
+    ),
+    elevationFieldBound: isProvided.polygonExtrudeElevation,
+    scatterElevationFieldBound: isProvided.scatterElevation,
+    scatterHasVisibleElevation: layerData.scatter.some(
+      hasVisibleScatterElevation,
+    ),
   };
 }
 

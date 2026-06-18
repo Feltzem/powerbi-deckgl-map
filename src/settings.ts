@@ -36,6 +36,17 @@ import FormattingSettingsCard = formattingSettings.SimpleCard;
 import FormattingSettingsSlice = formattingSettings.Slice;
 import FormattingSettingsModel = formattingSettings.Model;
 
+/** Animation speed-mode dropdown items. The first entry is the default. */
+export const ANIMATION_SPEED_MODE_DURATION = "duration";
+export const ANIMATION_SPEED_MODE_MULTIPLIER = "multiplier";
+export const ANIMATION_SPEED_MODE_ITEMS = [
+  { value: ANIMATION_SPEED_MODE_DURATION, displayName: "Duration (seconds)" },
+  {
+    value: ANIMATION_SPEED_MODE_MULTIPLIER,
+    displayName: "Multiplier (sim sec / real sec)",
+  },
+];
+
 export class BaseBillboardSettings extends FormattingSettingsCard {
   billboard = new formattingSettings.ToggleSwitch({
     name: "billboard",
@@ -402,6 +413,26 @@ export class NumericGradientSettings extends FormattingSettingsCard {
       this.manualBreaks,
       this.manualColors,
     ];
+  }
+
+  /**
+   * Show only the inputs that apply to the currently-selected classification
+   * method. Call this after the formatting model has been populated from the
+   * data view, so it reflects the user's persisted selection rather than the
+   * constructor default.
+   */
+  applyMethodVisibility(): void {
+    const method = this.binningMethod.value?.value as
+      | GradientBinningMethod
+      | undefined;
+    const usesClassCount =
+      method === "natural-breaks" ||
+      method === "quantile" ||
+      method === "equal-interval";
+    this.classCount.visible = usesClassCount;
+    this.definedInterval.visible = method === "defined-interval";
+    this.manualBreaks.visible = method === "manual-interval";
+    this.manualColors.visible = method === "manual-interval";
   }
 }
 
@@ -1258,6 +1289,14 @@ export class LayerControlsCardSettings extends FormattingSettingsCard {
     value: false,
   });
 
+  showTimeSlider = new formattingSettings.ToggleSwitch({
+    name: "showTimeSlider",
+    displayName: "Show time slider",
+    description:
+      "Show the on-map time slider for scrubbing and playing the animation. Only appears when a Timestamp field is bound.",
+    value: false,
+  });
+
   layerDrawOrder = new formattingSettings.TextInput({
     name: "layerDrawOrder",
     displayName: "Layer draw order (bottom to top)",
@@ -1272,6 +1311,7 @@ export class LayerControlsCardSettings extends FormattingSettingsCard {
   displayName: string = "Layer controls";
   slices: Array<FormattingSettingsSlice> = [
     this.showLayerOrderControl,
+    this.showTimeSlider,
     this.layerDrawOrder,
   ];
 }
@@ -1393,6 +1433,104 @@ export class ValidationPropertiesCardSettings extends FormattingSettingsCard {
   slices: Array<FormattingSettingsSlice> = [this.validateGeometries];
 }
 
+export class AnimationCardSettings extends FormattingSettingsCard {
+  play = new formattingSettings.ToggleSwitch({
+    name: "play",
+    displayName: "Play",
+    description:
+      "Play the trailing-window animation. Requires the Timestamp field to be bound.",
+    value: false,
+  });
+
+  loop = new formattingSettings.ToggleSwitch({
+    name: "loop",
+    displayName: "Loop",
+    description: "Restart from the beginning when playback reaches the end.",
+    value: true,
+  });
+
+  speedMode = new formattingSettings.ItemDropdown({
+    name: "speedMode",
+    displayName: "Speed mode",
+    description:
+      "Duration: the whole time span plays in a fixed wall-clock time (auto-fits any data extent). Multiplier: a fixed number of simulated seconds elapse per real second.",
+    value: ANIMATION_SPEED_MODE_ITEMS[0],
+    items: ANIMATION_SPEED_MODE_ITEMS,
+  });
+
+  animationDuration = new formattingSettings.NumUpDown({
+    name: "animationDuration",
+    displayName: "Animation duration (seconds)",
+    description:
+      "Used in Duration speed mode: how long one full pass through the time span takes, regardless of how many years the data covers.",
+    value: 30,
+    options: {
+      minValue: {
+        type: powerbi.visuals.ValidatorType.Min,
+        value: 1,
+      },
+    },
+  });
+
+  animationSpeed = new formattingSettings.NumUpDown({
+    name: "animationSpeed",
+    displayName: "Animation speed (sim seconds / real second)",
+    description:
+      "Used in Multiplier speed mode: how many simulated seconds elapse per real second of playback. The Parking review page uses 60.",
+    value: 60,
+    options: {
+      minValue: {
+        type: powerbi.visuals.ValidatorType.Min,
+        value: 0,
+      },
+      maxValue: {
+        type: powerbi.visuals.ValidatorType.Max,
+        value: 100000,
+      },
+    },
+  });
+
+  trailLength = new formattingSettings.NumUpDown({
+    name: "trailLength",
+    displayName: "Trail length (seconds)",
+    description:
+      "Width of the trailing time window. Geometry whose timestamp falls within [time - trail length, time] is visible.",
+    value: 3600,
+    options: {
+      minValue: {
+        type: powerbi.visuals.ValidatorType.Min,
+        value: 0,
+      },
+    },
+  });
+
+  maxHeight = new formattingSettings.NumUpDown({
+    name: "maxHeight",
+    displayName: "Max height (meters)",
+    description:
+      "Height assigned to the latest timestamp when deriving time-as-height for points and paths that do not already carry a baked Z.",
+    value: 1000,
+    options: {
+      minValue: {
+        type: powerbi.visuals.ValidatorType.Min,
+        value: 0,
+      },
+    },
+  });
+
+  name: string = "animationProps";
+  displayName: string = "Animation properties";
+  slices: Array<FormattingSettingsSlice> = [
+    this.play,
+    this.loop,
+    this.speedMode,
+    this.animationDuration,
+    this.animationSpeed,
+    this.trailLength,
+    this.maxHeight,
+  ];
+}
+
 export class VisualFormattingSettingsModel extends FormattingSettingsModel {
   scatter = new ScatterCardSettings();
   heatmap = new HeatmapCardSettings();
@@ -1406,12 +1544,14 @@ export class VisualFormattingSettingsModel extends FormattingSettingsModel {
   polygon = new PolygonCardSettings();
   highlighting = new HighlightingCardSettings();
   validation = new ValidationPropertiesCardSettings();
+  animation = new AnimationCardSettings();
   cards = [
     this.map,
     this.layerControls,
     this.legend,
     this.validation,
     this.highlighting,
+    this.animation,
     this.scatter,
     this.heatmap,
     this.h3Hexagon,
@@ -1420,4 +1560,20 @@ export class VisualFormattingSettingsModel extends FormattingSettingsModel {
     this.arc,
     this.polygon,
   ];
+
+  /**
+   * Update visibility of conditional slices that depend on another slice's
+   * value (e.g. each gradient's class-count vs. defined-interval inputs).
+   * Call from getFormattingModel(), after the model has been populated from
+   * the data view.
+   */
+  applyConditionalVisibility(): void {
+    for (const card of this.cards) {
+      for (const value of Object.values(card)) {
+        if (value instanceof NumericGradientSettings) {
+          value.applyMethodVisibility();
+        }
+      }
+    }
+  }
 }

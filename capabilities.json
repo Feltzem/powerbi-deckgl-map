@@ -55,6 +55,17 @@
       "description": "The radius of scatter in meters"
     },
     {
+      "displayName": "Scatter elevation (m)",
+      "name": "scatterElevation",
+      "kind": "Measure",
+      "description": "Optional per-row height for scatter points, in meters",
+      "preferredTypes": [
+        {
+          "numeric": true
+        }
+      ]
+    },
+    {
       "displayName": "Heatmap weight",
       "name": "heatmapWeight",
       "kind": "Measure",
@@ -177,7 +188,12 @@
       "displayName": "Polygon extrude elevation (meters)",
       "name": "polygonExtrudeElevation",
       "kind": "Measure",
-      "description": "Height to extrude the polygon, in meters"
+      "description": "Height to extrude the polygon, in meters",
+      "preferredTypes": [
+        {
+          "numeric": true
+        }
+      ]
     },
     {
       "displayName": "Arc line width (m)",
@@ -218,6 +234,17 @@
       "name": "tooltipHtml",
       "kind": "Measure",
       "description": "The HTML to display in the tooltip. You can use CSS = )"
+    },
+    {
+      "displayName": "Timestamp",
+      "name": "timestamp",
+      "kind": "GroupingOrMeasure",
+      "description": "Per-row time used to drive the animation and the time-as-height encoding. Accepts a datetime or a numeric value in seconds. When bound, the Animation card controls the trailing-window playback.",
+      "preferredTypes": [
+        {
+          "numeric": true
+        }
+      ]
     }
   ],
   "supportsHighlight": false,
@@ -281,6 +308,11 @@
       "displayName": "Layer controls",
       "properties": {
         "showLayerOrderControl": {
+          "type": {
+            "bool": true
+          }
+        },
+        "showTimeSlider": {
           "type": {
             "bool": true
           }
@@ -385,6 +417,46 @@
         "validateGeometries": {
           "type": {
             "bool": true
+          }
+        }
+      }
+    },
+    "animationProps": {
+      "displayName": "Animation properties",
+      "properties": {
+        "play": {
+          "type": {
+            "bool": true
+          }
+        },
+        "loop": {
+          "type": {
+            "bool": true
+          }
+        },
+        "speedMode": {
+          "type": {
+            "enumeration": []
+          }
+        },
+        "animationDuration": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "animationSpeed": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "trailLength": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "maxHeight": {
+          "type": {
+            "numeric": true
           }
         }
       }
@@ -1180,6 +1252,11 @@
               },
               {
                 "bind": {
+                  "to": "scatterElevation"
+                }
+              },
+              {
+                "bind": {
                   "to": "heatmapWeight"
                 }
               },
@@ -1252,6 +1329,11 @@
                 "bind": {
                   "to": "tooltipHtml"
                 }
+              },
+              {
+                "bind": {
+                  "to": "timestamp"
+                }
               }
             ]
         }
@@ -1316,6 +1398,11 @@
             {
               "bind": {
                 "to": "scatterRadius"
+              }
+            },
+            {
+              "bind": {
+                "to": "scatterElevation"
               }
             },
             {
@@ -1396,6 +1483,11 @@
             {
               "bind": {
                 "to": "tooltipHtml"
+              }
+            },
+            {
+              "bind": {
+                "to": "timestamp"
               }
             }
           ]

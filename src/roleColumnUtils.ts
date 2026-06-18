@@ -9,6 +9,71 @@ export type GroupedRoleValueMerger<TRoleKey extends string> = (
   values: powerbi.PrimitiveValue[],
 ) => powerbi.PrimitiveValue | null | undefined;
 
+/**
+ * True when any category or value column in the data view is bound to the given
+ * role. Used to detect that a field (e.g. a Timestamp) has just been bound, so
+ * derived state can be re-parsed even when the data-view signature alone would
+ * not flag a change.
+ */
+export const dataViewHasRole = (
+  dataView: powerbi.DataView,
+  roleName: string,
+): boolean => {
+  const categorical = dataView.categorical;
+  const columns: RoleColumn[] = [
+    ...(categorical?.categories ?? []),
+    ...((categorical?.values ?? []) as unknown as RoleColumn[]),
+  ];
+  return columns.some((column) => column.source?.roles?.[roleName] === true);
+};
+
+/**
+ * A stable signature of a categorical data view, used to decide whether the
+ * dataset must be re-parsed. It signs every category AND value column's
+ * identity and bound roles, plus a few sampled values, so that binding a field
+ * to a new role (e.g. dragging a datetime onto the Timestamp role, which Power
+ * BI may deliver as an extra category rather than a value) changes the
+ * signature and triggers a re-parse. Signing only the first category would miss
+ * that and leave derived state (e.g. the animation time domain) stale.
+ */
+export const getDataViewSignature = (dataView: powerbi.DataView): string => {
+  const categorical = dataView.categorical;
+  const categories = categorical?.categories ?? [];
+  const values = categorical?.values ?? [];
+  const rowCount = categories[0]?.values?.length ?? 0;
+  const sampleIndexes =
+    rowCount > 0 ? [0, Math.floor(rowCount / 2), rowCount - 1] : [];
+
+  const columnSignature = (column: RoleColumn): string => {
+    const roleSignature = Object.entries(column.source?.roles ?? {})
+      .filter(([, enabled]) => enabled)
+      .map(([role]) => role)
+      .sort()
+      .join(",");
+    const columnValues = column.values;
+    const samples = sampleIndexes
+      .map((index) => String(columnValues?.[index] ?? ""))
+      .join(",");
+    return `${column.source?.queryName ?? column.source?.displayName}:${roleSignature}:${columnValues?.length ?? 0}:${samples}`;
+  };
+
+  const categorySignature = categories.map(columnSignature).join(";");
+  const valueSignature = (values as unknown as RoleColumn[])
+    .map(columnSignature)
+    .join(";");
+
+  return [
+    rowCount,
+    categorySignature,
+    valueSignature,
+    dataView.metadata?.segment ? "segmented" : "complete",
+    (dataView.metadata as { isDataFilterApplied?: boolean })
+      ?.isDataFilterApplied
+      ? "filtered"
+      : "unfiltered",
+  ].join("::");
+};
+
 export const isMeaningfulPrimitiveValue = (value: unknown): boolean => {
   if (value === null || value === undefined) {
     return false;

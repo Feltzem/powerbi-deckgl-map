@@ -114,10 +114,15 @@ export default function getPolygonLayer(
     selectedIds,
   });
 
+  const hasZ = data.some((feature) => feature.hasZ);
+
   return new GeoJsonLayer({
     id: LAYER_IDS.polygon,
     data,
     pickable: true,
+    // 3D WKP polygons decode to rings of [x, y, z]; reading the Z lets the ring
+    // sit at its baked base elevation (the floating-prism base in slice 2).
+    positionFormat: hasZ ? "XYZ" : "XY",
     stroked: settings.stroked.value,
     getLineColor: lineColor.accessor,
     getLineWidth: (d) => {
@@ -131,8 +136,12 @@ export default function getPolygonLayer(
     lineWidthMaxPixels: settings.line.width.lineWidthMaxPixels.value,
     filled: settings.filled.value,
     getFillColor: fillColor.accessor,
-    extruded: settings.extruded.value,
-    getElevation: (d) => d.properties?.elevation,
+    // When a ring carries Z (3D WKP), that Z becomes the prism base and
+    // getElevation is the height added on top (deck.gl does pos.z += elevation),
+    // yielding a floating prism. Force extrusion on so the walls render even if
+    // the user has left the Extruded toggle off for 2D polygons.
+    extruded: hasZ || settings.extruded.value,
+    getElevation: (d) => d.properties?.elevation ?? 0,
     wireframe: settings.wireframe.value,
     lineJointRounded: settings.path.lineJointRounded.value,
     lineMiterLimit: settings.path.lineMiterLimit.value,

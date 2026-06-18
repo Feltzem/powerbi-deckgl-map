@@ -22,6 +22,11 @@ const getHeatmapWeight = (
   return typeof value === "number" && isFinite(value) && value > 0 ? value : 0;
 };
 
+const getScatterElevation = (rowValues: RowValues): number | null => {
+  const value = getNumberFromValue(rowValues.scatterElevation);
+  return typeof value === "number" && isFinite(value) ? value : null;
+};
+
 export const parseScatter = (
   isProvided: RowValueAvailability,
   rowValues: RowValues,
@@ -54,6 +59,7 @@ export const parseScatter = (
     lat: lat,
     lon: lon,
     radius: getNumberFromValue(rowValues.scatterRadius),
+    elevation: getScatterElevation(rowValues),
     heatmapWeight: getHeatmapWeight(isProvided, rowValues),
   };
   data.scatterProperties = {

@@ -119,6 +119,75 @@
   opacity: 0.32;
 }
 
+.deckgl-time-slider {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: min(420px, calc(100vw - 24px));
+  padding: 4px 8px;
+  border: 1px solid rgba(34, 49, 63, 0.14);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 10px 24px rgba(20, 31, 43, 0.16);
+  backdrop-filter: blur(8px);
+  color: #243341;
+  pointer-events: auto;
+}
+
+.deckgl-time-slider--hidden {
+  display: none;
+}
+
+.deckgl-time-slider__button {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #2f3b4a;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.deckgl-time-slider__button:hover,
+.deckgl-time-slider__button:active {
+  background-color: #f2f5f8;
+}
+
+.deckgl-time-slider__speed {
+  width: auto;
+  min-width: 34px;
+  padding: 0 6px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.deckgl-time-slider__range {
+  flex: 1 1 auto;
+  min-width: 80px;
+  height: 4px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: #2f6fed;
+}
+
+.deckgl-time-slider__label {
+  flex: 0 0 auto;
+  min-width: 96px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
 .deckgl-map-visual {
   position: relative;
 }
@@ -186,6 +255,25 @@
 
 .deckgl-multi-tooltip :where(div, span, strong, p, table) {
   max-width: 100%;
+}
+
+.deckgl-animation-time-tooltip {
+  padding: 6px 10px;
+  font-variant-numeric: tabular-nums;
+  color: #dbe6ef;
+}
+
+.deckgl-animation-time-tooltip + .deckgl-multi-tooltip,
+.deckgl-animation-time-tooltip + .deckgl-h3-tooltip {
+  border-top: 1px solid rgba(219, 230, 239, 0.2);
+}
+
+.deckgl-animation-time-tooltip strong {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.7;
 }
 
 .deckgl-gradient-legend__panel {

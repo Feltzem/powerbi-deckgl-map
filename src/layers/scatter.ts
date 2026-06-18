@@ -10,13 +10,26 @@ import {
 import { resolveGradientPresetColors } from "../gradientPresets";
 import { getCategoricalPaletteColor } from "../categoricalPalettes";
 import { HighlightingCardSettings, ScatterCardSettings } from "../settings";
-import { LAYER_IDS } from "../layerState";
+import { getTemporalLayerId, LAYER_IDS } from "../layerState";
 import { getScatterSymbolType } from "../scatterSymbols";
 import {
   createLayerColorAccessor,
   getLayerColorUpdateTriggers,
 } from "./col";
 import ScatterSymbolLayer from "./scatterSymbolLayer";
+import TemporalScatterLayer from "./temporalScatterLayer";
+import { AnimationContext } from "../timeAnimation";
+
+export const hasScatterElevation = (d: OurData): boolean => {
+  const elevation = d.scatterData?.elevation;
+  return typeof elevation === "number" && isFinite(elevation);
+};
+
+export const getScatterPosition = (d: OurData): [number, number, number] => [
+  d.scatterData!.lon,
+  d.scatterData!.lat,
+  hasScatterElevation(d) ? d.scatterData!.elevation! : 0.1,
+];
 
 export default function getScatterLayer(
   data: OurData[],
@@ -28,6 +41,7 @@ export default function getScatterLayer(
   classificationCache: NumericColorBinsCache,
   dataVersion: string,
   onClick: (info: PickingInfo, event: unknown) => void,
+  animation: AnimationContext | null = null,
 ) {
   const defaultFillColor = withOpacity(
     decodeHex(settings.fill.defaultFillColor.value.value, [0, 0, 0, 100]),
@@ -190,11 +204,7 @@ export default function getScatterLayer(
     pickable: true,
     stroked: settings.stroked.value,
     filled: settings.filled.value,
-    getPosition: (d: OurData): [number, number, number] => [
-      d.scatterData!.lon,
-      d.scatterData!.lat,
-      0.1,
-    ],
+    getPosition: getScatterPosition,
     getLineWidth,
     getRadius,
     getFillColor: fillColor.accessor,
@@ -209,6 +219,44 @@ export default function getScatterLayer(
     onClick: (info: PickingInfo, event: unknown) => onClick(info, event),
     updateTriggers,
   };
+
+  if (animation?.active) {
+    const t0 = animation.domain.t0;
+    const span = animation.domain.t1 - t0;
+    // Work in time relative to t0 so the GPU sees small values. Absolute Unix
+    // seconds (~1.78e9) exceed float32 precision (~128 s ULP), which freezes the
+    // time uniform and flattens the height; subtracting t0 on the CPU keeps
+    // everything exact to ~1 s.
+    return new TemporalScatterLayer<OurData>({
+      ...layerProps,
+      // Distinct id: the temporal layer is a different deck.gl class lineage
+      // than the non-animated ScatterplotLayer. Sharing one id makes deck.gl
+      // try to update in place across the type swap when animation activates,
+      // which fails to re-init the shader (points render flat and unfiltered
+      // until the visual is recreated). A distinct id forces a clean
+      // remove/add. The "-temporal" suffix still resolves to scatter in
+      // getGeometryTypeForLayerId, so tooltips keep working.
+      id: getTemporalLayerId("scatter"),
+      symbolType,
+      getTimestamp: (d: OurData) =>
+        d.timestampSeconds === null ? 0 : d.timestampSeconds - t0,
+      getHasTimestamp: (d: OurData) => (d.timestampSeconds === null ? 0 : 1),
+      getHasElevation: (d: OurData) => (hasScatterElevation(d) ? 1 : 0),
+      time: animation.time - t0,
+      dt: span > 0 ? span : 1,
+      maxHeight: animation.maxHeight,
+      trailLength: animation.trailLength,
+      // Rows without explicit scatter elevation derive height from timestamp.
+      deriveHeight: true,
+      windowActive: true,
+      updateTriggers: {
+        ...updateTriggers,
+        getTimestamp: [dataVersion, t0],
+        getHasTimestamp: [dataVersion],
+        getHasElevation: [dataVersion],
+      },
+    });
+  }
 
   if (symbolType !== "circle") {
     return new ScatterSymbolLayer<OurData>({

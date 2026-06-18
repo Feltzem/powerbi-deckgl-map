@@ -2,6 +2,21 @@ import { Geometry, MultiPolygon, Polygon } from "geojson";
 import { RowValues, OurData, InputLayerType } from "../dataTypes";
 import { getNumberFromValue, parseColorInput } from "../powerbiUtils";
 
+const getPolygonExtrudeElevation = (
+  value: RowValues["polygonExtrudeElevation"],
+): number | null => {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  const elevation = getNumberFromValue(value);
+  if (typeof elevation !== "number" || !Number.isFinite(elevation)) {
+    return 0;
+  }
+
+  return Math.max(0, elevation);
+};
+
 export const parsePolygon = (
   wktGeometry: Geometry | null,
   wkpGeometry: Geometry | null,
@@ -92,7 +107,7 @@ export const parsePolygon = (
     fillColor: fillColor.rgbaColor,
     fillColorValue: fillColor.numericValue,
     fillColorCategory: fillColor.categoricalValue,
-    elevation: getNumberFromValue(rowValues.polygonExtrudeElevation),
+    elevation: getPolygonExtrudeElevation(rowValues.polygonExtrudeElevation),
   };
   return true;
 };

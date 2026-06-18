@@ -4,6 +4,7 @@ import powerbi from "powerbi-visuals-api";
 
 import { InputLayerType, OurData, RowValueAvailability, RowValues } from "../src/dataTypes";
 import { parseLine } from "../src/parsers/lineArc";
+import { parsePolygon } from "../src/parsers/polygon";
 import { parseScatter } from "../src/parsers/scatter";
 
 const makeAvailability = (
@@ -28,6 +29,7 @@ const makeRow = (overrides: Partial<RowValues> = {}): RowValues => ({
   point2Latitude: null,
   point2Longitude: null,
   scatterRadius: null,
+  scatterElevation: null,
   heatmapWeight: null,
   scatterLineColor: null,
   scatterLineWidth: null,
@@ -44,6 +46,7 @@ const makeRow = (overrides: Partial<RowValues> = {}): RowValues => ({
   arcSourceColor: null,
   arcTargetColor: null,
   tooltip: null,
+  timestamp: null,
   ...overrides,
 });
 
@@ -62,6 +65,7 @@ const makeData = (): OurData => ({
   polygonProperties: null,
   selectionId: {} as powerbi.visuals.ISelectionId,
   tooltipHtml: null,
+  timestampSeconds: null,
 });
 
 test("parseScatter accepts finite coordinates", () => {
@@ -87,9 +91,54 @@ test("parseScatter accepts finite coordinates", () => {
     lat: -37.8,
     lon: 175.2,
     radius: 10,
+    elevation: null,
     heatmapWeight: null,
   });
   assert.deepEqual(errors, []);
+});
+
+test("parseScatter stores finite elevation and ignores invalid elevation", () => {
+  const data = makeData();
+  const errors: string[] = [];
+
+  assert.equal(
+    parseScatter(
+      makeAvailability([
+        "point1Latitude",
+        "point1Longitude",
+        "scatterElevation",
+      ]),
+      makeRow({
+        point1Latitude: "-37.8",
+        point1Longitude: "175.2",
+        scatterElevation: "250.5",
+      }),
+      errors,
+      data,
+    ),
+    true,
+  );
+  assert.equal(data.scatterData?.elevation, 250.5);
+
+  const invalidData = makeData();
+  assert.equal(
+    parseScatter(
+      makeAvailability([
+        "point1Latitude",
+        "point1Longitude",
+        "scatterElevation",
+      ]),
+      makeRow({
+        point1Latitude: "-37.8",
+        point1Longitude: "175.2",
+        scatterElevation: "not-a-number",
+      }),
+      errors,
+      invalidData,
+    ),
+    true,
+  );
+  assert.equal(invalidData.scatterData?.elevation, null);
 });
 
 test("parseScatter stores positive heatmap weight and zeroes invalid bound weights", () => {
@@ -179,4 +228,58 @@ test("parseLine rejects blank coordinates even when the role is provided", () =>
     false,
   );
   assert.match(errors.join("\n"), /finite numbers/);
+});
+
+test("parsePolygon clamps invalid and negative extrusion heights", () => {
+  const geometry = {
+    type: "Polygon" as const,
+    coordinates: [
+      [
+        [175, -37],
+        [175.1, -37],
+        [175.1, -37.1],
+        [175, -37],
+      ],
+    ],
+  };
+  const errors: string[] = [];
+
+  const positiveData = makeData();
+  assert.equal(
+    parsePolygon(
+      geometry,
+      null,
+      makeRow({ polygonExtrudeElevation: "25.5" }),
+      errors,
+      positiveData,
+    ),
+    true,
+  );
+  assert.equal(positiveData.polygonProperties?.elevation, 25.5);
+
+  const negativeData = makeData();
+  assert.equal(
+    parsePolygon(
+      geometry,
+      null,
+      makeRow({ polygonExtrudeElevation: -10 }),
+      errors,
+      negativeData,
+    ),
+    true,
+  );
+  assert.equal(negativeData.polygonProperties?.elevation, 0);
+
+  const invalidData = makeData();
+  assert.equal(
+    parsePolygon(
+      geometry,
+      null,
+      makeRow({ polygonExtrudeElevation: "not-a-number" }),
+      errors,
+      invalidData,
+    ),
+    true,
+  );
+  assert.equal(invalidData.polygonProperties?.elevation, 0);
 });

@@ -15,7 +15,13 @@ import VisualUpdateType = powerbi.VisualUpdateType;
 import IVisual = powerbi.extensibility.visual.IVisual;
 import IVisualHost = powerbi.extensibility.visual.IVisualHost;
 
-import { MapCardSettings, VisualFormattingSettingsModel } from "./settings";
+import {
+  ANIMATION_SPEED_MODE_DURATION,
+  ANIMATION_SPEED_MODE_ITEMS,
+  AnimationCardSettings,
+  MapCardSettings,
+  VisualFormattingSettingsModel,
+} from "./settings";
 import { Map as MapLibreMap, NavigationControl } from "maplibre-gl";
 import { MapboxOverlay as DeckOverlay } from "@deck.gl/mapbox";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -35,6 +41,11 @@ import {
   createEmptyLayerDataStore,
 } from "./dataTypes";
 import { NumericColorBinsCache } from "./gradientClassification";
+import {
+  AnimationContext,
+  resolveAnimationSpeed,
+  TimeAnimationController,
+} from "./timeAnimation";
 import getScatterLayer from "./layers/scatter";
 import getHeatmapLayer from "./layers/heatmap";
 import getH3HexagonLayer, {
@@ -48,11 +59,15 @@ import { createEmptyColorRoleStatsStore } from "./colorRoles";
 import {
   DEFAULT_LAYER_DRAW_ORDER,
   GEOMETRY_TYPE_LABELS,
-  LAYER_IDS,
   RenderableGeometryType,
   parseLayerDrawOrder,
 } from "./layerState";
 import { getAggregatedTooltipHtml } from "./tooltip";
+import { dataViewHasRole, getDataViewSignature } from "./roleColumnUtils";
+import {
+  formatAnimationTime,
+  getAnimationTimeTooltipHtml,
+} from "./animationTooltip";
 import { getScatterSymbol, getScatterSymbolType } from "./scatterSymbols";
 import { getBasemapStyle, resolveBasemap } from "./basemaps";
 import {
@@ -63,6 +78,11 @@ import {
   create3DBuildingsSource,
   getFirstSymbolLayerId,
 } from "./buildings";
+import {
+  getActiveDeckLayerIds,
+  updateTemporalAnimationLayers,
+} from "./animationLayers";
+import { syncCompletedAnimationPlayback } from "./animationPlayback";
 
 const createEmptyDatasetSnapshot = (version = "0"): DatasetSnapshot => ({
   layers: createEmptyLayerDataStore(),
@@ -72,6 +92,10 @@ const createEmptyDatasetSnapshot = (version = "0"): DatasetSnapshot => ({
   dataHighlightedIds: [],
   bounds: null,
   version,
+  timeDomain: null,
+  elevationFieldBound: false,
+  scatterElevationFieldBound: false,
+  scatterHasVisibleElevation: false,
 });
 
 const AUTO_3D_PITCH = 45;
@@ -91,6 +115,9 @@ interface LayerOrderControl {
   onRemove: () => void;
   render: () => void;
 }
+
+// Same shape as LayerOrderControl: an on-map control with a re-render hook.
+type MapOverlayControl = LayerOrderControl;
 
 interface ModifierKeyEvent {
   ctrlKey?: boolean;
@@ -124,13 +151,20 @@ export class Visual implements IVisual {
   private legendContainer: HTMLDivElement | null;
   private lastLegendSignature: string | null;
   private lastDataSignature: string | null;
+  private lastParseHadTimestampRole: boolean;
   private dataVersionCounter: number;
   private currentActiveGeometryTypes: Set<RenderableGeometryType>;
   private currentLayerDrawOrder: RenderableGeometryType[];
+  private currentDeckLayers: any[];
+  private currentActiveLayerIds: string[];
   private layerOrderControl: LayerOrderControl | null;
+  private timeSliderControl: MapOverlayControl | null;
   private lastPerspectiveLayerShown: boolean | null;
   private automaticPitchOwned: boolean;
   private buildingLayerSignature: string | null;
+  private animationController: TimeAnimationController;
+  private animationTime: number;
+  private lastAnimationCameraPitched: boolean | null;
 
   private createResetViewControl() {
     const container = document.createElement("div");
@@ -279,6 +313,323 @@ export class Visual implements IVisual {
     };
   }
 
+  private createTimeSliderControl(): MapOverlayControl {
+    const container = document.createElement("div");
+    container.className =
+      "maplibregl-ctrl deckgl-time-slider deckgl-time-slider--hidden";
+    container.setAttribute("aria-label", "Time slider");
+
+    // Keep slider drags/clicks from panning or zooming the map.
+    const stopPropagation = (event: Event) => event.stopPropagation();
+    for (const type of ["mousedown", "dblclick", "wheel"]) {
+      container.addEventListener(type, stopPropagation);
+    }
+
+    const makeButton = (label: string, title: string): HTMLButtonElement => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "deckgl-time-slider__button";
+      button.title = title;
+      button.setAttribute("aria-label", title);
+      const span = document.createElement("span");
+      span.setAttribute("aria-hidden", "true");
+      span.textContent = label;
+      button.appendChild(span);
+      return button;
+    };
+
+    const skipBackButton = makeButton("⏪", "Step backward");
+    const playButton = makeButton("▶", "Play");
+    const skipForwardButton = makeButton("⏩", "Step forward");
+
+    const speedButton = makeButton("", "Playback speed (click to change)");
+    speedButton.classList.add("deckgl-time-slider__speed");
+
+    const range = document.createElement("input");
+    range.type = "range";
+    range.className = "deckgl-time-slider__range";
+    range.min = "0";
+    range.max = "1";
+    range.step = "1";
+    range.value = "0";
+    range.setAttribute("aria-label", "Animation time");
+
+    const label = document.createElement("span");
+    label.className = "deckgl-time-slider__label";
+
+    container.append(
+      skipBackButton,
+      playButton,
+      skipForwardButton,
+      range,
+      label,
+      speedButton,
+    );
+
+    const getSkipStep = (): number => {
+      const domain = this.dataset.timeDomain;
+      if (!domain) {
+        return 1;
+      }
+      return Math.max(1, (domain.t1 - domain.t0) / 20);
+    };
+
+    skipBackButton.onclick = () => {
+      this.animationController.seek(
+        this.animationController.getTime() - getSkipStep(),
+      );
+    };
+    skipForwardButton.onclick = () => {
+      this.animationController.seek(
+        this.animationController.getTime() + getSkipStep(),
+      );
+    };
+    playButton.onclick = () => {
+      this.setPlaying(!this.animationController.isPlaying());
+      this.renderTimeSliderControl();
+    };
+    range.oninput = () => {
+      // Scrubbing pauses playback, mirroring the source TimeSlider.
+      if (this.animationController.isPlaying()) {
+        this.setPlaying(false);
+      }
+      this.animationController.seek(Number(range.value));
+    };
+    speedButton.onclick = () => {
+      const current = this.formattingSettings.animation.animationDuration.value;
+      this.setAnimationDuration(this.nextAnimationDuration(current));
+      this.renderTimeSliderControl();
+    };
+
+    // render() runs on every animation frame, so only touch the DOM when a
+    // value actually changes. In particular the label uses Intl date formatting
+    // (~tens of microseconds), which is wasteful to recompute 60x/second.
+    const playSpan = playButton.firstChild as HTMLSpanElement | null;
+    let lastT0: number | null = null;
+    let lastT1: number | null = null;
+    let lastRangeValue: string | null = null;
+    let lastLabelTime: number | null = null;
+    let lastLabelRealMs = 0;
+    let lastPlaying: boolean | null = null;
+    let lastSpeed: number | null = null;
+
+    const render = () => {
+      const domain = this.dataset.timeDomain;
+      const shouldShow =
+        this.formattingSettings.layerControls.showTimeSlider.value === true &&
+        domain !== null;
+
+      container.classList.toggle("deckgl-time-slider--hidden", !shouldShow);
+      if (!shouldShow || !domain) {
+        return;
+      }
+
+      const time = this.animationController.getTime();
+      if (domain.t0 !== lastT0) {
+        range.min = String(domain.t0);
+        lastT0 = domain.t0;
+      }
+      if (domain.t1 !== lastT1) {
+        range.max = String(domain.t1);
+        lastT1 = domain.t1;
+      }
+      // Reflect the playhead unless the user is mid-drag on this element.
+      if (document.activeElement !== range) {
+        const nextValue = String(time);
+        if (nextValue !== lastRangeValue) {
+          range.value = nextValue;
+          lastRangeValue = nextValue;
+        }
+      }
+      const playing = this.animationController.isPlaying();
+
+      // The label is human-readable text and Intl date formatting is costly to
+      // run every frame. During playback, throttle reformatting to ~4 Hz of
+      // wall-clock time (vs 60 Hz). When paused, scrub/step are discrete and
+      // low-frequency, so always reflect the exact playhead with no lag.
+      const nowMs =
+        typeof performance !== "undefined" ? performance.now() : Date.now();
+      const labelChanged = time !== lastLabelTime;
+      const shouldReformat =
+        lastLabelTime === null ||
+        (labelChanged && (!playing || nowMs - lastLabelRealMs >= 250));
+      if (shouldReformat) {
+        label.textContent = formatAnimationTime(time);
+        lastLabelTime = time;
+        lastLabelRealMs = nowMs;
+      }
+      if (playing !== lastPlaying) {
+        if (playSpan) {
+          playSpan.textContent = playing ? "⏸" : "▶";
+        }
+        playButton.title = playing ? "Pause" : "Play";
+        playButton.setAttribute("aria-label", playButton.title);
+        lastPlaying = playing;
+      }
+
+      const animation = this.formattingSettings.animation;
+      const durationMode = this.isDurationMode(animation);
+      // In duration mode the on-map control represents the full-pass time; show
+      // that (e.g. "30s"). In multiplier mode show the raw ×multiplier.
+      const speed = durationMode
+        ? animation.animationDuration.value
+        : animation.animationSpeed.value;
+      if (speed !== lastSpeed) {
+        const label = durationMode ? `${speed}s` : `${speed}×`;
+        const speedSpan = speedButton.firstChild as HTMLSpanElement | null;
+        if (speedSpan) {
+          speedSpan.textContent = label;
+        }
+        speedButton.title = durationMode
+          ? `Full animation: ${speed}s (click for faster)`
+          : `Playback speed ${speed}× (click to change)`;
+        speedButton.setAttribute("aria-label", speedButton.title);
+        lastSpeed = speed;
+      }
+    };
+
+    return {
+      onAdd: () => {
+        render();
+        return container;
+      },
+      onRemove: () => {
+        skipBackButton.onclick = null;
+        skipForwardButton.onclick = null;
+        playButton.onclick = null;
+        speedButton.onclick = null;
+        range.oninput = null;
+        for (const type of ["mousedown", "dblclick", "wheel"]) {
+          container.removeEventListener(type, stopPropagation);
+        }
+        container.replaceChildren();
+        container.remove();
+      },
+      render,
+    };
+  }
+
+  private renderTimeSliderControl() {
+    this.timeSliderControl?.render();
+  }
+
+  private handleAnimationPlaybackComplete() {
+    syncCompletedAnimationPlayback(this.formattingSettings.animation, this.host);
+    this.renderTimeSliderControl();
+  }
+
+  /**
+   * Toggle playback from an on-map control. Drives the controller, keeps the
+   * in-memory Animation `play` setting in sync, and persists it so the format
+   * pane reflects the change and a later update() does not stop playback by
+   * re-reading a stale persisted value.
+   */
+  private setPlaying(play: boolean) {
+    if (play) {
+      this.animationController.play();
+    } else {
+      this.animationController.pause();
+    }
+    if (this.formattingSettings.animation.play.value === play) {
+      return;
+    }
+    this.formattingSettings.animation.play.value = play;
+    this.host.persistProperties({
+      merge: [
+        {
+          objectName: "animationProps",
+          selector: null,
+          properties: { play },
+        },
+      ],
+    });
+  }
+
+  /**
+   * Full-pass durations (seconds) the on-map speed button cycles through,
+   * slow -> fast. These are domain-relative: a smaller duration plays the whole
+   * time span faster, regardless of how many years the data spans.
+   */
+  private static readonly DURATION_PRESETS = [120, 60, 30, 15, 8, 4];
+
+  /** True when the report is using duration speed mode. */
+  private isDurationMode(animation: AnimationCardSettings): boolean {
+    return animation.speedMode.value.value === ANIMATION_SPEED_MODE_DURATION;
+  }
+
+  /**
+   * Effective sim-sec/real-sec speed for the controller, derived from the speed
+   * mode: domain-fitted in duration mode, or the raw multiplier otherwise.
+   */
+  private effectiveAnimationSpeed(
+    animation: AnimationCardSettings,
+    domain: { t0: number; t1: number } | null,
+  ): number {
+    return resolveAnimationSpeed({
+      durationMode: this.isDurationMode(animation),
+      durationSeconds: animation.animationDuration.value,
+      multiplier: animation.animationSpeed.value,
+      domain,
+    });
+  }
+
+  /**
+   * Set the full-pass duration from the on-map control. Always drives duration
+   * mode (flipping speedMode if the report was in multiplier mode), reconfigures
+   * the controller against the current domain, keeps the settings in sync, and
+   * persists both so the format pane reflects the change and a later update()
+   * does not revert it.
+   */
+  private setAnimationDuration(duration: number) {
+    const animation = this.formattingSettings.animation;
+    const alreadyDuration = this.isDurationMode(animation);
+    if (alreadyDuration && animation.animationDuration.value === duration) {
+      return;
+    }
+    animation.speedMode.value = ANIMATION_SPEED_MODE_ITEMS[0];
+    animation.animationDuration.value = duration;
+    this.animationController.setConfig({
+      animationSpeed: this.effectiveAnimationSpeed(
+        animation,
+        this.dataset.timeDomain,
+      ),
+      loop: animation.loop.value,
+    });
+    this.host.persistProperties({
+      merge: [
+        {
+          objectName: "animationProps",
+          selector: null,
+          properties: {
+            speedMode: ANIMATION_SPEED_MODE_DURATION,
+            animationDuration: duration,
+          },
+        },
+      ],
+    });
+  }
+
+  /** Next duration preset below the current value (faster), wrapping to slowest. */
+  private nextAnimationDuration(current: number): number {
+    const presets = Visual.DURATION_PRESETS;
+    const next = presets.find((p) => p < current);
+    return next ?? presets[0];
+  }
+
+  private handleCameraPitchChanged() {
+    const isPitched = this.isCameraPitched();
+    if (this.lastAnimationCameraPitched === isPitched) {
+      return;
+    }
+
+    this.lastAnimationCameraPitched = isPitched;
+    if (!this.isAnimationAvailable()) {
+      return;
+    }
+
+    this.pushAnimationFrame();
+  }
+
   private isDarkBaseMap(baseMap: string): boolean {
     return resolveBasemap(baseMap).dark;
   }
@@ -391,16 +742,28 @@ export class Visual implements IVisual {
 
   private isPerspectiveLayerShown(): boolean {
     const visibleGeometryTypes = this.getVisibleGeometryTypes();
+    // Auto-tilt only when there is real height to show. The bare Extruded
+    // toggle no longer tilts the camera on its own — with no elevation it would
+    // just extrude to 0 height.
+    const polygonHasHeight =
+      this.dataset.elevationFieldBound ||
+      this.dataset.layers.polygon.some((feature) => feature.hasZ);
     const extrudedPolygonLayerShown =
-      this.formattingSettings.polygon.extruded.value === true &&
+      polygonHasHeight &&
       this.dataset.layers.polygon.length > 0 &&
       visibleGeometryTypes.has("polygon");
+    const elevatedScatterLayerShown =
+      this.dataset.scatterHasVisibleElevation &&
+      this.dataset.layers.scatter.length > 0 &&
+      visibleGeometryTypes.has("scatter");
     const arcLayerShown =
       visibleGeometryTypes.has("arc") && this.hasRenderableArcData();
 
-    return (
-      this.is3DBuildingsEnabled() || extrudedPolygonLayerShown || arcLayerShown
-    );
+    // Note: Show 3D buildings is deliberately NOT a tilt trigger. Buildings
+    // still render extruded, but they only read on a tilted camera, and forcing
+    // a tilt whenever the toggle is on (e.g. on a flat scatter/heatmap map)
+    // breaks the 2D-by-default rule. Tilt manually to see the buildings in 3D.
+    return extrudedPolygonLayerShown || elevatedScatterLayerShown || arcLayerShown;
   }
 
   private getMapPitch(): number | null {
@@ -458,6 +821,115 @@ export class Visual implements IVisual {
     }
 
     this.lastPerspectiveLayerShown = this.isPerspectiveLayerShown();
+  }
+
+  /** True when a timestamp is bound and there is a usable time domain. */
+  private isAnimationAvailable(): boolean {
+    return this.dataset.timeDomain !== null;
+  }
+
+  /** True when the camera is tilted off top-down (a 3D trigger or manual tilt). */
+  private isCameraPitched(): boolean {
+    const pitch = this.getMapPitch();
+    return pitch !== null && pitch > PITCH_EPSILON;
+  }
+
+  /**
+   * Build the per-frame animation context, or null when no timestamp is bound
+   * (layers then render exactly as before).
+   */
+  private getAnimationContext(): AnimationContext | null {
+    const domain = this.dataset.timeDomain;
+    if (!domain) {
+      return null;
+    }
+    const animation = this.formattingSettings.animation;
+    const time = Math.min(
+      domain.t1,
+      Math.max(domain.t0, this.animationTime),
+    );
+    // Time-as-height only reads on a tilted map; on a top-down view the lifted
+    // points project straight down and just look like a 2D scatter that has
+    // drifted off its coordinates. Keep the default view genuinely 2D by zeroing
+    // the derived height until the camera is pitched (an extrusion/arc/building
+    // trigger, or a manual tilt). The user opts into time-as-height by tilting.
+    const maxHeight = this.isCameraPitched()
+      ? Math.max(0, animation.maxHeight.value)
+      : 0;
+    return {
+      active: true,
+      domain,
+      time,
+      trailLength: Math.max(0, animation.trailLength.value),
+      maxHeight,
+    };
+  }
+
+  /**
+   * Sync the animation controller with the current dataset and settings, and
+   * start/stop playback to match the Play toggle. Called on each data/format
+   * update (not per frame).
+   */
+  private syncAnimationController(): void {
+    const domain = this.dataset.timeDomain;
+    this.animationController.setDomain(domain);
+    if (!domain) {
+      this.animationTime = 0;
+      return;
+    }
+    const animation = this.formattingSettings.animation;
+    this.animationController.setConfig({
+      animationSpeed: this.effectiveAnimationSpeed(animation, domain),
+      loop: animation.loop.value,
+    });
+    this.animationTime = this.animationController.getTime();
+    if (animation.play.value) {
+      this.animationController.play();
+    } else {
+      this.animationController.pause();
+    }
+  }
+
+  private setCurrentDeckLayers(
+    layers: any[],
+    layerDrawOrder: RenderableGeometryType[],
+    activeGeometryTypes: Set<RenderableGeometryType>,
+  ): void {
+    this.currentDeckLayers = layers;
+    this.currentLayerDrawOrder = layerDrawOrder;
+    this.currentActiveGeometryTypes = activeGeometryTypes;
+    this.currentActiveLayerIds = getActiveDeckLayerIds(layers);
+    this.deckOverlay?.setProps({ layers });
+  }
+
+  /**
+   * Re-render with the advanced playhead. Normal renders cache the full layer
+   * list; animation ticks clone only temporal scatter/path layers with updated
+   * uniforms and reuse all static layer objects.
+   */
+  private pushAnimationFrame(): void {
+    if (!this.deckOverlay) {
+      return;
+    }
+
+    const animation = this.getAnimationContext();
+    if (!animation || this.currentDeckLayers.length === 0) {
+      this.renderCurrentState();
+      return;
+    }
+
+    const { layers, changed } = updateTemporalAnimationLayers(
+      this.currentDeckLayers,
+      animation,
+    );
+
+    if (!changed) {
+      return;
+    }
+
+    this.currentDeckLayers = layers;
+    this.currentActiveLayerIds = getActiveDeckLayerIds(layers);
+    this.deckOverlay.setProps({ layers });
   }
 
   private applyAutomaticPitch(): boolean {
@@ -556,13 +1028,27 @@ export class Visual implements IVisual {
     this.legendContainer = null;
     this.lastLegendSignature = null;
     this.lastDataSignature = null;
+    this.lastParseHadTimestampRole = false;
     this.dataVersionCounter = 0;
     this.currentActiveGeometryTypes = new Set();
     this.currentLayerDrawOrder = [...DEFAULT_LAYER_DRAW_ORDER];
+    this.currentDeckLayers = [];
+    this.currentActiveLayerIds = [];
     this.layerOrderControl = null;
+    this.timeSliderControl = null;
     this.lastPerspectiveLayerShown = null;
     this.automaticPitchOwned = false;
     this.buildingLayerSignature = null;
+    this.animationTime = 0;
+    this.lastAnimationCameraPitched = null;
+    this.animationController = new TimeAnimationController((time) => {
+      this.animationTime = time;
+      this.pushAnimationFrame();
+      // Keep the time-slider thumb/label tracking autoplay.
+      this.renderTimeSliderControl();
+    }, undefined, undefined, undefined, () =>
+      this.handleAnimationPlaybackComplete(),
+    );
     this.rootElement = options.element;
 
     const settings =
@@ -583,6 +1069,8 @@ export class Visual implements IVisual {
         maxZoom: 20,
       });
       this.map.on("styledata", () => this.sync3DBuildingsLayer());
+      this.map.on("pitch", () => this.handleCameraPitchChanged());
+      this.map.on("pitchend", () => this.handleCameraPitchChanged());
       this.legendContainer = document.createElement("div");
       this.legendContainer.className =
         "deckgl-gradient-legend deckgl-gradient-legend--hidden";
@@ -610,10 +1098,17 @@ export class Visual implements IVisual {
           },
           pickingRadius: 5,
           getTooltip: (hoverInfo) => {
+            // Show the current playhead time only while actively playing.
+            const animationHtml = this.animationController.isPlaying()
+              ? getAnimationTimeTooltipHtml(this.getAnimationContext())
+              : null;
+
             const h3TooltipHtml = getH3HexagonTooltipHtml(hoverInfo);
             if (h3TooltipHtml) {
               return {
-                html: h3TooltipHtml,
+                html: animationHtml
+                  ? animationHtml + h3TooltipHtml
+                  : h3TooltipHtml,
                 style: {
                   "z-index": 2,
                   color: "#dbe6ef",
@@ -638,12 +1133,21 @@ export class Visual implements IVisual {
               depth: 25,
             });
 
-            if (!tooltipHtml) {
+            // Don't float a lone time banner when nothing is actually hovered.
+            if (!tooltipHtml && (!animationHtml || !hoverInfo?.object)) {
+              return null;
+            }
+
+            const combined = animationHtml
+              ? animationHtml + (tooltipHtml ?? "")
+              : (tooltipHtml ?? "");
+
+            if (!combined) {
               return null;
             }
 
             return {
-              html: tooltipHtml,
+              html: combined,
               style: {
                 "z-index": 2,
                 color: "#a0a7b4",
@@ -663,6 +1167,8 @@ export class Visual implements IVisual {
         this.map.addControl(this.createResetViewControl(), "top-left");
         this.layerOrderControl = this.createLayerOrderControl();
         this.map.addControl(this.layerOrderControl, "bottom-right");
+        this.timeSliderControl = this.createTimeSliderControl();
+        this.map.addControl(this.timeSliderControl, "bottom-left");
         this.sync3DBuildingsLayer();
 
         const pendingOptions = this.pendingOptions;
@@ -708,39 +1214,7 @@ export class Visual implements IVisual {
   }
 
   private getDataSignature(dataView: powerbi.DataView): string {
-    const categorical = dataView.categorical;
-    const category = categorical?.categories?.[0];
-    const rowCount = category?.values?.length ?? 0;
-    const sampleIndexes =
-      rowCount > 0
-        ? [0, Math.floor(rowCount / 2), rowCount - 1]
-        : [];
-    const categorySamples = sampleIndexes
-      .map((index) => String(category?.values?.[index] ?? ""))
-      .join("|");
-    const valueSignature = (categorical?.values ?? [])
-      .map((column) => {
-        const roleSignature = Object.entries(column.source?.roles ?? {})
-          .filter(([, enabled]) => enabled)
-          .map(([role]) => role)
-          .sort()
-          .join(",");
-        const values = column.values;
-        const samples = sampleIndexes
-          .map((index) => String(values?.[index] ?? ""))
-          .join(",");
-        return `${column.source?.queryName ?? column.source?.displayName}:${roleSignature}:${values?.length ?? 0}:${samples}`;
-      })
-      .join(";");
-
-    return [
-      rowCount,
-      category?.source?.queryName ?? category?.source?.displayName ?? "",
-      categorySamples,
-      valueSignature,
-      dataView.metadata?.segment ? "segmented" : "complete",
-      this.isDataFilterApplied(dataView) ? "filtered" : "unfiltered",
-    ].join("::");
+    return getDataViewSignature(dataView);
   }
 
   private shouldParseData(
@@ -759,6 +1233,18 @@ export class Visual implements IVisual {
     }
 
     if (this.hasUpdateType(options, VisualUpdateType.Data)) {
+      return true;
+    }
+
+    // Self-heal: if a timestamp role became bound since the last parse, force a
+    // re-parse even if the data-view signature did not otherwise change. This
+    // recovers the animation when a timestamp field is added after the first
+    // render (Power BI may deliver it without flagging a data update). Gated on
+    // "newly bound" so an empty-but-bound timestamp does not re-parse forever.
+    if (
+      dataViewHasRole(dataView, "timestamp") &&
+      !this.lastParseHadTimestampRole
+    ) {
       return true;
     }
 
@@ -858,14 +1344,19 @@ export class Visual implements IVisual {
 
   private clearData() {
     this.dataVersionCounter += 1;
+    this.animationController.setDomain(null);
+    this.animationTime = 0;
     this.dataset = createEmptyDatasetSnapshot(String(this.dataVersionCounter));
     this.dataPoints = this.dataset.layers.all;
     this.selectedIds.clear();
     this.lastDataSignature = null;
+    this.lastParseHadTimestampRole = false;
     this.lastLegendSignature = null;
     this.hasInitialViewBeenSet = false;
     this.currentActiveGeometryTypes = new Set();
     this.currentLayerDrawOrder = [...DEFAULT_LAYER_DRAW_ORDER];
+    this.currentDeckLayers = [];
+    this.currentActiveLayerIds = [];
     this.deckOverlay?.setProps({ layers: [] });
     if (this.legendContainer) {
       renderGradientLegend(
@@ -875,6 +1366,7 @@ export class Visual implements IVisual {
       );
     }
     this.renderLayerOrderControl();
+    this.renderTimeSliderControl();
     this.updateOverlayLayout();
     this.applyAutomaticPitch();
   }
@@ -893,6 +1385,7 @@ export class Visual implements IVisual {
       );
       this.dataPoints = this.dataset.layers.all;
       this.lastDataSignature = this.getDataSignature(dataView);
+      this.lastParseHadTimestampRole = dataViewHasRole(dataView, "timestamp");
       this.pruneSelectionToVisibleIds();
       if (this.dataPoints.length === 0) {
         this.hasInitialViewBeenSet = false;
@@ -1024,9 +1517,7 @@ export class Visual implements IVisual {
   }
 
   private getActiveLayerIds(): string[] {
-    return this.currentLayerDrawOrder
-      .filter((geometryType) => this.currentActiveGeometryTypes.has(geometryType))
-      .map((geometryType) => LAYER_IDS[geometryType]);
+    return this.currentActiveLayerIds;
   }
 
   private renderLayerOrderControl() {
@@ -1139,18 +1630,19 @@ export class Visual implements IVisual {
     this.lastLegendSignature = signature;
   }
 
-  private renderCurrentState(dataView = this.lastOptions?.dataViews?.[0]) {
-    if (!this.deckOverlay) {
-      return;
-    }
-
-    this.measureTask("powerbi-deckgl-map:render", () => {
+  private buildDeckLayers(): {
+    layers: any[];
+    layerDrawOrder: RenderableGeometryType[];
+    activeGeometryTypes: Set<RenderableGeometryType>;
+  } {
+    {
       const visualSelectedIds = this.getVisualSelectedIds();
       const selectedSignature = this.getSetSignature(visualSelectedIds);
       const settings = this.formattingSettings;
       const layerData = this.dataset.layers;
       const layerDrawOrder = this.getLayerDrawOrder();
       const activeGeometryTypes = new Set<RenderableGeometryType>();
+      const animation = this.getAnimationContext();
       const layers = [];
 
       for (const geometryType of layerDrawOrder) {
@@ -1197,6 +1689,7 @@ export class Visual implements IVisual {
                 this.classificationCache,
                 this.dataset.version,
                 this.onClick,
+                animation,
               ),
             );
           }
@@ -1240,6 +1733,7 @@ export class Visual implements IVisual {
               this.classificationCache,
               this.dataset.version,
               this.onClick,
+              animation,
             ),
           );
         } else if (geometryType === "polygon") {
@@ -1259,10 +1753,21 @@ export class Visual implements IVisual {
         }
       }
 
-      this.currentLayerDrawOrder = layerDrawOrder;
-      this.currentActiveGeometryTypes = activeGeometryTypes;
-      this.deckOverlay.setProps({ layers });
+      return { layers, layerDrawOrder, activeGeometryTypes };
+    }
+  }
+
+  private renderCurrentState(dataView = this.lastOptions?.dataViews?.[0]) {
+    if (!this.deckOverlay) {
+      return;
+    }
+
+    this.measureTask("powerbi-deckgl-map:render", () => {
+      const { layers, layerDrawOrder, activeGeometryTypes } =
+        this.buildDeckLayers();
+      this.setCurrentDeckLayers(layers, layerDrawOrder, activeGeometryTypes);
       this.renderLayerOrderControl();
+      this.renderTimeSliderControl();
       this.renderLegend(dataView);
       this.updateOverlayLayout();
     });
@@ -1290,6 +1795,7 @@ export class Visual implements IVisual {
     }
     this.updateBaseMap();
     this.renderLayerOrderControl();
+    this.renderTimeSliderControl();
     this.updateOverlayLayout();
 
     if (!dataView) {
@@ -1305,6 +1811,7 @@ export class Visual implements IVisual {
     const parseData = this.shouldParseData(options, dataView);
     if (parseData) {
       this.processData(options, dataView);
+      this.syncAnimationController();
       this.renderCurrentState(dataView);
       const didFlyTo = this.applyFlyTo(dataView);
       if (!didFlyTo) {
@@ -1317,11 +1824,18 @@ export class Visual implements IVisual {
       return;
     }
 
+    this.syncAnimationController();
     this.renderCurrentState(dataView);
     this.applyAutomaticPitch();
   }
 
   public getFormattingModel(): powerbi.visuals.FormattingModel {
+    // Hide the Animation card unless a timestamp is bound, so its controls
+    // don't appear when they cannot do anything.
+    this.formattingSettings.animation.visible = this.isAnimationAvailable();
+    // Show only the classification inputs that apply to each gradient's
+    // selected method, so irrelevant boxes don't appear in the pane.
+    this.formattingSettings.applyConditionalVisibility();
     return this.formattingSettingsService.buildFormattingModel(
       this.formattingSettings,
     );
@@ -1329,6 +1843,7 @@ export class Visual implements IVisual {
 
   public destroy(): void {
     this.pendingOptions = null;
+    this.animationController.stop();
     this.selectedIds.clear();
     this.geometryCache.clear();
     this.classificationCache.clear();
@@ -1339,6 +1854,7 @@ export class Visual implements IVisual {
     }
     this.deckOverlay = null;
     this.layerOrderControl = null;
+    this.timeSliderControl = null;
     try {
       this.map?.remove?.();
     } catch {
@@ -1349,4 +1865,3 @@ export class Visual implements IVisual {
     this.legendContainer = null;
   }
 }
-

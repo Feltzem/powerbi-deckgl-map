@@ -35,6 +35,7 @@ const makeScatterPoint = (lat: number, lon: number): OurData =>
       lat,
       lon,
       radius: null,
+      elevation: null,
       heatmapWeight: null,
     },
   }) as OurData;

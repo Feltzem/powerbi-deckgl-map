@@ -1,6 +1,6 @@
 # Power BI deck.gl map custom visual
 
-High-performance Power BI custom visual using [deck.gl](https://deck.gl/) and MapLibre for WebGL map rendering. It supports multiple geometry layers in one visual, row-level styling, numeric colour gradients, geometry-aware legends, custom HTML tooltips with geometry-type icons, selection highlighting, polygon extrusion, and on-map layer ordering. It currently focuses on geometry layers rather than text or icon layers.
+High-performance Power BI custom visual using [deck.gl](https://deck.gl/) and MapLibre for WebGL map rendering. It supports multiple geometry layers in one visual, row-level styling, numeric colour gradients, geometry-aware legends, custom HTML tooltips with geometry-type icons, selection highlighting, scatter elevation, 3D stacked polygon prisms, time animation with an on-map time slider, and on-map layer ordering. It currently focuses on geometry layers rather than text or icon layers.
 
 ## Install
 
@@ -31,16 +31,53 @@ The demo dashboard is intentionally Hamilton-sized so it opens quickly and stays
   cross while keeping the existing fill and outline styling.
 - Mixed-geometry maps: use one Power BI table with a `Layer Type` field containing `scatter`, `line`, `arc`, `path`, or `polygon`. These layer identifiers can be changed in the Format pane.
 - Geometry inputs:
-  - Scatter uses `Point1 Latitude` and `Point1 Longitude`.
+  - Scatter uses `Point1 Latitude` and `Point1 Longitude`, with optional `Scatter elevation (m)` for direct Z placement.
   - Line and arc use `Point1` and `Point2` latitude/longitude pairs.
   - Path uses WKT or WKP `LineString` / `MultiLineString` geometry.
   - Polygon uses WKT or WKP `Polygon` / `MultiPolygon` geometry.
-- Per-row styling: bind width, radius, fill colour, line colour, arc source colour, arc target colour, and polygon extrusion height fields, with Format pane defaults as fallbacks.
+- Per-row styling: bind width, radius, scatter elevation, fill colour, line colour, arc source colour, arc target colour, and polygon extrusion height fields, with Format pane defaults as fallbacks.
 - Colour inputs: colour buckets accept `#RGB`, `#RRGGBB`, `#RRGGBBAA`, `rgb(...)`, `rgba(...)`, numeric values, or categorical text values.
 - Numeric gradients: numeric colour fields can be mapped through preset gradients with natural breaks, quantile, equal interval, or defined interval classification. Active numeric colour fields render scrollable gradient legends.
 - Categorical palettes: non-empty text that is not a valid direct colour and not a strict number is mapped through a qualitative palette such as Modern, Dark, or Neon. Active categorical colour fields render category legends.
 - Legend formatting: the `Legend` Format pane card controls colour legend visibility, background opacity, heading/value fonts, classification type text, and colour scale bars. Each legend heading shows the compact geometry-type icon for its layer. Classification type text and colour scale bars apply to numeric legends only.
-- 3D camera: polygons can be extruded using a height field or default settings. `Map properties` > `Show 3D buildings` adds OpenStreetMap building extrusions; `3D buildings zoom` controls the zoom level where they appear at full height. When buildings, extruded polygons, or valid arcs are currently rendered, the map automatically tilts to 45 degrees.
+- 2D by default, 3D when it matters: the map opens **top-down (pitch 0)** and
+  stays 2D unless there is real height to show. It tilts to 45° automatically
+  only when elevated scatter points are drawn, a field is bound to `Polygon
+  extrude elevation`, arcs are drawn, or polygons carry a baked ring Z. You can
+  always tilt manually (right-drag / Ctrl-drag), and a manual tilt is preserved.
+- 3D camera: `Map properties` > `Show 3D buildings` adds OpenStreetMap building
+  extrusions; `3D buildings zoom` controls the zoom level where they appear at
+  full height. Buildings and the `Polygon properties` > `Extruded` toggle render
+  their height but do **not** tilt the camera on their own — bind
+  `Scatter elevation (m)` / `Polygon extrude elevation` (or tilt manually) to
+  view them in 3D.
+- 3D stacked polygon prisms (e.g. by start/end datetime): paths and polygons
+  supplied as 3D WKT (`LINESTRING Z`, `POLYGON Z`) or 3D WKP carry a per-vertex
+  Z. Paths float at their baked elevation, and 3D polygons render as **floating
+  prisms** whose **base** is the ring Z and whose **height** is the
+  `Polygon extrude elevation` value. Mapping a feature's **start** time to the
+  base and its **duration** to the height makes features at the same footprint
+  stack into a column — e.g. successive validity windows of a parking
+  restriction along a road. This stacking is **static** (baked into the data, not
+  driven by the animation playhead). 2D geometry is unchanged. See
+  [3D Geometry (Z) and Stacked Prisms](#3d-geometry-z-and-stacked-prisms).
+- Scatter elevation: scatter points can bind `Scatter elevation (m)` to place
+  each point directly on the Z axis. This is useful for aligning timestamped
+  detections, such as LPR plate reads, with pre-baked temporal polygon prisms.
+  If both `Scatter elevation (m)` and `Timestamp` are bound, the explicit
+  elevation controls point height and timestamp still controls animation/window
+  visibility.
+- Time animation with a time slider: bind a `Timestamp` field (datetime or
+  numeric seconds) and use the `Animation properties` card to play a
+  trailing-window animation inside the visual — points and paths appear and
+  disappear as the playhead sweeps. `Animation speed`, `Play`, and `Loop`
+  control playback; an optional on-map time slider (`Layer controls` >
+  `Show time slider`) adds scrub, play/pause, speed, and a live time label.
+  While playing, the tooltip shows the current playhead time. Scatter points can
+  also rise into a vertical time-rug by their timestamp (`Max height`), but
+  **only when the camera is tilted** — on the default top-down view they stay
+  flat. The card is hidden when no timestamp is bound. See
+  [Time-Based Animation](#time-based-animation).
 - Tooltips: bind `Tooltip HTML` for custom sanitized HTML tooltips. Multi-layer tooltips follow the current visual layer order and show a compact geometry-type icon in the top-right of each feature section. H3 hexagons show their joined point count from the aggregate cell, separately from the `Tooltip HTML` bucket.
 - Interaction: click selection/highlighting, hover highlighting, configurable fade for unselected polygons, reset view, fly-to, and selectable base maps.
 - Layer ordering: multi-geometry visuals can reorder layer stacking directly on the map. The compact on-map layer order pane is off by default; turn on `Layer controls` > `Show layer order control` to use it. The visual persists the order with the report.
@@ -55,6 +92,117 @@ Because Power BI custom visuals receive one categorical data view, multi-layer m
 To render a scatter heatmap, add scatter rows as usual, then turn on `Heatmap properties` > `Show heatmap`. Bind `Heatmap weight` when each point should contribute a numeric amount; otherwise each scatter point contributes equally. Use `Show scatter points` to keep or hide the original point layer while the heatmap is active.
 
 To render H3 hexagons from scatter rows, turn on `H3 hexagon properties` > `Show H3 hexagons`. Each scatter row contributes one point to its H3 cell; only occupied cells render. Use `H3 resolution` to choose the standard H3 cell size. The fill gradient follows joined point count, while the dark grey outline uses the same count-based opacity settings. Hover a hexagon to see its joined point count; the H3 tooltip does not use the `Tooltip HTML` bucket.
+
+## 3D Geometry (Z) and Stacked Prisms
+
+The visual reads a per-vertex Z (height, in metres) from any 3D path or polygon geometry, and reads direct scatter-point Z from `Scatter elevation (m)`. This is what lets you stack geometry by a time or numeric attribute without any animation — the height is baked into, or bound alongside, the data itself.
+
+### Supplying Z
+
+For paths and polygons, Z can come from either geometry encoding:
+
+- **3D WKT**: `LINESTRING Z (lon lat z, ...)` or `POLYGON Z ((lon lat z, ...))`. Any 2D WKT (no `Z`) is unchanged.
+- **3D WKP**: a WKP string whose dimension header declares 3 dimensions, so every vertex carries `[lon, lat, z]`. 2D WKP is unchanged.
+
+When any vertex of a feature carries a finite Z, the visual switches that layer to read the Z; otherwise it behaves exactly as before. You do not toggle anything — supplying 3D geometry is enough.
+
+For scatter points, bind a numeric `Scatter elevation (m)` column alongside `Point1 Latitude` and `Point1 Longitude`. Use the same metre scale as polygon Z and polygon extrusion when you want points to align with stacked prisms.
+
+### How Z renders per geometry type
+
+- **Paths** float at their baked Z. A `LINESTRING Z` whose vertices share `z = 500` draws the whole line 500 m above the basemap. The Z can also vary per vertex to draw a sloping line.
+- **Polygons** become **floating prisms**. The ring's Z is the **base** of the prism, and the `Polygon extrude elevation` field (or the Format pane default) is the **height added on top**. So a polygon with ring `z = 300` and an extrude elevation of `200` renders a prism whose floor is at 300 m and whose roof is at 500 m. A 3D polygon is auto-extruded even if the `Extruded` toggle is off, and because the ring carries a Z the camera auto-tilts to 45° so the prisms are visible.
+- **Scatter points** sit at `Scatter elevation (m)` when that field is bound. A point with elevation `300` renders 300 m above the basemap. When `Timestamp` is also bound, the timestamp controls animation visibility but does not override the explicit elevation.
+
+2D polygons keep the existing behaviour: flat on the ground. Turning on `Polygon properties` > `Extruded` for 2D polygons extrudes them by the `Polygon extrude elevation` value, but the camera only auto-tilts when that elevation field is actually bound (otherwise you can tilt manually).
+
+### Stacking polygons by a start/end datetime (the parking-review "walls")
+
+Because the base and the height are independent, you can encode a **time range** (a start and an end) as a floating block, and features that share a footprint but cover **sequential, non-overlapping** ranges stack base-to-top into a column. Laid along a road centreline this gives the stacked "Gantt in 3D" look: each prism's floor and ceiling mark *when* that version was in force.
+
+You do this in **two layers of data**, computed once when you prepare the table (it is static — it does not move with the animation playhead):
+
+1. **Base Z — baked into the WKP/WKT geometry ring.** For each feature, map its **start** datetime to a base height within the dataset's full time range `[T0, T1]`:
+
+   `base = (start - T0) / (T1 - T0) * MAX_HEIGHT`
+
+   Write that `base` as the Z ordinate of every vertex of the polygon ring, and emit the ring as 3D WKP (3-dimension header) or `POLYGON Z (...)` WKT. (Power BI cannot bake a per-vertex Z for you — produce the 3D geometry in your ETL/Python step, as the sample generator does.)
+
+2. **Height — bound to the `Polygon extrude elevation` field.** Map each feature's **duration** to a height the same way, and put it in a normal table column:
+
+   `height = (end - start) / (T1 - T0) * MAX_HEIGHT`
+
+   Bind that column to `Polygon extrude elevation` in the visual.
+
+Pick a single `MAX_HEIGHT` (in metres) for the whole dataset so every feature shares one vertical scale. Keep a human-readable `valid_from` / `valid_to` (and a `tooltip_html`) so the prism can label its window on hover. Bind `Polygon fill` to a categorical field (e.g. parking type) for a category legend, or to a numeric measure (e.g. occupancy) for a gradient ramp.
+
+#### Setting it up in the visual
+
+1. Add `Geometry ID`, set `Layer Type` to `polygon`, and bind the 3D `wkp` (or `wkt`) column to the WKP/WKT geometry input.
+2. Bind your `height` column to **`Polygon extrude elevation`**.
+3. Bind `Polygon fill` to the category or measure you want to colour by, and `Tooltip HTML` to your label.
+4. **Make every field deliver one value per `Geometry ID`** so Power BI does not group or aggregate it away. There is one row per prism, so any aggregation returns the right number, but it is safer to be explicit:
+   - **Text fields** (e.g. `parking_type` on `Polygon fill`, and `tooltip_html`): if the field well shows the column *grouping* the data, switch it to **First** (e.g. `First parking_type`) — or set the column to **Don't summarize**.
+   - **Numeric fields** (e.g. `polygon_extrude_elevation`): numeric wells have no "Don't summarize", so leave the default **Sum**/**Average** (both equal the value when there is one row per ID), or wrap it in a `MIN`/`MAX`/`First` measure if you want to be explicit.
+5. The visual auto-extrudes the prisms and tilts to 45° because the ring carries a Z. No Animation card is needed — stacking is static.
+
+A tracked example is in [`samples/hamilton/hamilton_sa2_consents_stacked.csv`](samples/hamilton/hamilton_sa2_consents_stacked.csv). Its key columns are `geometry_id, layer_type, wkt, polygon_fill_color_hex, polygon_line_color_hex, polygon_extrude_elevation_m, base_elevation_m, valid_from, valid_to, timestamp, tooltip_html`. Import it and bind `geometry_id`, `layer_type`, `wkt`, `polygon_fill_color_hex`, `polygon_line_color_hex`, `polygon_extrude_elevation_m`, and `tooltip_html`. The `valid_from` / `valid_to` columns are authoring-time context; the visual does not read them, so leave them out of the field well.
+
+## Time-Based Animation
+
+When you bind a `Timestamp` field, the visual can play a smooth, in-visual animation that sweeps a trailing time window across the data — points and paths appear and disappear as the playhead moves. Playback runs entirely inside the visual on the GPU, so it does **not** re-query Power BI per frame and stays smooth where a slicer-driven re-query could not.
+
+### Formatting your data
+
+Each row that should animate needs **one timestamp value**, in the same combined table as the rest of your geometry:
+
+- Add a single `timestamp` column alongside the usual `geometry_id`, `layer_type`, and geometry fields (e.g. `point1_latitude` / `point1_longitude` for scatter, or `wkp` / `wkt` for paths).
+- The column can be a **datetime** (e.g. `2026-06-08T09:00:00Z`) **or** a **number already expressed in Unix seconds** (e.g. `1781510400`). The visual normalises both to Unix seconds.
+- Rows that should stay on screen as static context can simply leave `timestamp` blank — untimed rows are always visible and never hidden by the trailing window.
+
+Unlike the stacked prisms above, time animation needs **no baked Z and no extra height column** when you want the visual to derive scatter height from time — the single timestamp is enough. Bind `Scatter elevation (m)` instead when you have prepared exact point Z values that must align with other 3D geometry.
+
+### Setup
+
+1. Bind the `Timestamp` field. The visual derives a `[t0, t1]` time domain across every bound row. With no timestamp bound, the animation is inert and the `Animation properties` card is hidden, so existing reports are unaffected.
+2. Open `Animation properties` and turn on `Play`, or turn on `Layer controls` > `Show time slider` and use the on-map slider to scrub/play.
+
+### The Animation properties card
+
+- **Play** — start/stop the in-visual playback loop. The loop advances continuously (independent of the frame rate) using a real-time clock.
+- **Loop** — restart from the beginning when the playhead reaches the end; otherwise it stops at the end.
+- **Speed mode** — choose `Duration` to play the whole time span in a fixed wall-clock duration, or `Multiplier` to use a fixed number of simulated seconds per real second.
+- **Animation duration (seconds)** — in Duration mode, how long one full pass through the current time span takes.
+- **Animation speed (sim seconds / real second)** — in Multiplier mode, how much simulated time elapses per real second of playback. `60` means one real second covers a simulated minute.
+- **Trail length (seconds)** — the width of the visible trailing window. A feature is visible only when its timestamp falls within `[time - trail length, time]`.
+- **Max height (meters)** — the height a point rises to at the latest timestamp **when the camera is tilted** (see the time-rug note below). Has no effect on the default top-down view.
+
+### What animates
+
+- **Scatter points** appear and disappear as the trailing window slides over their timestamp. If `Scatter elevation (m)` is bound, points keep that explicit Z height. Otherwise, on a tilted (3D) camera they can rise into a vertical **time rug** — each point's height is `(timestamp - t0) / (t1 - t0) * Max height`, so the newest points sit highest. On the default **top-down** view the derived rug is suppressed (points stay flat), so a 2D animation reads cleanly; tilt the map (right-drag / Ctrl-drag) to bring the time-rug height in. Bind `Scatter radius` and `Scatter fill` to make the animation legible (a sequential fill by time reads as a moving leading edge).
+- **Paths** appear and disappear as a whole when their timestamp enters or leaves the trailing window (efficient GPU discard — the layer is not rebuilt per frame).
+- **Rows without a timestamp** stay at ground level and remain visible throughout, so static context geometry can share the same table.
+
+Geometry that already carries a **baked Z** (3D WKT/WKP, above), or scatter points with bound `Scatter elevation (m)`, keep that elevation at any pitch — the timestamp then only controls trailing-window visibility, not height. So you can mix authoring styles: 2D points whose time-rug height the visual derives from time (visible once you tilt), explicitly elevated scatter points, and 3D geometry whose height is baked in and shows at any tilt.
+
+While the animation is playing, hovering any feature shows the current playhead time at the top of the tooltip (a localized date/time for datetime sources, or the raw value for arbitrary numeric ones).
+
+### On-map time slider
+
+For interactive exploration, turn on `Layer controls` > `Show time slider`. A compact bar appears at the bottom-left of the map with step-back / play-pause / step-forward buttons, a draggable timeline, and a live time label. The slider only shows when a `Timestamp` is bound, and is off by default.
+
+- **Drag the timeline** to scrub directly to any instant; the geometry updates to that moment. Scrubbing pauses playback.
+- **Play/pause** on the bar mirrors the `Animation properties` > `Play` toggle (they stay in sync).
+- **Step** buttons jump backward/forward by a fraction of the time range.
+- **Speed** button switches to Duration mode and cycles full-pass durations (`120s` → `60s` → `30s` → `15s` → `8s` → `4s`), staying in sync with `Animation properties`.
+
+This slider scrubs the **in-visual playhead** — a GPU frame position. It is deliberately different from the [powerbi-time-slicer](https://github.com/Feltzem/powerbi-time-slicer): the time-slicer applies a Power BI filter that re-queries the data model (good for coarse, cross-page range selection), whereas the on-map slider moves the animation frame smoothly without re-querying. Use the time-slicer to pick the slice of data, and the on-map slider (or `Play`) to move through it.
+
+A tracked example is in [`samples/hamilton/hamilton_geonet_earthquake_point.csv`](samples/hamilton/hamilton_geonet_earthquake_point.csv): a timestamped scatter table for the time-rug. Its key columns are `geometry_id, layer_type, point1_latitude, point1_longitude, timestamp, scatter_radius, scatter_fill_color_hex, tooltip_html`. For an obvious demo bind `timestamp`, set `Trail length` to `120`, `Animation speed` to `60`, turn on `Loop`, then tilt the map and set `Max height` to `1500` to bring the time-rug in.
+
+### Combining with the time-slicer for coarse filtering
+
+The animation loop handles **fine, smooth playback**. To also scrub a **coarse range** (a single day, a zone), add the [powerbi-time-slicer](https://github.com/Feltzem/powerbi-time-slicer) to the page and bind it to the same datetime column. As a filter-based slicer it narrows the rows that reach this visual; the visual recomputes its `[t0, t1]` domain from whatever arrives and animates within that. So the slicer picks the slice of time, and the in-visual loop plays smoothly inside it. (The slicer's own "play" steps via data-model re-queries and is best used for coarse stepping, not frame-by-frame motion.)
 
 Terminology and options closely match deck.gl:
 
@@ -87,13 +235,17 @@ Secondly, you can filter the selected shapes by click. This is two way:
 
 - Public Hamilton demo CSVs: `samples/hamilton/*.csv`
 - Hamilton sample manifest: `samples/hamilton/manifest.json`
-- Hamilton TLA boundary artifact: `samples/hamilton/statsnz_hamilton_territorial_authority_2023_generalised.geojson`
 - Combined Hamilton map table: `samples/hamilton/hamilton_multigeometry_road_density_map.csv`
 - Matching Python transform script: `scripts/build_powerbi_table.py`
 
+### 3D Z and animation samples
+
+- Time-animation table: [`samples/hamilton/hamilton_geonet_earthquake_point.csv`](samples/hamilton/hamilton_geonet_earthquake_point.csv) - a timestamped scatter time-rug for the **Time-Based Animation** section above.
+- Stacked polygon-prism table: [`samples/hamilton/hamilton_sa2_consents_stacked.csv`](samples/hamilton/hamilton_sa2_consents_stacked.csv) - static stacked SA2 consent prisms for the **Stacked Prisms** section above.
+
 ## Future Ideas
 
-Potential future enhancements include Z-coordinate support for path and polygon geometry, satellite basemaps, Power BI standard highlight integration, and additional deck.gl layers such as column layers.
+Potential future enhancements include satellite basemaps, Power BI standard highlight integration, and additional deck.gl layers such as column layers.
 
 ## Developing
 
@@ -259,7 +411,7 @@ Then choose the palette in the Format pane:
 
 ### Scatter
 
-For points, use `Scatter fill` for the point body and `Scatter line color` for the outline. Each can take a text colour measure, a numeric measure, or categorical text. If you use numeric values, configure the matching `Fill ...` or `Line ...` gradient settings in `Scatter properties`. If you use categorical text, configure the matching categorical palette setting. Use `Scatter properties` > `Symbol type` to choose a layer-wide point shape: circle, square, diamond, triangle, inverted triangle, hexagon, pentagon, star, cross, or X cross.
+For points, use `Scatter fill` for the point body and `Scatter line color` for the outline. Bind `Scatter elevation (m)` when each point should sit at a prepared Z height, for example LPR detections aligned to the temporal level of stacked parking-restriction prisms. Each colour bucket can take a text colour measure, a numeric measure, or categorical text. If you use numeric values, configure the matching `Fill ...` or `Line ...` gradient settings in `Scatter properties`. If you use categorical text, configure the matching categorical palette setting. Use `Scatter properties` > `Symbol type` to choose a layer-wide point shape: circle, square, diamond, triangle, inverted triangle, hexagon, pentagon, star, cross, or X cross.
 
 ### Line
 
