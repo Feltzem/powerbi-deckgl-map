@@ -55,6 +55,17 @@
       "description": "The radius of scatter in meters"
     },
     {
+      "displayName": "Scatter elevation (m)",
+      "name": "scatterElevation",
+      "kind": "Measure",
+      "description": "Optional per-row height for scatter points, in meters",
+      "preferredTypes": [
+        {
+          "numeric": true
+        }
+      ]
+    },
+    {
       "displayName": "Heatmap weight",
       "name": "heatmapWeight",
       "kind": "Measure",
@@ -177,7 +188,12 @@
       "displayName": "Polygon extrude elevation (meters)",
       "name": "polygonExtrudeElevation",
       "kind": "Measure",
-      "description": "Height to extrude the polygon, in meters"
+      "description": "Height to extrude the polygon, in meters",
+      "preferredTypes": [
+        {
+          "numeric": true
+        }
+      ]
     },
     {
       "displayName": "Arc line width (m)",
@@ -416,6 +432,16 @@
         "loop": {
           "type": {
             "bool": true
+          }
+        },
+        "speedMode": {
+          "type": {
+            "enumeration": []
+          }
+        },
+        "animationDuration": {
+          "type": {
+            "numeric": true
           }
         },
         "animationSpeed": {
@@ -1226,6 +1252,11 @@
               },
               {
                 "bind": {
+                  "to": "scatterElevation"
+                }
+              },
+              {
+                "bind": {
                   "to": "heatmapWeight"
                 }
               },
@@ -1367,6 +1398,11 @@
             {
               "bind": {
                 "to": "scatterRadius"
+              }
+            },
+            {
+              "bind": {
+                "to": "scatterElevation"
               }
             },
             {

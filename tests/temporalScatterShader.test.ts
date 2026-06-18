@@ -15,6 +15,10 @@ const scatterSymbolSource = readFileSync(
   join(here, "..", "src", "layers", "scatterSymbolLayer.ts"),
   "utf8",
 );
+const temporalScatterSource = readFileSync(
+  join(here, "..", "src", "layers", "temporalScatterLayer.ts"),
+  "utf8",
+);
 
 test("base scatter symbol shader still contains the temporal layer anchors", () => {
   assert.ok(
@@ -29,5 +33,22 @@ test("base scatter symbol shader still contains the temporal layer anchors", () 
   assert.ok(
     scatterSymbolSource.includes("geometry.worldPosition = instancePositions;"),
     "worldPosition anchor missing",
+  );
+});
+
+test("temporal scatter shader preserves explicit scatter elevation", () => {
+  assert.ok(
+    temporalScatterSource.includes("in float instanceHasElevation;"),
+    "elevation flag attribute missing",
+  );
+  assert.ok(
+    temporalScatterSource.includes("bool hasElevation = instanceHasElevation > 0.5;"),
+    "elevation flag setup missing",
+  );
+  assert.ok(
+    temporalScatterSource.includes(
+      "if (hasTimestamp && !hasElevation && temporalScatter.deriveHeight > 0.5",
+    ),
+    "timestamp-derived height should be skipped when elevation is bound",
   );
 });

@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { advanceTime, TimeAnimationController } from "../src/timeAnimation";
+import {
+  advanceTime,
+  resolveAnimationSpeed,
+  TimeAnimationController,
+} from "../src/timeAnimation";
 
 const domain = { t0: 0, t1: 100 };
 
@@ -12,10 +16,10 @@ test("advanceTime moves forward by speed * delta", () => {
   );
 });
 
-test("advanceTime wraps to t0 past t1 when looping", () => {
+test("advanceTime wraps with overshoot past t1 when looping", () => {
   assert.equal(
     advanceTime(99, 1, domain, { animationSpeed: 60, loop: true }),
-    0,
+    59,
   );
 });
 
@@ -38,10 +42,82 @@ test("advanceTime ignores negative/NaN deltas and speeds", () => {
   );
 });
 
+test("resolveAnimationSpeed: duration mode fits the span into the duration", () => {
+  // 100s span played over 20s -> 5 sim-sec per real-sec.
+  assert.equal(
+    resolveAnimationSpeed({
+      durationMode: true,
+      durationSeconds: 20,
+      multiplier: 60,
+      domain,
+    }),
+    5,
+  );
+  // A multi-year span plays in the same duration -> a much larger speed.
+  const wide = { t0: 0, t1: 205_000_000 };
+  assert.equal(
+    resolveAnimationSpeed({
+      durationMode: true,
+      durationSeconds: 30,
+      multiplier: 60,
+      domain: wide,
+    }),
+    205_000_000 / 30,
+  );
+});
+
+test("resolveAnimationSpeed: multiplier mode returns the raw multiplier", () => {
+  assert.equal(
+    resolveAnimationSpeed({
+      durationMode: false,
+      durationSeconds: 30,
+      multiplier: 1200,
+      domain,
+    }),
+    1200,
+  );
+});
+
+test("resolveAnimationSpeed: falls back to multiplier without a usable domain", () => {
+  assert.equal(
+    resolveAnimationSpeed({
+      durationMode: true,
+      durationSeconds: 30,
+      multiplier: 60,
+      domain: null,
+    }),
+    60,
+  );
+  // Zero-width domain cannot be fitted; fall back to the multiplier.
+  assert.equal(
+    resolveAnimationSpeed({
+      durationMode: true,
+      durationSeconds: 30,
+      multiplier: 60,
+      domain: { t0: 5, t1: 5 },
+    }),
+    60,
+  );
+});
+
+test("resolveAnimationSpeed: clamps a duration below 1 second", () => {
+  // durationSeconds is floored at 1, so a 100s span yields at most 100x.
+  assert.equal(
+    resolveAnimationSpeed({
+      durationMode: true,
+      durationSeconds: 0,
+      multiplier: 60,
+      domain,
+    }),
+    100,
+  );
+});
+
 // A controller driven by a manual frame queue and clock so the RAF loop is
 // deterministic in the test environment.
 const makeHarness = () => {
   const ticks: number[] = [];
+  let completeCount = 0;
   let nowMs = 0;
   const frames: Array<() => void> = [];
   const controller = new TimeAnimationController(
@@ -52,6 +128,9 @@ const makeHarness = () => {
     },
     () => {},
     () => nowMs,
+    () => {
+      completeCount += 1;
+    },
   );
   const runFrame = () => {
     const next = frames.shift();
@@ -61,7 +140,15 @@ const makeHarness = () => {
     nowMs += ms;
   };
   const pendingFrames = () => frames.length;
-  return { controller, ticks, runFrame, advanceClock, pendingFrames };
+  const completions = () => completeCount;
+  return {
+    controller,
+    ticks,
+    runFrame,
+    advanceClock,
+    pendingFrames,
+    completions,
+  };
 };
 
 test("controller resets to t0 on a new domain and stays inert until play", () => {
@@ -117,21 +204,20 @@ test("controller setDomain(null) stops playback", () => {
 });
 
 test("controller stops scheduling frames once it clamps at t1 (loop off)", () => {
-  const { controller, runFrame, advanceClock, pendingFrames } = makeHarness();
+  const { controller, runFrame, advanceClock, pendingFrames, completions } =
+    makeHarness();
   controller.setDomain({ t0: 0, t1: 10 });
   controller.setConfig({ animationSpeed: 100, loop: false });
   controller.play();
 
-  // Baseline frame, then a big step that clamps to t1.
+  // Baseline frame, then a big step that clamps to t1 and completes.
   runFrame();
   advanceClock(1000);
   runFrame();
   assert.equal(controller.getTime(), 10);
-  // A further frame at t1 detects no change and stops scheduling.
-  advanceClock(1000);
-  runFrame();
   assert.equal(controller.isPlaying(), false);
   assert.equal(pendingFrames(), 0);
+  assert.equal(completions(), 1);
 });
 
 test("controller keeps looping at the end when loop is on", () => {

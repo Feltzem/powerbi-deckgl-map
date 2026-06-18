@@ -34,6 +34,7 @@ export const advanceTime = (
   config: AnimationConfig,
 ): number => {
   const { t0, t1 } = domain;
+  const span = t1 - t0;
   const speed = Number.isFinite(config.animationSpeed)
     ? Math.max(0, config.animationSpeed)
     : 0;
@@ -42,12 +43,41 @@ export const advanceTime = (
     : 0;
   let next = current + speed * delta;
   if (next > t1) {
-    next = config.loop ? t0 : t1;
+    next =
+      config.loop && span > 0
+        ? t0 + ((next - t0) % span)
+        : t1;
   }
   if (next < t0) {
     next = t0;
   }
   return next;
+};
+
+/**
+ * Resolve the effective playback speed (simulated seconds per real second) that
+ * `advanceTime`/`AnimationConfig` consume.
+ *
+ * In "duration" mode the whole time span is made to play in a fixed wall-clock
+ * `durationSeconds`, so the speed auto-fits the data extent: a one-week domain
+ * and a multi-year domain both complete one pass in the same wall-clock time.
+ * In "multiplier" mode (or before a domain is known) the raw multiplier is used
+ * unchanged, preserving the original fixed-rate behaviour.
+ */
+export const resolveAnimationSpeed = (params: {
+  durationMode: boolean;
+  durationSeconds: number;
+  multiplier: number;
+  domain: TimeDomain | null;
+}): number => {
+  const { durationMode, durationSeconds, multiplier, domain } = params;
+  if (durationMode && domain) {
+    const span = domain.t1 - domain.t0;
+    if (Number.isFinite(span) && span > 0) {
+      return span / Math.max(1, durationSeconds);
+    }
+  }
+  return Number.isFinite(multiplier) ? Math.max(0, multiplier) : 0;
 };
 
 type Now = () => number;
@@ -74,6 +104,7 @@ export class TimeAnimationController {
       cancelAnimationFrame(handle),
     private readonly now: Now = () =>
       typeof performance !== "undefined" ? performance.now() : Date.now(),
+    private readonly onPlaybackComplete: () => void = () => undefined,
   ) {}
 
   getTime(): number {
@@ -176,17 +207,16 @@ export class TimeAnimationController {
     }
 
     // When not looping and the playhead has reached t1 (after at least one real
-    // delta), playback is finished; stop scheduling frames so we don't burn a
-    // RAF every tick doing nothing. The initial baseline frame (realDelta === 0)
-    // is exempt so play() from t1 with a fresh domain still settles correctly.
+    // delta), playback is finished; stop scheduling frames and notify the owner
+    // so persisted UI state can be brought back to "paused".
     if (
       !this.config.loop &&
-      !changed &&
       realDelta > 0 &&
       this.time >= this.domain.t1
     ) {
       this.playing = false;
       this.lastTickMs = null;
+      this.onPlaybackComplete();
       return;
     }
 

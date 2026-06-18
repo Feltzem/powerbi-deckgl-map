@@ -544,6 +544,111 @@ test("createDatasetSnapshot infers scatter rows from heatmap weight evidence", (
   assert.equal(snapshot.layers.scatter[0].scatterData?.heatmapWeight, 4);
 });
 
+test("createDatasetSnapshot maps scatter elevation for scatter rows", () => {
+  const ids = ["point-1", "point-2", "point-3"];
+  const warnings: string[] = [];
+  const settings = new VisualFormattingSettingsModel();
+  const options = {
+    dataViews: [
+      {
+        categorical: {
+          categories: [makeCategory("geometryId", ids, "geometry_id")],
+          values: makeValues([], undefined, [
+            makeColumn("layerType", ["scatter", "scatter", "scatter"]),
+            makeColumn("point1Latitude", [-37.8, -37.81, -37.82]),
+            makeColumn("point1Longitude", [175.2, 175.21, 175.22]),
+            makeColumn("scatterElevation", [0, 120.5, "not-a-number"]),
+          ]),
+        },
+        metadata: {},
+      },
+    ],
+  } as powerbi.extensibility.visual.VisualUpdateOptions;
+
+  const snapshot = createDatasetSnapshot(
+    options,
+    settings,
+    makeHost(warnings),
+    new Map(),
+    "test",
+  );
+
+  assert.deepEqual(warnings, []);
+  assert.equal(snapshot.scatterElevationFieldBound, true);
+  assert.equal(snapshot.scatterHasVisibleElevation, true);
+  assert.deepEqual(
+    snapshot.layers.scatter.map((point) => point.scatterData?.elevation),
+    [0, 120.5, null],
+  );
+});
+
+test("createDatasetSnapshot does not mark zero-only scatter elevation as visible height", () => {
+  const warnings: string[] = [];
+  const settings = new VisualFormattingSettingsModel();
+  const options = {
+    dataViews: [
+      {
+        categorical: {
+          categories: [makeCategory("geometryId", ["point-1"], "geometry_id")],
+          values: makeValues([], undefined, [
+            makeColumn("layerType", ["scatter"]),
+            makeColumn("point1Latitude", [-37.8]),
+            makeColumn("point1Longitude", [175.2]),
+            makeColumn("scatterElevation", [0]),
+          ]),
+        },
+        metadata: {},
+      },
+    ],
+  } as powerbi.extensibility.visual.VisualUpdateOptions;
+
+  const snapshot = createDatasetSnapshot(
+    options,
+    settings,
+    makeHost(warnings),
+    new Map(),
+    "test",
+  );
+
+  assert.deepEqual(warnings, []);
+  assert.equal(snapshot.scatterElevationFieldBound, true);
+  assert.equal(snapshot.scatterHasVisibleElevation, false);
+  assert.equal(snapshot.layers.scatter[0].scatterData?.elevation, 0);
+});
+
+test("createDatasetSnapshot infers scatter rows from scatter elevation evidence", () => {
+  const warnings: string[] = [];
+  const settings = new VisualFormattingSettingsModel();
+  const options = {
+    dataViews: [
+      {
+        categorical: {
+          categories: [makeCategory("geometryId", ["point-1"], "geometry_id")],
+          values: makeValues([], undefined, [
+            makeColumn("layerType", [null]),
+            makeColumn("point1Latitude", [-37.8]),
+            makeColumn("point1Longitude", [175.2]),
+            makeColumn("scatterElevation", [240]),
+          ]),
+        },
+        metadata: {},
+      },
+    ],
+  } as powerbi.extensibility.visual.VisualUpdateOptions;
+
+  const snapshot = createDatasetSnapshot(
+    options,
+    settings,
+    makeHost(warnings),
+    new Map(),
+    "test",
+  );
+
+  assert.deepEqual(warnings, []);
+  assert.equal(snapshot.layers.scatter.length, 1);
+  assert.equal(snapshot.layers.scatter[0].scatterData?.elevation, 240);
+});
+
 test("createDatasetSnapshot stamps hasZ on 3D path and polygon features", () => {
   const warnings: string[] = [];
   const settings = new VisualFormattingSettingsModel();
@@ -618,6 +723,51 @@ test("createDatasetSnapshot leaves hasZ false for 2D path and polygon features",
   assert.equal(snapshot.layers.path[0].hasZ, false);
   assert.equal(snapshot.layers.polygon.length, 1);
   assert.equal(snapshot.layers.polygon[0].hasZ, false);
+});
+
+test("createDatasetSnapshot normalizes polygon extrusion heights", () => {
+  const warnings: string[] = [];
+  const settings = new VisualFormattingSettingsModel();
+  const options = {
+    dataViews: [
+      {
+        categorical: {
+          categories: [
+            makeCategory(
+              "geometryId",
+              ["poly-positive", "poly-negative", "poly-invalid"],
+              "geometry_id",
+            ),
+          ],
+          values: makeValues([], undefined, [
+            makeColumn("layerType", ["polygon", "polygon", "polygon"]),
+            makeColumn("wkt", [
+              "POLYGON ((175 -37, 175.1 -37, 175.1 -37.1, 175 -37))",
+              "POLYGON ((175 -37, 175.1 -37, 175.1 -37.1, 175 -37))",
+              "POLYGON ((175 -37, 175.1 -37, 175.1 -37.1, 175 -37))",
+            ]),
+            makeColumn("polygonExtrudeElevation", [50, -10, "not-a-number"]),
+          ]),
+        },
+        metadata: {},
+      },
+    ],
+  } as powerbi.extensibility.visual.VisualUpdateOptions;
+
+  const snapshot = createDatasetSnapshot(
+    options,
+    settings,
+    makeHost(warnings),
+    new Map(),
+    "test",
+  );
+
+  assert.deepEqual(warnings, []);
+  assert.equal(snapshot.elevationFieldBound, true);
+  assert.deepEqual(
+    snapshot.layers.polygon.map((feature) => feature.properties.elevation),
+    [50, 0, 0],
+  );
 });
 
 test("createDatasetSnapshot derives a time domain and per-row timestamps", () => {

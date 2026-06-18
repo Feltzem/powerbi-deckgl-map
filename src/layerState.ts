@@ -24,6 +24,10 @@ export const LAYER_IDS: Record<RenderableGeometryType, string> = {
   polygon: "polygon-layer-base",
 };
 
+export const getTemporalLayerId = (
+  geometryType: RenderableGeometryType,
+): string => `${LAYER_IDS[geometryType]}-temporal`;
+
 const renderableGeometryTypes = new Set<string>(DEFAULT_LAYER_DRAW_ORDER);
 const layerIdToGeometryType = new Map<string, RenderableGeometryType>(
   DEFAULT_LAYER_DRAW_ORDER.map((type): [string, RenderableGeometryType] => [

@@ -10,7 +10,7 @@ import {
 import { resolveGradientPresetColors } from "../gradientPresets";
 import { getCategoricalPaletteColor } from "../categoricalPalettes";
 import { HighlightingCardSettings, ScatterCardSettings } from "../settings";
-import { LAYER_IDS } from "../layerState";
+import { getTemporalLayerId, LAYER_IDS } from "../layerState";
 import { getScatterSymbolType } from "../scatterSymbols";
 import {
   createLayerColorAccessor,
@@ -19,6 +19,17 @@ import {
 import ScatterSymbolLayer from "./scatterSymbolLayer";
 import TemporalScatterLayer from "./temporalScatterLayer";
 import { AnimationContext } from "../timeAnimation";
+
+export const hasScatterElevation = (d: OurData): boolean => {
+  const elevation = d.scatterData?.elevation;
+  return typeof elevation === "number" && isFinite(elevation);
+};
+
+export const getScatterPosition = (d: OurData): [number, number, number] => [
+  d.scatterData!.lon,
+  d.scatterData!.lat,
+  hasScatterElevation(d) ? d.scatterData!.elevation! : 0.1,
+];
 
 export default function getScatterLayer(
   data: OurData[],
@@ -193,11 +204,7 @@ export default function getScatterLayer(
     pickable: true,
     stroked: settings.stroked.value,
     filled: settings.filled.value,
-    getPosition: (d: OurData): [number, number, number] => [
-      d.scatterData!.lon,
-      d.scatterData!.lat,
-      0.1,
-    ],
+    getPosition: getScatterPosition,
     getLineWidth,
     getRadius,
     getFillColor: fillColor.accessor,
@@ -229,22 +236,24 @@ export default function getScatterLayer(
       // until the visual is recreated). A distinct id forces a clean
       // remove/add. The "-temporal" suffix still resolves to scatter in
       // getGeometryTypeForLayerId, so tooltips keep working.
-      id: `${LAYER_IDS.scatter}-temporal`,
+      id: getTemporalLayerId("scatter"),
       symbolType,
       getTimestamp: (d: OurData) =>
         d.timestampSeconds === null ? 0 : d.timestampSeconds - t0,
       getHasTimestamp: (d: OurData) => (d.timestampSeconds === null ? 0 : 1),
+      getHasElevation: (d: OurData) => (hasScatterElevation(d) ? 1 : 0),
       time: animation.time - t0,
       dt: span > 0 ? span : 1,
       maxHeight: animation.maxHeight,
       trailLength: animation.trailLength,
-      // Scatter rows carry no baked Z, so derive height from the timestamp.
+      // Rows without explicit scatter elevation derive height from timestamp.
       deriveHeight: true,
       windowActive: true,
       updateTriggers: {
         ...updateTriggers,
         getTimestamp: [dataVersion, t0],
         getHasTimestamp: [dataVersion],
+        getHasElevation: [dataVersion],
       },
     });
   }

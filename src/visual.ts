@@ -15,7 +15,13 @@ import VisualUpdateType = powerbi.VisualUpdateType;
 import IVisual = powerbi.extensibility.visual.IVisual;
 import IVisualHost = powerbi.extensibility.visual.IVisualHost;
 
-import { MapCardSettings, VisualFormattingSettingsModel } from "./settings";
+import {
+  ANIMATION_SPEED_MODE_DURATION,
+  ANIMATION_SPEED_MODE_ITEMS,
+  AnimationCardSettings,
+  MapCardSettings,
+  VisualFormattingSettingsModel,
+} from "./settings";
 import { Map as MapLibreMap, NavigationControl } from "maplibre-gl";
 import { MapboxOverlay as DeckOverlay } from "@deck.gl/mapbox";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -37,6 +43,7 @@ import {
 import { NumericColorBinsCache } from "./gradientClassification";
 import {
   AnimationContext,
+  resolveAnimationSpeed,
   TimeAnimationController,
 } from "./timeAnimation";
 import getScatterLayer from "./layers/scatter";
@@ -52,7 +59,6 @@ import { createEmptyColorRoleStatsStore } from "./colorRoles";
 import {
   DEFAULT_LAYER_DRAW_ORDER,
   GEOMETRY_TYPE_LABELS,
-  LAYER_IDS,
   RenderableGeometryType,
   parseLayerDrawOrder,
 } from "./layerState";
@@ -72,6 +78,11 @@ import {
   create3DBuildingsSource,
   getFirstSymbolLayerId,
 } from "./buildings";
+import {
+  getActiveDeckLayerIds,
+  updateTemporalAnimationLayers,
+} from "./animationLayers";
+import { syncCompletedAnimationPlayback } from "./animationPlayback";
 
 const createEmptyDatasetSnapshot = (version = "0"): DatasetSnapshot => ({
   layers: createEmptyLayerDataStore(),
@@ -83,6 +94,8 @@ const createEmptyDatasetSnapshot = (version = "0"): DatasetSnapshot => ({
   version,
   timeDomain: null,
   elevationFieldBound: false,
+  scatterElevationFieldBound: false,
+  scatterHasVisibleElevation: false,
 });
 
 const AUTO_3D_PITCH = 45;
@@ -142,6 +155,8 @@ export class Visual implements IVisual {
   private dataVersionCounter: number;
   private currentActiveGeometryTypes: Set<RenderableGeometryType>;
   private currentLayerDrawOrder: RenderableGeometryType[];
+  private currentDeckLayers: any[];
+  private currentActiveLayerIds: string[];
   private layerOrderControl: LayerOrderControl | null;
   private timeSliderControl: MapOverlayControl | null;
   private lastPerspectiveLayerShown: boolean | null;
@@ -149,6 +164,7 @@ export class Visual implements IVisual {
   private buildingLayerSignature: string | null;
   private animationController: TimeAnimationController;
   private animationTime: number;
+  private lastAnimationCameraPitched: boolean | null;
 
   private createResetViewControl() {
     const container = document.createElement("div");
@@ -380,8 +396,8 @@ export class Visual implements IVisual {
       this.animationController.seek(Number(range.value));
     };
     speedButton.onclick = () => {
-      const current = this.formattingSettings.animation.animationSpeed.value;
-      this.setAnimationSpeed(this.nextAnimationSpeed(current));
+      const current = this.formattingSettings.animation.animationDuration.value;
+      this.setAnimationDuration(this.nextAnimationDuration(current));
       this.renderTimeSliderControl();
     };
 
@@ -451,13 +467,22 @@ export class Visual implements IVisual {
         lastPlaying = playing;
       }
 
-      const speed = this.formattingSettings.animation.animationSpeed.value;
+      const animation = this.formattingSettings.animation;
+      const durationMode = this.isDurationMode(animation);
+      // In duration mode the on-map control represents the full-pass time; show
+      // that (e.g. "30s"). In multiplier mode show the raw ×multiplier.
+      const speed = durationMode
+        ? animation.animationDuration.value
+        : animation.animationSpeed.value;
       if (speed !== lastSpeed) {
+        const label = durationMode ? `${speed}s` : `${speed}×`;
         const speedSpan = speedButton.firstChild as HTMLSpanElement | null;
         if (speedSpan) {
-          speedSpan.textContent = `${speed}×`;
+          speedSpan.textContent = label;
         }
-        speedButton.title = `Playback speed ${speed}× (click to change)`;
+        speedButton.title = durationMode
+          ? `Full animation: ${speed}s (click for faster)`
+          : `Playback speed ${speed}× (click to change)`;
         speedButton.setAttribute("aria-label", speedButton.title);
         lastSpeed = speed;
       }
@@ -488,6 +513,11 @@ export class Visual implements IVisual {
     this.timeSliderControl?.render();
   }
 
+  private handleAnimationPlaybackComplete() {
+    syncCompletedAnimationPlayback(this.formattingSettings.animation, this.host);
+    this.renderTimeSliderControl();
+  }
+
   /**
    * Toggle playback from an on-map control. Drives the controller, keeps the
    * in-memory Animation `play` setting in sync, and persists it so the format
@@ -515,23 +545,54 @@ export class Visual implements IVisual {
     });
   }
 
-  /** Speed multipliers the on-map slider cycles through. */
-  private static readonly SPEED_PRESETS = [
-    1, 5, 15, 30, 60, 120, 300, 600, 1200,
-  ];
+  /**
+   * Full-pass durations (seconds) the on-map speed button cycles through,
+   * slow -> fast. These are domain-relative: a smaller duration plays the whole
+   * time span faster, regardless of how many years the data spans.
+   */
+  private static readonly DURATION_PRESETS = [120, 60, 30, 15, 8, 4];
+
+  /** True when the report is using duration speed mode. */
+  private isDurationMode(animation: AnimationCardSettings): boolean {
+    return animation.speedMode.value.value === ANIMATION_SPEED_MODE_DURATION;
+  }
 
   /**
-   * Set the playback speed from an on-map control: reconfigure the controller,
-   * keep the Animation `animationSpeed` setting in sync, and persist it.
+   * Effective sim-sec/real-sec speed for the controller, derived from the speed
+   * mode: domain-fitted in duration mode, or the raw multiplier otherwise.
    */
-  private setAnimationSpeed(speed: number) {
+  private effectiveAnimationSpeed(
+    animation: AnimationCardSettings,
+    domain: { t0: number; t1: number } | null,
+  ): number {
+    return resolveAnimationSpeed({
+      durationMode: this.isDurationMode(animation),
+      durationSeconds: animation.animationDuration.value,
+      multiplier: animation.animationSpeed.value,
+      domain,
+    });
+  }
+
+  /**
+   * Set the full-pass duration from the on-map control. Always drives duration
+   * mode (flipping speedMode if the report was in multiplier mode), reconfigures
+   * the controller against the current domain, keeps the settings in sync, and
+   * persists both so the format pane reflects the change and a later update()
+   * does not revert it.
+   */
+  private setAnimationDuration(duration: number) {
     const animation = this.formattingSettings.animation;
-    if (animation.animationSpeed.value === speed) {
+    const alreadyDuration = this.isDurationMode(animation);
+    if (alreadyDuration && animation.animationDuration.value === duration) {
       return;
     }
-    animation.animationSpeed.value = speed;
+    animation.speedMode.value = ANIMATION_SPEED_MODE_ITEMS[0];
+    animation.animationDuration.value = duration;
     this.animationController.setConfig({
-      animationSpeed: speed,
+      animationSpeed: this.effectiveAnimationSpeed(
+        animation,
+        this.dataset.timeDomain,
+      ),
       loop: animation.loop.value,
     });
     this.host.persistProperties({
@@ -539,17 +600,34 @@ export class Visual implements IVisual {
         {
           objectName: "animationProps",
           selector: null,
-          properties: { animationSpeed: speed },
+          properties: {
+            speedMode: ANIMATION_SPEED_MODE_DURATION,
+            animationDuration: duration,
+          },
         },
       ],
     });
   }
 
-  /** Next speed preset above the current value, wrapping to the first. */
-  private nextAnimationSpeed(current: number): number {
-    const presets = Visual.SPEED_PRESETS;
-    const next = presets.find((p) => p > current);
+  /** Next duration preset below the current value (faster), wrapping to slowest. */
+  private nextAnimationDuration(current: number): number {
+    const presets = Visual.DURATION_PRESETS;
+    const next = presets.find((p) => p < current);
     return next ?? presets[0];
+  }
+
+  private handleCameraPitchChanged() {
+    const isPitched = this.isCameraPitched();
+    if (this.lastAnimationCameraPitched === isPitched) {
+      return;
+    }
+
+    this.lastAnimationCameraPitched = isPitched;
+    if (!this.isAnimationAvailable()) {
+      return;
+    }
+
+    this.pushAnimationFrame();
   }
 
   private isDarkBaseMap(baseMap: string): boolean {
@@ -664,10 +742,9 @@ export class Visual implements IVisual {
 
   private isPerspectiveLayerShown(): boolean {
     const visibleGeometryTypes = this.getVisibleGeometryTypes();
-    // Auto-tilt for polygons only when there is real height to show: a bound
-    // elevation field, or ring-Z 3D-WKP polygons that auto-extrude into floating
-    // prisms (see getPolygonLayer). The bare Extruded toggle no longer tilts the
-    // camera on its own — with no elevation it would just extrude to 0 height.
+    // Auto-tilt only when there is real height to show. The bare Extruded
+    // toggle no longer tilts the camera on its own — with no elevation it would
+    // just extrude to 0 height.
     const polygonHasHeight =
       this.dataset.elevationFieldBound ||
       this.dataset.layers.polygon.some((feature) => feature.hasZ);
@@ -675,12 +752,18 @@ export class Visual implements IVisual {
       polygonHasHeight &&
       this.dataset.layers.polygon.length > 0 &&
       visibleGeometryTypes.has("polygon");
+    const elevatedScatterLayerShown =
+      this.dataset.scatterHasVisibleElevation &&
+      this.dataset.layers.scatter.length > 0 &&
+      visibleGeometryTypes.has("scatter");
     const arcLayerShown =
       visibleGeometryTypes.has("arc") && this.hasRenderableArcData();
 
-    return (
-      this.is3DBuildingsEnabled() || extrudedPolygonLayerShown || arcLayerShown
-    );
+    // Note: Show 3D buildings is deliberately NOT a tilt trigger. Buildings
+    // still render extruded, but they only read on a tilted camera, and forcing
+    // a tilt whenever the toggle is on (e.g. on a flat scatter/heatmap map)
+    // breaks the 2D-by-default rule. Tilt manually to see the buildings in 3D.
+    return extrudedPolygonLayerShown || elevatedScatterLayerShown || arcLayerShown;
   }
 
   private getMapPitch(): number | null {
@@ -745,6 +828,12 @@ export class Visual implements IVisual {
     return this.dataset.timeDomain !== null;
   }
 
+  /** True when the camera is tilted off top-down (a 3D trigger or manual tilt). */
+  private isCameraPitched(): boolean {
+    const pitch = this.getMapPitch();
+    return pitch !== null && pitch > PITCH_EPSILON;
+  }
+
   /**
    * Build the per-frame animation context, or null when no timestamp is bound
    * (layers then render exactly as before).
@@ -759,12 +848,20 @@ export class Visual implements IVisual {
       domain.t1,
       Math.max(domain.t0, this.animationTime),
     );
+    // Time-as-height only reads on a tilted map; on a top-down view the lifted
+    // points project straight down and just look like a 2D scatter that has
+    // drifted off its coordinates. Keep the default view genuinely 2D by zeroing
+    // the derived height until the camera is pitched (an extrusion/arc/building
+    // trigger, or a manual tilt). The user opts into time-as-height by tilting.
+    const maxHeight = this.isCameraPitched()
+      ? Math.max(0, animation.maxHeight.value)
+      : 0;
     return {
       active: true,
       domain,
       time,
       trailLength: Math.max(0, animation.trailLength.value),
-      maxHeight: Math.max(0, animation.maxHeight.value),
+      maxHeight,
     };
   }
 
@@ -782,7 +879,7 @@ export class Visual implements IVisual {
     }
     const animation = this.formattingSettings.animation;
     this.animationController.setConfig({
-      animationSpeed: animation.animationSpeed.value,
+      animationSpeed: this.effectiveAnimationSpeed(animation, domain),
       loop: animation.loop.value,
     });
     this.animationTime = this.animationController.getTime();
@@ -793,20 +890,45 @@ export class Visual implements IVisual {
     }
   }
 
+  private setCurrentDeckLayers(
+    layers: any[],
+    layerDrawOrder: RenderableGeometryType[],
+    activeGeometryTypes: Set<RenderableGeometryType>,
+  ): void {
+    this.currentDeckLayers = layers;
+    this.currentLayerDrawOrder = layerDrawOrder;
+    this.currentActiveGeometryTypes = activeGeometryTypes;
+    this.currentActiveLayerIds = getActiveDeckLayerIds(layers);
+    this.deckOverlay?.setProps({ layers });
+  }
+
   /**
-   * Re-render with the advanced playhead. Rebuilds only the deck layers and
-   * pushes them; the temporal layers change just their time uniform, so deck.gl
-   * diffs to a uniform update rather than re-tesselating attributes. Legend,
-   * layer-order control, and overlay layout are unchanged per frame and skipped.
+   * Re-render with the advanced playhead. Normal renders cache the full layer
+   * list; animation ticks clone only temporal scatter/path layers with updated
+   * uniforms and reuse all static layer objects.
    */
   private pushAnimationFrame(): void {
     if (!this.deckOverlay) {
       return;
     }
-    const { layers, layerDrawOrder, activeGeometryTypes } =
-      this.buildDeckLayers();
-    this.currentLayerDrawOrder = layerDrawOrder;
-    this.currentActiveGeometryTypes = activeGeometryTypes;
+
+    const animation = this.getAnimationContext();
+    if (!animation || this.currentDeckLayers.length === 0) {
+      this.renderCurrentState();
+      return;
+    }
+
+    const { layers, changed } = updateTemporalAnimationLayers(
+      this.currentDeckLayers,
+      animation,
+    );
+
+    if (!changed) {
+      return;
+    }
+
+    this.currentDeckLayers = layers;
+    this.currentActiveLayerIds = getActiveDeckLayerIds(layers);
     this.deckOverlay.setProps({ layers });
   }
 
@@ -910,18 +1032,23 @@ export class Visual implements IVisual {
     this.dataVersionCounter = 0;
     this.currentActiveGeometryTypes = new Set();
     this.currentLayerDrawOrder = [...DEFAULT_LAYER_DRAW_ORDER];
+    this.currentDeckLayers = [];
+    this.currentActiveLayerIds = [];
     this.layerOrderControl = null;
     this.timeSliderControl = null;
     this.lastPerspectiveLayerShown = null;
     this.automaticPitchOwned = false;
     this.buildingLayerSignature = null;
     this.animationTime = 0;
+    this.lastAnimationCameraPitched = null;
     this.animationController = new TimeAnimationController((time) => {
       this.animationTime = time;
       this.pushAnimationFrame();
       // Keep the time-slider thumb/label tracking autoplay.
       this.renderTimeSliderControl();
-    });
+    }, undefined, undefined, undefined, () =>
+      this.handleAnimationPlaybackComplete(),
+    );
     this.rootElement = options.element;
 
     const settings =
@@ -942,6 +1069,8 @@ export class Visual implements IVisual {
         maxZoom: 20,
       });
       this.map.on("styledata", () => this.sync3DBuildingsLayer());
+      this.map.on("pitch", () => this.handleCameraPitchChanged());
+      this.map.on("pitchend", () => this.handleCameraPitchChanged());
       this.legendContainer = document.createElement("div");
       this.legendContainer.className =
         "deckgl-gradient-legend deckgl-gradient-legend--hidden";
@@ -1226,6 +1355,8 @@ export class Visual implements IVisual {
     this.hasInitialViewBeenSet = false;
     this.currentActiveGeometryTypes = new Set();
     this.currentLayerDrawOrder = [...DEFAULT_LAYER_DRAW_ORDER];
+    this.currentDeckLayers = [];
+    this.currentActiveLayerIds = [];
     this.deckOverlay?.setProps({ layers: [] });
     if (this.legendContainer) {
       renderGradientLegend(
@@ -1386,9 +1517,7 @@ export class Visual implements IVisual {
   }
 
   private getActiveLayerIds(): string[] {
-    return this.currentLayerDrawOrder
-      .filter((geometryType) => this.currentActiveGeometryTypes.has(geometryType))
-      .map((geometryType) => LAYER_IDS[geometryType]);
+    return this.currentActiveLayerIds;
   }
 
   private renderLayerOrderControl() {
@@ -1636,11 +1765,9 @@ export class Visual implements IVisual {
     this.measureTask("powerbi-deckgl-map:render", () => {
       const { layers, layerDrawOrder, activeGeometryTypes } =
         this.buildDeckLayers();
-      this.currentLayerDrawOrder = layerDrawOrder;
-      this.currentActiveGeometryTypes = activeGeometryTypes;
-      this.deckOverlay!.setProps({ layers });
+      this.setCurrentDeckLayers(layers, layerDrawOrder, activeGeometryTypes);
       this.renderLayerOrderControl();
-    this.renderTimeSliderControl();
+      this.renderTimeSliderControl();
       this.renderLegend(dataView);
       this.updateOverlayLayout();
     });
@@ -1738,4 +1865,3 @@ export class Visual implements IVisual {
     this.legendContainer = null;
   }
 }
-

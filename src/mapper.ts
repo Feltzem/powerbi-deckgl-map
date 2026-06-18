@@ -47,6 +47,7 @@ const roleMappings: Array<[keyof RowValues, string]> = [
   ["point2Latitude", "point2Latitude"],
   ["point2Longitude", "point2Longitude"],
   ["scatterRadius", "scatterRadius"],
+  ["scatterElevation", "scatterElevation"],
   ["heatmapWeight", "heatmapWeight"],
   ["scatterLineColor", "scatterLineColor"],
   ["scatterLineWidth", "scatterLineWidth"],
@@ -79,7 +80,11 @@ const colorRoleFields = new Set<keyof RowValues>([
   "arcTargetColor",
 ]);
 
-const numericRoleFields = new Set<keyof RowValues>(["heatmapWeight"]);
+const numericRoleFields = new Set<keyof RowValues>([
+  "scatterElevation",
+  "heatmapWeight",
+  "polygonExtrudeElevation",
+]);
 
 const tooltipHtmlMaxLength = 4000;
 const groupedNumericTolerance = 1e-12;
@@ -417,6 +422,7 @@ const getRowValues = (
   point2Latitude: rowValueArrays.point2Latitude?.[index] ?? null,
   point2Longitude: rowValueArrays.point2Longitude?.[index] ?? null,
   scatterRadius: rowValueArrays.scatterRadius?.[index] ?? null,
+  scatterElevation: rowValueArrays.scatterElevation?.[index] ?? null,
   heatmapWeight: rowValueArrays.heatmapWeight?.[index] ?? null,
   scatterLineColor: rowValueArrays.scatterLineColor?.[index] ?? null,
   scatterLineWidth: rowValueArrays.scatterLineWidth?.[index] ?? null,
@@ -486,6 +492,7 @@ const dataPointTypeRoleEvidence: Array<[InputLayerType, Array<keyof RowValues>]>
     InputLayerType.Scatter,
     [
       "scatterRadius",
+      "scatterElevation",
       "heatmapWeight",
       "scatterLineColor",
       "scatterLineWidth",
@@ -637,6 +644,15 @@ const updateDataPointColorRoleStats = (
   }
 };
 
+const hasVisibleScatterElevation = (data: OurData): boolean => {
+  const elevation = data.scatterData?.elevation;
+  return (
+    typeof elevation === "number" &&
+    Number.isFinite(elevation) &&
+    elevation !== 0
+  );
+};
+
 export function createDatasetSnapshot(
   options: VisualUpdateOptions,
   settings: VisualFormattingSettingsModel,
@@ -658,6 +674,9 @@ export function createDatasetSnapshot(
     bounds: null,
     version,
     timeDomain: null,
+    elevationFieldBound: false,
+    scatterElevationFieldBound: false,
+    scatterHasVisibleElevation: false,
   });
 
   const dataViews = options.dataViews;
@@ -695,6 +714,7 @@ export function createDatasetSnapshot(
     point2Latitude: getColumnValues(roleColumns.point2Latitude ?? null),
     point2Longitude: getColumnValues(roleColumns.point2Longitude ?? null),
     scatterRadius: getColumnValues(roleColumns.scatterRadius ?? null),
+    scatterElevation: getColumnValues(roleColumns.scatterElevation ?? null),
     heatmapWeight: getColumnValues(roleColumns.heatmapWeight ?? null),
     scatterLineColor: getColumnValues(roleColumns.scatterLineColor ?? null),
     scatterLineWidth: getColumnValues(roleColumns.scatterLineWidth ?? null),
@@ -730,6 +750,7 @@ export function createDatasetSnapshot(
     point2Latitude: !!rowValueArrays.point2Latitude,
     point2Longitude: !!rowValueArrays.point2Longitude,
     scatterRadius: !!rowValueArrays.scatterRadius,
+    scatterElevation: !!rowValueArrays.scatterElevation,
     heatmapWeight: !!rowValueArrays.heatmapWeight,
     scatterLineColor: !!rowValueArrays.scatterLineColor,
     scatterLineWidth: !!rowValueArrays.scatterLineWidth,
@@ -916,6 +937,11 @@ export function createDatasetSnapshot(
     version,
     timeDomain: computeTimeDomain(
       layerData.all.map((point) => point.timestampSeconds),
+    ),
+    elevationFieldBound: isProvided.polygonExtrudeElevation,
+    scatterElevationFieldBound: isProvided.scatterElevation,
+    scatterHasVisibleElevation: layerData.scatter.some(
+      hasVisibleScatterElevation,
     ),
   };
 }

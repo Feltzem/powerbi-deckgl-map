@@ -2,7 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import type { PickingInfo } from "@deck.gl/core";
 
-import { DEFAULT_LAYER_DRAW_ORDER, LAYER_IDS } from "../src/layerState";
+import {
+  DEFAULT_LAYER_DRAW_ORDER,
+  LAYER_IDS,
+  getTemporalLayerId,
+} from "../src/layerState";
 import {
   MultipleObjectPicker,
   getAggregatedTooltipHtml,
@@ -55,4 +59,32 @@ test("getAggregatedTooltipHtml orders, deduplicates, and decorates picked object
   assert.match(html, /<title>Scatter geometry<\/title>/);
   assert.equal((html.match(/data-geometry-id="scatter-1"/g) ?? []).length, 1);
   assert.ok(html.indexOf("Polygon") < html.indexOf("Scatter"));
+});
+
+test("getAggregatedTooltipHtml passes temporal layer ids to picker", () => {
+  const temporalScatterId = getTemporalLayerId("scatter");
+  const scatterPick = makePick(
+    temporalScatterId,
+    "scatter-1",
+    "<strong>Scatter</strong>",
+    0,
+  );
+  let requestedLayerIds: string[] | undefined;
+  const picker: MultipleObjectPicker = {
+    pickMultipleObjects: (params) => {
+      requestedLayerIds = params.layerIds;
+      return [scatterPick];
+    },
+  };
+
+  const html = getAggregatedTooltipHtml({
+    hoverInfo: scatterPick,
+    deckOverlay: picker,
+    drawOrder: [...DEFAULT_LAYER_DRAW_ORDER],
+    activeTypes: new Set(["scatter"]),
+    layerIds: [temporalScatterId],
+  });
+
+  assert.ok(html);
+  assert.deepEqual(requestedLayerIds, [temporalScatterId]);
 });

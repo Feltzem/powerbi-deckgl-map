@@ -9,7 +9,8 @@ import ScatterSymbolLayer, {
  * from its timestamp (z = clamp((t - t0)/dt, 0, 1) * maxHeight) and discards
  * points outside the trailing window [time - trailLength, time]. Both run in
  * the shader from a uniform block, so a frame advances by pushing the `time`
- * uniform rather than rebuilding layer data.
+ * uniform rather than rebuilding layer data. Rows with explicit scatter
+ * elevation preserve that bound Z; timestamp then only controls visibility.
  *
  * ScatterSymbolLayer already owns a full vertex shader (and supports the
  * `circle` symbol), so this subclass transforms that shader to use an animated
@@ -81,6 +82,8 @@ export interface TemporalScatterLayerProps<DataT = unknown>
   getTimestamp?: Accessor<DataT, number>;
   /** Per-point flag: 1 when the row has a usable timestamp, else 0. */
   getHasTimestamp?: Accessor<DataT, number>;
+  /** Per-point flag: 1 when the row has a bound scatter elevation, else 0. */
+  getHasElevation?: Accessor<DataT, number>;
   /** Current playhead, in seconds relative to t0. */
   time?: number;
   dt?: number;
@@ -93,6 +96,7 @@ export interface TemporalScatterLayerProps<DataT = unknown>
 const defaultProps: DefaultProps<TemporalScatterLayerProps> = {
   getTimestamp: { type: "accessor", value: 0 },
   getHasTimestamp: { type: "accessor", value: 1 },
+  getHasElevation: { type: "accessor", value: 0 },
   time: { type: "number", value: 0 },
   dt: { type: "number", value: 1 },
   maxHeight: { type: "number", value: 0 },
@@ -106,7 +110,7 @@ export default class TemporalScatterLayer<
   ExtraPropsT extends {} = {},
 > extends ScatterSymbolLayer<DataT, ExtraPropsT & TemporalScatterLayerProps<DataT>> {
   static layerName = "TemporalScatterLayer";
-  static defaultProps = defaultProps as DefaultProps<ScatterSymbolLayerProps>;
+  static defaultProps = defaultProps;
 
   getShaders() {
     const shaders = super.getShaders();
@@ -114,18 +118,20 @@ export default class TemporalScatterLayer<
 
     // Compute the animated world position once, then route the projection
     // calls through it instead of the raw instancePositions attribute. Rows
-    // without a bound timestamp carry instanceHasTimestamp = 0; they keep their
-    // ground Z and are exempt from the window discard so static points stay
-    // visible. We use an explicit 0/1 flag rather than isnan(), which several
-    // GPU drivers fold to a constant under fast-math.
+    // with explicit scatter elevation keep their bound Z; rows without a bound
+    // timestamp carry instanceHasTimestamp = 0, keep their ground Z, and are
+    // exempt from the window discard so static points stay visible. We use
+    // explicit 0/1 flags rather than isnan(), which several GPU drivers fold to
+    // a constant under fast-math.
     // The derived Z is a fresh single-precision value, so its fp64 "low" part
     // is 0; copy the original 64-low for x/y and zero z to keep the high/low
     // pair consistent for project_position_to_clipspace.
     const animatedPositionSetup = `
   bool hasTimestamp = instanceHasTimestamp > 0.5;
+  bool hasElevation = instanceHasElevation > 0.5;
   vec3 animatedInstancePositions = instancePositions;
   vec3 animatedInstancePositions64Low = instancePositions64Low;
-  if (hasTimestamp && temporalScatter.deriveHeight > 0.5 && temporalScatter.dt > 0.0) {
+  if (hasTimestamp && !hasElevation && temporalScatter.deriveHeight > 0.5 && temporalScatter.dt > 0.0) {
     float frac = clamp(
       instanceTimestamp / temporalScatter.dt, 0.0, 1.0
     );
@@ -138,7 +144,7 @@ export default class TemporalScatterLayer<
     vs = replaceOrThrow(
       vs,
       "void main(void) {",
-      `in float instanceTimestamp;\nin float instanceHasTimestamp;\nout float vTimestamp;\nout float vHasTimestamp;\nvoid main(void) {${animatedPositionSetup}  vTimestamp = instanceTimestamp;\n  vHasTimestamp = instanceHasTimestamp;\n`,
+      `in float instanceTimestamp;\nin float instanceHasTimestamp;\nin float instanceHasElevation;\nout float vTimestamp;\nout float vHasTimestamp;\nvoid main(void) {${animatedPositionSetup}  vTimestamp = instanceTimestamp;\n  vHasTimestamp = instanceHasTimestamp;\n`,
       "vs main entry",
     );
     // Project from the animated position (with its matching 64-low) so the Z
@@ -182,6 +188,11 @@ export default class TemporalScatterLayer<
         size: 1,
         accessor: "getHasTimestamp",
         defaultValue: 1,
+      },
+      instanceHasElevation: {
+        size: 1,
+        accessor: "getHasElevation",
+        defaultValue: 0,
       },
     });
   }

@@ -30,6 +30,7 @@ export interface PointData {
 }
 export interface ScatterData extends PointData {
   radius: number | null; // in meters
+  elevation: number | null; // in meters
   heatmapWeight: number | null;
 }
 export interface LineData {
@@ -156,6 +157,12 @@ export interface DatasetSnapshot {
    * timestamp role is bound (animation inert).
    */
   timeDomain: TimeDomain | null;
+  /** True when a field is bound to the polygonExtrudeElevation data role. */
+  elevationFieldBound: boolean;
+  /** True when a field is bound to the scatterElevation data role. */
+  scatterElevationFieldBound: boolean;
+  /** True when at least one scatter row has a finite, non-zero elevation. */
+  scatterHasVisibleElevation: boolean;
 }
 
 export type GeometryCache = Map<string, Geometry>;
@@ -170,6 +177,7 @@ export interface RowValues {
   point2Latitude: PrimitiveValue | null;
   point2Longitude: PrimitiveValue | null;
   scatterRadius: PrimitiveValue | null;
+  scatterElevation: PrimitiveValue | null;
   heatmapWeight: PrimitiveValue | null;
   scatterLineColor: PrimitiveValue | null;
   scatterLineWidth: PrimitiveValue | null;

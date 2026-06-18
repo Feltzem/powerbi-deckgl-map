@@ -10,7 +10,7 @@ import {
 import { resolveGradientPresetColors } from "../gradientPresets";
 import { getCategoricalPaletteColor } from "../categoricalPalettes";
 import { HighlightingCardSettings, PathCardSettings } from "../settings";
-import { LAYER_IDS } from "../layerState";
+import { getTemporalLayerId, LAYER_IDS } from "../layerState";
 import {
   createLayerColorAccessor,
   getLayerColorUpdateTriggers,
@@ -150,7 +150,7 @@ export default function getPathLayer(
       // replaces (not updates-in-place) across the layer-class swap when
       // animation activates. The "-temporal" suffix still resolves to path in
       // getGeometryTypeForLayerId, so tooltips keep working.
-      id: `${LAYER_IDS.path}-temporal`,
+      id: getTemporalLayerId("path"),
       data: flat,
       pickable: true,
       positionFormat: hasZ ? "XYZ" : "XY",

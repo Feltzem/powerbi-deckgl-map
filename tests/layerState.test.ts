@@ -5,6 +5,7 @@ import {
   DEFAULT_LAYER_DRAW_ORDER,
   LAYER_IDS,
   getGeometryTypeForLayerId,
+  getTemporalLayerId,
   parseLayerDrawOrder,
 } from "../src/layerState";
 
@@ -33,8 +34,8 @@ test("getGeometryTypeForLayerId resolves the animated -temporal layer ids", () =
   // cleanly across the animation-activation class swap; tooltips must still map
   // those ids back to their geometry type.
   assert.equal(
-    getGeometryTypeForLayerId(`${LAYER_IDS.scatter}-temporal`),
+    getGeometryTypeForLayerId(getTemporalLayerId("scatter")),
     "scatter",
   );
-  assert.equal(getGeometryTypeForLayerId(`${LAYER_IDS.path}-temporal`), "path");
+  assert.equal(getGeometryTypeForLayerId(getTemporalLayerId("path")), "path");
 });

@@ -36,6 +36,17 @@ import FormattingSettingsCard = formattingSettings.SimpleCard;
 import FormattingSettingsSlice = formattingSettings.Slice;
 import FormattingSettingsModel = formattingSettings.Model;
 
+/** Animation speed-mode dropdown items. The first entry is the default. */
+export const ANIMATION_SPEED_MODE_DURATION = "duration";
+export const ANIMATION_SPEED_MODE_MULTIPLIER = "multiplier";
+export const ANIMATION_SPEED_MODE_ITEMS = [
+  { value: ANIMATION_SPEED_MODE_DURATION, displayName: "Duration (seconds)" },
+  {
+    value: ANIMATION_SPEED_MODE_MULTIPLIER,
+    displayName: "Multiplier (sim sec / real sec)",
+  },
+];
+
 export class BaseBillboardSettings extends FormattingSettingsCard {
   billboard = new formattingSettings.ToggleSwitch({
     name: "billboard",
@@ -402,6 +413,26 @@ export class NumericGradientSettings extends FormattingSettingsCard {
       this.manualBreaks,
       this.manualColors,
     ];
+  }
+
+  /**
+   * Show only the inputs that apply to the currently-selected classification
+   * method. Call this after the formatting model has been populated from the
+   * data view, so it reflects the user's persisted selection rather than the
+   * constructor default.
+   */
+  applyMethodVisibility(): void {
+    const method = this.binningMethod.value?.value as
+      | GradientBinningMethod
+      | undefined;
+    const usesClassCount =
+      method === "natural-breaks" ||
+      method === "quantile" ||
+      method === "equal-interval";
+    this.classCount.visible = usesClassCount;
+    this.definedInterval.visible = method === "defined-interval";
+    this.manualBreaks.visible = method === "manual-interval";
+    this.manualColors.visible = method === "manual-interval";
   }
 }
 
@@ -1418,11 +1449,34 @@ export class AnimationCardSettings extends FormattingSettingsCard {
     value: true,
   });
 
+  speedMode = new formattingSettings.ItemDropdown({
+    name: "speedMode",
+    displayName: "Speed mode",
+    description:
+      "Duration: the whole time span plays in a fixed wall-clock time (auto-fits any data extent). Multiplier: a fixed number of simulated seconds elapse per real second.",
+    value: ANIMATION_SPEED_MODE_ITEMS[0],
+    items: ANIMATION_SPEED_MODE_ITEMS,
+  });
+
+  animationDuration = new formattingSettings.NumUpDown({
+    name: "animationDuration",
+    displayName: "Animation duration (seconds)",
+    description:
+      "Used in Duration speed mode: how long one full pass through the time span takes, regardless of how many years the data covers.",
+    value: 30,
+    options: {
+      minValue: {
+        type: powerbi.visuals.ValidatorType.Min,
+        value: 1,
+      },
+    },
+  });
+
   animationSpeed = new formattingSettings.NumUpDown({
     name: "animationSpeed",
     displayName: "Animation speed (sim seconds / real second)",
     description:
-      "How many simulated seconds elapse per real second of playback. The Parking review page uses 60.",
+      "Used in Multiplier speed mode: how many simulated seconds elapse per real second of playback. The Parking review page uses 60.",
     value: 60,
     options: {
       minValue: {
@@ -1469,6 +1523,8 @@ export class AnimationCardSettings extends FormattingSettingsCard {
   slices: Array<FormattingSettingsSlice> = [
     this.play,
     this.loop,
+    this.speedMode,
+    this.animationDuration,
     this.animationSpeed,
     this.trailLength,
     this.maxHeight,
@@ -1504,4 +1560,20 @@ export class VisualFormattingSettingsModel extends FormattingSettingsModel {
     this.arc,
     this.polygon,
   ];
+
+  /**
+   * Update visibility of conditional slices that depend on another slice's
+   * value (e.g. each gradient's class-count vs. defined-interval inputs).
+   * Call from getFormattingModel(), after the model has been populated from
+   * the data view.
+   */
+  applyConditionalVisibility(): void {
+    for (const card of this.cards) {
+      for (const value of Object.values(card)) {
+        if (value instanceof NumericGradientSettings) {
+          value.applyMethodVisibility();
+        }
+      }
+    }
+  }
 }

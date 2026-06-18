@@ -565,7 +565,17 @@ export const getGradientLegendSpecs = (
     );
   };
 
-  if (settings.scatter.filled.value) {
+  // Scatter points are hidden when the heatmap or H3 hexagon layer is shown
+  // with its "show scatter points" toggle turned off. In that case the scatter
+  // fill/line legend entries should be suppressed too, matching the rendered
+  // layers (see Visual.buildDeckLayers).
+  const showHeatmap = settings.heatmap.showHeatmap.value === true;
+  const showH3Hexagons = settings.h3Hexagon.showH3Hexagons.value === true;
+  const scatterPointsVisible =
+    (!showHeatmap || settings.heatmap.showScatterPoints.value === true) &&
+    (!showH3Hexagons || settings.h3Hexagon.showScatterPoints.value === true);
+
+  if (scatterPointsVisible && settings.scatter.filled.value) {
     const title = getLegendTitle(roleTitles, "scatterFillColor", "Scatter fill");
     appendLegendSpec(
       specs,
@@ -606,7 +616,7 @@ export const getGradientLegendSpecs = (
     );
   }
 
-  if (settings.scatter.stroked.value) {
+  if (scatterPointsVisible && settings.scatter.stroked.value) {
     const title = getLegendTitle(roleTitles, "scatterLineColor", "Scatter line");
     appendLegendSpec(
       specs,
