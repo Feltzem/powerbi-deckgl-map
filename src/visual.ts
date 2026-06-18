@@ -69,7 +69,13 @@ import {
   getAnimationTimeTooltipHtml,
 } from "./animationTooltip";
 import { getScatterSymbol, getScatterSymbolType } from "./scatterSymbols";
-import { getBasemapStyle, resolveBasemap } from "./basemaps";
+import {
+  BASEMAP_RASTER_LAYER_ID,
+  clampAerialBasemapOpacity,
+  getBasemapStyle,
+  getBasemapStyleSignature,
+  resolveBasemap,
+} from "./basemaps";
 import {
   BUILDINGS_LAYER_ID,
   BUILDINGS_SOURCE_ID,
@@ -83,6 +89,10 @@ import {
   updateTemporalAnimationLayers,
 } from "./animationLayers";
 import { syncCompletedAnimationPlayback } from "./animationPlayback";
+import {
+  getTooltipPlacementStyle,
+  TooltipPlacementBounds,
+} from "./tooltipPlacement";
 
 const createEmptyDatasetSnapshot = (version = "0"): DatasetSnapshot => ({
   layers: createEmptyLayerDataStore(),
@@ -102,6 +112,10 @@ const AUTO_3D_PITCH = 45;
 const FLAT_MAP_PITCH = 0;
 const PITCH_EPSILON = 0.5;
 const MAPLIBRE_CONTROL_MARGIN_PX = 10;
+const H3_TOOLTIP_MAX_WIDTH_PX = 220;
+const MULTI_TOOLTIP_MAX_WIDTH_PX = 340;
+const TOOLTIP_INTERACTION_HIDE_DELAY_MS = 900;
+const RASTER_OPACITY_EPSILON = 0.0001;
 
 interface CameraAnimationOptions {
   duration: number;
@@ -118,6 +132,11 @@ interface LayerOrderControl {
 
 // Same shape as LayerOrderControl: an on-map control with a re-render hook.
 type MapOverlayControl = LayerOrderControl;
+
+interface VisualTooltipContent {
+  html: string;
+  style: Partial<CSSStyleDeclaration>;
+}
 
 interface ModifierKeyEvent {
   ctrlKey?: boolean;
@@ -148,6 +167,7 @@ export class Visual implements IVisual {
   private hasInitialViewBeenSet: boolean;
   private suppressNextFlyTo: boolean;
   private currentBaseMap: string;
+  private currentBaseMapStyleSignature: string;
   private legendContainer: HTMLDivElement | null;
   private lastLegendSignature: string | null;
   private lastDataSignature: string | null;
@@ -165,6 +185,11 @@ export class Visual implements IVisual {
   private animationController: TimeAnimationController;
   private animationTime: number;
   private lastAnimationCameraPitched: boolean | null;
+  private stickyTooltipContent: VisualTooltipContent | null;
+  private stickyTooltipExpiresAt: number;
+  private stickyTooltipHideTimeout: number | null;
+  private tooltipElement: HTMLElement | null;
+  private tooltipPointerInside: boolean;
 
   private createResetViewControl() {
     const container = document.createElement("div");
@@ -641,6 +666,61 @@ export class Visual implements IVisual {
     );
   }
 
+  private getBasemapStyleOptions() {
+    const mapSettings = this.formattingSettings.map;
+
+    return {
+      mapboxAccessToken: mapSettings.mapboxAccessToken.value,
+      aerialOpacity: mapSettings.aerialBasemapOpacity.value,
+    };
+  }
+
+  private getCurrentBasemapStyleSignature(baseMap: string): string {
+    return getBasemapStyleSignature(
+      baseMap,
+      this.formattingSettings.map.mapboxAccessToken.value,
+    );
+  }
+
+  private getCurrentRasterBasemapOpacity(): number {
+    const baseMap = this.formattingSettings.map.baseMap.value.value as string;
+
+    if (!resolveBasemap(baseMap).isAerial) {
+      return 1;
+    }
+
+    return clampAerialBasemapOpacity(
+      this.formattingSettings.map.aerialBasemapOpacity.value,
+    );
+  }
+
+  private syncRasterBasemapOpacity() {
+    const map = this.map as any;
+
+    if (!map?.isStyleLoaded?.() || !map.getLayer?.(BASEMAP_RASTER_LAYER_ID)) {
+      return;
+    }
+
+    const opacity = this.getCurrentRasterBasemapOpacity();
+    const currentOpacity = map.getPaintProperty?.(
+      BASEMAP_RASTER_LAYER_ID,
+      "raster-opacity",
+    );
+
+    if (
+      typeof currentOpacity === "number" &&
+      Math.abs(currentOpacity - opacity) < RASTER_OPACITY_EPSILON
+    ) {
+      return;
+    }
+
+    map.setPaintProperty?.(
+      BASEMAP_RASTER_LAYER_ID,
+      "raster-opacity",
+      opacity,
+    );
+  }
+
   private is3DBuildingsEnabled(): boolean {
     return this.formattingSettings.map.show3DBuildings.value === true;
   }
@@ -865,6 +945,187 @@ export class Visual implements IVisual {
     };
   }
 
+  private getTooltipBounds(): TooltipPlacementBounds | null {
+    const canvas = this.map?.getCanvas?.();
+    const canvasWidth = canvas?.clientWidth ?? 0;
+    const canvasHeight = canvas?.clientHeight ?? 0;
+
+    if (canvasWidth > 0 && canvasHeight > 0) {
+      return {
+        width: canvasWidth,
+        height: canvasHeight,
+      };
+    }
+
+    const rootRect = this.rootElement.getBoundingClientRect();
+    if (rootRect.width > 0 && rootRect.height > 0) {
+      return {
+        width: rootRect.width,
+        height: rootRect.height,
+      };
+    }
+
+    return null;
+  }
+
+  private getDynamicTooltipStyle(
+    hoverInfo: PickingInfo,
+    maxWidth: number,
+    baseStyle: Partial<CSSStyleDeclaration>,
+  ): Partial<CSSStyleDeclaration> {
+    return {
+      ...baseStyle,
+      pointerEvents: "auto",
+      ...getTooltipPlacementStyle({
+        x: hoverInfo.x,
+        y: hoverInfo.y,
+        bounds: this.getTooltipBounds(),
+        maxWidth,
+      }),
+    };
+  }
+
+  private clearTooltipHideTimeout(): void {
+    if (this.stickyTooltipHideTimeout === null) {
+      return;
+    }
+
+    window.clearTimeout(this.stickyTooltipHideTimeout);
+    this.stickyTooltipHideTimeout = null;
+  }
+
+  private detachTooltipListeners(): void {
+    if (!this.tooltipElement) {
+      return;
+    }
+
+    this.tooltipElement.removeEventListener(
+      "mouseenter",
+      this.handleTooltipMouseEnter,
+    );
+    this.tooltipElement.removeEventListener(
+      "mouseleave",
+      this.handleTooltipMouseLeave,
+    );
+    this.tooltipElement.removeEventListener(
+      "pointerdown",
+      this.stopTooltipEvent,
+    );
+    this.tooltipElement.removeEventListener("mousedown", this.stopTooltipEvent);
+    this.tooltipElement.removeEventListener("mouseup", this.stopTooltipEvent);
+    this.tooltipElement.removeEventListener("click", this.stopTooltipEvent);
+    this.tooltipElement.removeEventListener("dblclick", this.stopTooltipEvent);
+    this.tooltipElement.removeEventListener("wheel", this.stopTooltipEvent);
+    this.tooltipElement = null;
+  }
+
+  private ensureTooltipInteractivity(): void {
+    const element = this.rootElement.querySelector<HTMLElement>(".deck-tooltip");
+    if (!element) {
+      this.detachTooltipListeners();
+      return;
+    }
+
+    if (this.tooltipElement === element) {
+      return;
+    }
+
+    this.detachTooltipListeners();
+    this.tooltipElement = element;
+    element.addEventListener("mouseenter", this.handleTooltipMouseEnter);
+    element.addEventListener("mouseleave", this.handleTooltipMouseLeave);
+    element.addEventListener("pointerdown", this.stopTooltipEvent);
+    element.addEventListener("mousedown", this.stopTooltipEvent);
+    element.addEventListener("mouseup", this.stopTooltipEvent);
+    element.addEventListener("click", this.stopTooltipEvent);
+    element.addEventListener("dblclick", this.stopTooltipEvent);
+    element.addEventListener("wheel", this.stopTooltipEvent);
+  }
+
+  private hideStickyTooltip(): void {
+    this.clearTooltipHideTimeout();
+    this.stickyTooltipContent = null;
+    this.stickyTooltipExpiresAt = 0;
+    this.tooltipPointerInside = false;
+
+    const element =
+      this.tooltipElement ??
+      this.rootElement.querySelector<HTMLElement>(".deck-tooltip");
+    if (element) {
+      element.style.display = "none";
+    }
+  }
+
+  private scheduleStickyTooltipHide(
+    delayMs = TOOLTIP_INTERACTION_HIDE_DELAY_MS,
+  ): void {
+    this.clearTooltipHideTimeout();
+    this.stickyTooltipExpiresAt = Date.now() + delayMs;
+    this.stickyTooltipHideTimeout = window.setTimeout(() => {
+      this.stickyTooltipHideTimeout = null;
+      if (!this.tooltipPointerInside && Date.now() >= this.stickyTooltipExpiresAt) {
+        this.hideStickyTooltip();
+      }
+    }, delayMs);
+  }
+
+  private rememberStickyTooltip(
+    content: VisualTooltipContent,
+  ): VisualTooltipContent {
+    this.ensureTooltipInteractivity();
+    this.clearTooltipHideTimeout();
+    this.stickyTooltipContent = content;
+    this.stickyTooltipExpiresAt =
+      Date.now() + TOOLTIP_INTERACTION_HIDE_DELAY_MS;
+    return content;
+  }
+
+  private getStickyTooltipFallback(): VisualTooltipContent | null {
+    this.ensureTooltipInteractivity();
+    if (!this.stickyTooltipContent) {
+      return null;
+    }
+
+    if (this.tooltipPointerInside) {
+      return this.stickyTooltipContent;
+    }
+
+    const remainingMs = this.stickyTooltipExpiresAt - Date.now();
+    if (remainingMs <= 0) {
+      this.hideStickyTooltip();
+      return null;
+    }
+
+    if (this.stickyTooltipHideTimeout === null) {
+      this.scheduleStickyTooltipHide(remainingMs);
+    }
+    return this.stickyTooltipContent;
+  }
+
+  private detachTooltipInteractivity(): void {
+    this.clearTooltipHideTimeout();
+    this.stickyTooltipContent = null;
+    this.stickyTooltipExpiresAt = 0;
+    this.tooltipPointerInside = false;
+    this.detachTooltipListeners();
+  }
+
+  private handleTooltipMouseEnter = (): void => {
+    this.tooltipPointerInside = true;
+    this.clearTooltipHideTimeout();
+  };
+
+  private handleTooltipMouseLeave = (): void => {
+    this.tooltipPointerInside = false;
+    if (this.stickyTooltipContent) {
+      this.scheduleStickyTooltipHide();
+    }
+  };
+
+  private stopTooltipEvent = (event: Event): void => {
+    event.stopPropagation();
+  };
+
   /**
    * Sync the animation controller with the current dataset and settings, and
    * start/stop playback to match the Play toggle. Called on each data/format
@@ -1041,6 +1302,11 @@ export class Visual implements IVisual {
     this.buildingLayerSignature = null;
     this.animationTime = 0;
     this.lastAnimationCameraPitched = null;
+    this.stickyTooltipContent = null;
+    this.stickyTooltipExpiresAt = 0;
+    this.stickyTooltipHideTimeout = null;
+    this.tooltipElement = null;
+    this.tooltipPointerInside = false;
     this.animationController = new TimeAnimationController((time) => {
       this.animationTime = time;
       this.pushAnimationFrame();
@@ -1058,17 +1324,26 @@ export class Visual implements IVisual {
       );
     this.formattingSettings = settings;
     this.currentBaseMap = settings.map.baseMap.value.value as string;
+    this.currentBaseMapStyleSignature = this.getCurrentBasemapStyleSignature(
+      this.currentBaseMap,
+    );
     this.syncBaseMapTheme(this.currentBaseMap);
 
     if (document) {
       this.rootElement.classList.add("deckgl-map-visual");
       this.map = new MapLibreMap({
         container: this.rootElement,
-        style: getBasemapStyle(settings.map.baseMap.value.value) as any,
+        style: getBasemapStyle(
+          settings.map.baseMap.value.value,
+          this.getBasemapStyleOptions(),
+        ) as any,
         canvasContextAttributes: { antialias: true },
         maxZoom: 20,
       });
-      this.map.on("styledata", () => this.sync3DBuildingsLayer());
+      this.map.on("styledata", () => {
+        this.syncRasterBasemapOpacity();
+        this.sync3DBuildingsLayer();
+      });
       this.map.on("pitch", () => this.handleCameraPitchChanged());
       this.map.on("pitchend", () => this.handleCameraPitchChanged());
       this.legendContainer = document.createElement("div");
@@ -1105,22 +1380,25 @@ export class Visual implements IVisual {
 
             const h3TooltipHtml = getH3HexagonTooltipHtml(hoverInfo);
             if (h3TooltipHtml) {
-              return {
+              const tooltipContent = {
                 html: animationHtml
                   ? animationHtml + h3TooltipHtml
                   : h3TooltipHtml,
-                style: {
-                  "z-index": 2,
-                  color: "#dbe6ef",
-                  "background-color": "#29323c",
-                  padding: "8px 10px",
-                  "border-radius": "4px",
-                  margin: "0px",
-                  "font-size": "12px",
-                  "margin-left": "25px",
-                  "max-width": "220px",
-                },
+                style: this.getDynamicTooltipStyle(
+                  hoverInfo,
+                  H3_TOOLTIP_MAX_WIDTH_PX,
+                  {
+                    zIndex: "2",
+                    color: "#dbe6ef",
+                    backgroundColor: "#29323c",
+                    padding: "8px 10px",
+                    borderRadius: "4px",
+                    margin: "0px",
+                    fontSize: "12px",
+                  },
+                ),
               };
+              return this.rememberStickyTooltip(tooltipContent);
             }
 
             const tooltipHtml = getAggregatedTooltipHtml({
@@ -1135,7 +1413,7 @@ export class Visual implements IVisual {
 
             // Don't float a lone time banner when nothing is actually hovered.
             if (!tooltipHtml && (!animationHtml || !hoverInfo?.object)) {
-              return null;
+              return this.getStickyTooltipFallback();
             }
 
             const combined = animationHtml
@@ -1143,23 +1421,26 @@ export class Visual implements IVisual {
               : (tooltipHtml ?? "");
 
             if (!combined) {
-              return null;
+              return this.getStickyTooltipFallback();
             }
 
-            return {
+            const tooltipContent = {
               html: combined,
-              style: {
-                "z-index": 2,
-                color: "#a0a7b4",
-                "background-color": "#29323c",
-                padding: "0px",
-                "border-radius": "4px",
-                margin: "0px",
-                "font-size": "12px",
-                "margin-left": "25px",
-                "max-width": "340px",
-              },
+              style: this.getDynamicTooltipStyle(
+                hoverInfo,
+                MULTI_TOOLTIP_MAX_WIDTH_PX,
+                {
+                  zIndex: "2",
+                  color: "#a0a7b4",
+                  backgroundColor: "#29323c",
+                  padding: "0px",
+                  borderRadius: "4px",
+                  margin: "0px",
+                  fontSize: "12px",
+                },
+              ),
             };
+            return this.rememberStickyTooltip(tooltipContent);
           },
         });
         this.map.addControl(this.deckOverlay);
@@ -1258,12 +1539,19 @@ export class Visual implements IVisual {
 
   private updateBaseMap() {
     const newBaseMap = this.formattingSettings.map.baseMap.value.value as string;
+    const newBaseMapStyleSignature =
+      this.getCurrentBasemapStyleSignature(newBaseMap);
     this.syncBaseMapTheme(newBaseMap);
-    if (newBaseMap !== this.currentBaseMap) {
+    if (newBaseMapStyleSignature !== this.currentBaseMapStyleSignature) {
       this.buildingLayerSignature = null;
-      this.map?.setStyle?.(getBasemapStyle(newBaseMap) as any);
+      this.map?.setStyle?.(
+        getBasemapStyle(newBaseMap, this.getBasemapStyleOptions()) as any,
+      );
       this.currentBaseMap = newBaseMap;
+      this.currentBaseMapStyleSignature = newBaseMapStyleSignature;
     } else {
+      this.currentBaseMap = newBaseMap;
+      this.syncRasterBasemapOpacity();
       this.sync3DBuildingsLayer();
     }
   }
@@ -1343,6 +1631,7 @@ export class Visual implements IVisual {
   }
 
   private clearData() {
+    this.hideStickyTooltip();
     this.dataVersionCounter += 1;
     this.animationController.setDomain(null);
     this.animationTime = 0;
@@ -1372,6 +1661,7 @@ export class Visual implements IVisual {
   }
 
   private processData(options: VisualUpdateOptions, dataView: powerbi.DataView) {
+    this.hideStickyTooltip();
     this.measureTask("powerbi-deckgl-map:parse-data", () => {
       this.dataVersionCounter += 1;
       this.classificationCache.clear();
@@ -1844,6 +2134,8 @@ export class Visual implements IVisual {
   public destroy(): void {
     this.pendingOptions = null;
     this.animationController.stop();
+    this.hideStickyTooltip();
+    this.detachTooltipInteractivity();
     this.selectedIds.clear();
     this.geometryCache.clear();
     this.classificationCache.clear();

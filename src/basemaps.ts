@@ -21,12 +21,29 @@ export const WEB_APP_BASEMAP_IDS = [
   "blank",
 ] as const;
 
+export const AERIAL_BASEMAP_IDS = [
+  "esri_world_imagery",
+  "mapbox_satellite",
+] as const;
+
 export const DEFAULT_BASEMAP_ID = "positron";
+export const ESRI_WORLD_IMAGERY_BASEMAP_ID = "esri_world_imagery";
+export const MAPBOX_SATELLITE_BASEMAP_ID = "mapbox_satellite";
+export const BASEMAP_RASTER_SOURCE_ID = "raster-tiles";
+export const BASEMAP_RASTER_LAYER_ID = "simple-tiles";
 
 export type CartoRasterBasemapId = (typeof CARTO_RASTER_BASEMAP_IDS)[number];
 export type WebAppBasemapId = (typeof WEB_APP_BASEMAP_IDS)[number];
-export type BasemapId = CartoRasterBasemapId | WebAppBasemapId;
-export type BasemapKind = "carto-raster" | "blank";
+export type AerialBasemapId = (typeof AERIAL_BASEMAP_IDS)[number];
+export type BasemapId =
+  | CartoRasterBasemapId
+  | WebAppBasemapId
+  | AerialBasemapId;
+export type BasemapKind =
+  | "carto-raster"
+  | "esri-raster"
+  | "mapbox-raster"
+  | "blank";
 
 export interface BasemapOption {
   value: BasemapId;
@@ -38,13 +55,19 @@ export interface BasemapDefinition {
   displayName: string;
   kind: BasemapKind;
   dark: boolean;
+  isAerial: boolean;
   rasterBaseMapId?: CartoRasterBasemapId;
+}
+
+export interface BasemapStyleOptions {
+  mapboxAccessToken?: unknown;
+  aerialOpacity?: unknown;
 }
 
 export interface RasterStyleSpecification {
   version: 8;
   sources: {
-    "raster-tiles": {
+    [BASEMAP_RASTER_SOURCE_ID]: {
       type: "raster";
       tiles: string[];
       tileSize: 256;
@@ -54,9 +77,12 @@ export interface RasterStyleSpecification {
   layers: Array<{
     id: string;
     type: "raster";
-    source: "raster-tiles";
+    source: typeof BASEMAP_RASTER_SOURCE_ID;
     minzoom: number;
     maxzoom: number;
+    paint: {
+      "raster-opacity": number;
+    };
   }>;
 }
 
@@ -73,6 +99,12 @@ export type BasemapStyleSpecification =
 const CARTO_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
 
+const ESRI_WORLD_IMAGERY_ATTRIBUTION =
+  'Source: <a href="https://goto.arcgisonline.com/maps/World_Imagery">Esri, Vantor, Earthstar Geographics, and the GIS User Community</a>';
+
+const MAPBOX_SATELLITE_ATTRIBUTION =
+  '&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a>';
+
 const WEB_APP_BASEMAPS = new Map<WebAppBasemapId, BasemapDefinition>([
   [
     "positron",
@@ -81,6 +113,7 @@ const WEB_APP_BASEMAPS = new Map<WebAppBasemapId, BasemapDefinition>([
       displayName: "Light (Positron)",
       kind: "carto-raster",
       dark: false,
+      isAerial: false,
       rasterBaseMapId: "light_all",
     },
   ],
@@ -91,6 +124,7 @@ const WEB_APP_BASEMAPS = new Map<WebAppBasemapId, BasemapDefinition>([
       displayName: "Light, no labels",
       kind: "carto-raster",
       dark: false,
+      isAerial: false,
       rasterBaseMapId: "light_nolabels",
     },
   ],
@@ -101,6 +135,7 @@ const WEB_APP_BASEMAPS = new Map<WebAppBasemapId, BasemapDefinition>([
       displayName: "Dark (Dark Matter)",
       kind: "carto-raster",
       dark: true,
+      isAerial: false,
       rasterBaseMapId: "dark_all",
     },
   ],
@@ -111,6 +146,7 @@ const WEB_APP_BASEMAPS = new Map<WebAppBasemapId, BasemapDefinition>([
       displayName: "Dark, no labels",
       kind: "carto-raster",
       dark: true,
+      isAerial: false,
       rasterBaseMapId: "dark_nolabels",
     },
   ],
@@ -121,6 +157,30 @@ const WEB_APP_BASEMAPS = new Map<WebAppBasemapId, BasemapDefinition>([
       displayName: "Blank",
       kind: "blank",
       dark: false,
+      isAerial: false,
+    },
+  ],
+]);
+
+const AERIAL_BASEMAPS = new Map<AerialBasemapId, BasemapDefinition>([
+  [
+    ESRI_WORLD_IMAGERY_BASEMAP_ID,
+    {
+      id: ESRI_WORLD_IMAGERY_BASEMAP_ID,
+      displayName: "Satellite (Esri World Imagery)",
+      kind: "esri-raster",
+      dark: true,
+      isAerial: true,
+    },
+  ],
+  [
+    MAPBOX_SATELLITE_BASEMAP_ID,
+    {
+      id: MAPBOX_SATELLITE_BASEMAP_ID,
+      displayName: "Satellite (Mapbox BYOK)",
+      kind: "mapbox-raster",
+      dark: true,
+      isAerial: true,
     },
   ],
 ]);
@@ -133,6 +193,7 @@ const VOYAGER_BASEMAPS = new Map<CartoRasterBasemapId, BasemapDefinition>([
       displayName: "Voyager (Colour)",
       kind: "carto-raster",
       dark: false,
+      isAerial: false,
       rasterBaseMapId: "rastertiles/voyager",
     },
   ],
@@ -143,6 +204,7 @@ const VOYAGER_BASEMAPS = new Map<CartoRasterBasemapId, BasemapDefinition>([
       displayName: "Voyager, no labels",
       kind: "carto-raster",
       dark: false,
+      isAerial: false,
       rasterBaseMapId: "rastertiles/voyager_nolabels",
     },
   ],
@@ -156,13 +218,19 @@ const CARTO_RASTER_BASEMAPS = new Map<CartoRasterBasemapId, BasemapDefinition>(
       displayName: id,
       kind: "carto-raster",
       dark: id.startsWith("dark") || id.includes("/dark"),
+      isAerial: false,
       rasterBaseMapId: id,
     },
   ]),
 );
 
 export const basemapOptions: BasemapOption[] = [
-  ...Array.from(WEB_APP_BASEMAPS.values()),
+  WEB_APP_BASEMAPS.get("positron")!,
+  WEB_APP_BASEMAPS.get("positron_no_labels")!,
+  WEB_APP_BASEMAPS.get("dark_matter")!,
+  WEB_APP_BASEMAPS.get("dark_matter_no_labels")!,
+  ...Array.from(AERIAL_BASEMAPS.values()),
+  WEB_APP_BASEMAPS.get("blank")!,
   ...Array.from(VOYAGER_BASEMAPS.values()),
 ].map(({ id, displayName }) => ({ value: id, displayName }));
 
@@ -191,46 +259,114 @@ export const resolveBasemap = (baseMap: unknown): BasemapDefinition => {
   const id = resolveBasemapAlias(baseMap);
   return (
     WEB_APP_BASEMAPS.get(id as WebAppBasemapId) ??
+    AERIAL_BASEMAPS.get(id as AerialBasemapId) ??
     VOYAGER_BASEMAPS.get(id as CartoRasterBasemapId) ??
     CARTO_RASTER_BASEMAPS.get(id as CartoRasterBasemapId) ??
     WEB_APP_BASEMAPS.get(DEFAULT_BASEMAP_ID)!
   );
 };
 
-const getCartoRasterStyle = (
-  baseMap: CartoRasterBasemapId,
+export const isAerialBasemap = (baseMap: unknown): boolean =>
+  resolveBasemap(baseMap).isAerial;
+
+export const isMapboxSatelliteBasemap = (baseMap: unknown): boolean =>
+  resolveBasemap(baseMap).id === MAPBOX_SATELLITE_BASEMAP_ID;
+
+export const normalizeMapboxAccessToken = (token: unknown): string =>
+  typeof token === "string" ? token.trim() : "";
+
+export const clampAerialBasemapOpacity = (opacity: unknown): number => {
+  const numericOpacity =
+    typeof opacity === "number" && Number.isFinite(opacity) ? opacity : 100;
+  return Math.max(0, Math.min(100, numericOpacity)) / 100;
+};
+
+export const getBasemapStyleSignature = (
+  baseMap: unknown,
+  mapboxAccessToken?: unknown,
+): string => {
+  const definition = resolveBasemap(baseMap);
+  const token = definition.id === MAPBOX_SATELLITE_BASEMAP_ID
+    ? normalizeMapboxAccessToken(mapboxAccessToken)
+    : "";
+
+  return `${definition.id}:${token}`;
+};
+
+const getRasterStyle = (
+  tiles: string[],
+  attribution: string,
+  opacity = 1,
 ): RasterStyleSpecification => {
   return {
     version: 8,
     sources: {
-      "raster-tiles": {
+      [BASEMAP_RASTER_SOURCE_ID]: {
         type: "raster",
-        tiles: [
-          `https://a.basemaps.cartocdn.com/${baseMap}/{z}/{x}/{y}{r}.png`,
-          `https://b.basemaps.cartocdn.com/${baseMap}/{z}/{x}/{y}{r}.png`,
-          `https://c.basemaps.cartocdn.com/${baseMap}/{z}/{x}/{y}{r}.png`,
-          `https://d.basemaps.cartocdn.com/${baseMap}/{z}/{x}/{y}{r}.png`,
-        ],
+        tiles,
         tileSize: 256,
-        attribution: CARTO_ATTRIBUTION,
+        attribution,
       },
     },
     layers: [
       {
-        id: "simple-tiles",
+        id: BASEMAP_RASTER_LAYER_ID,
         type: "raster",
-        source: "raster-tiles",
+        source: BASEMAP_RASTER_SOURCE_ID,
         minzoom: 0,
         maxzoom: 20,
+        paint: {
+          "raster-opacity": opacity,
+        },
       },
     ],
   };
 };
 
+const getCartoRasterStyle = (
+  baseMap: CartoRasterBasemapId,
+): RasterStyleSpecification =>
+  getRasterStyle(
+    [
+      `https://a.basemaps.cartocdn.com/${baseMap}/{z}/{x}/{y}{r}.png`,
+      `https://b.basemaps.cartocdn.com/${baseMap}/{z}/{x}/{y}{r}.png`,
+      `https://c.basemaps.cartocdn.com/${baseMap}/{z}/{x}/{y}{r}.png`,
+      `https://d.basemaps.cartocdn.com/${baseMap}/{z}/{x}/{y}{r}.png`,
+    ],
+    CARTO_ATTRIBUTION,
+  );
+
+const getEsriWorldImageryStyle = (opacity: number): RasterStyleSpecification =>
+  getRasterStyle(
+    [
+      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    ],
+    ESRI_WORLD_IMAGERY_ATTRIBUTION,
+    opacity,
+  );
+
+const getMapboxSatelliteStyle = (
+  mapboxAccessToken: string,
+  opacity: number,
+): RasterStyleSpecification =>
+  getRasterStyle(
+    [
+      `https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}.jpg90?access_token=${encodeURIComponent(
+        mapboxAccessToken,
+      )}`,
+    ],
+    MAPBOX_SATELLITE_ATTRIBUTION,
+    opacity,
+  );
+
 export const getBasemapStyle = (
   baseMap: unknown,
+  options: BasemapStyleOptions = {},
 ): BasemapStyleSpecification => {
   const definition = resolveBasemap(baseMap);
+  const opacity = definition.isAerial
+    ? clampAerialBasemapOpacity(options.aerialOpacity)
+    : 1;
 
   if (definition.kind === "blank") {
     return {
@@ -238,6 +374,22 @@ export const getBasemapStyle = (
       sources: {},
       layers: [],
     };
+  }
+
+  if (definition.kind === "esri-raster") {
+    return getEsriWorldImageryStyle(opacity);
+  }
+
+  if (definition.kind === "mapbox-raster") {
+    const mapboxAccessToken = normalizeMapboxAccessToken(
+      options.mapboxAccessToken,
+    );
+
+    if (!mapboxAccessToken) {
+      return getEsriWorldImageryStyle(opacity);
+    }
+
+    return getMapboxSatelliteStyle(mapboxAccessToken, opacity);
   }
 
   return getCartoRasterStyle(definition.rasterBaseMapId ?? "light_all");

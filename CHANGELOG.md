@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.8.1.0 - 2026-06-18
+
+### Added
+
+- Added **satellite basemaps**: a keyless Esri World Imagery option, a Mapbox BYOK satellite option, and an aerial basemap opacity slider that dims imagery without changing deck.gl geometry opacity.
+- Added dynamic tooltip placement and scrollable tooltip panels so large custom HTML tooltips stay inside the visual bounds.
+- Added focused tests for satellite basemap styles, aerial opacity clamping, basemap WebAccess privileges, conditional basemap formatting controls, GeoJSON tooltip property reads, and tooltip placement.
+
+### Changed
+
+- Renamed the Format pane cards from `Heatmap properties` to `Heatmap` and from `H3 hexagon properties` to `H3 hexagon`.
+- Updated release metadata to version `1.8.1.0`.
+
 ## 1.8.0.0 - 2026-06-16
 
 ### Added

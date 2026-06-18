@@ -29,6 +29,24 @@ const makePick = (
     },
   }) as PickingInfo;
 
+const makeGeoJsonPropertiesPick = (
+  layerId: string,
+  id: string,
+  tooltipHtml: string,
+): PickingInfo =>
+  ({
+    x: 10,
+    y: 20,
+    index: 0,
+    layer: { id: layerId },
+    object: {
+      properties: {
+        id,
+        tooltipHtml,
+      },
+    },
+  }) as PickingInfo;
+
 test("getAggregatedTooltipHtml orders, deduplicates, and decorates picked objects", () => {
   const scatterPick = makePick(
     LAYER_IDS.scatter,
@@ -87,4 +105,24 @@ test("getAggregatedTooltipHtml passes temporal layer ids to picker", () => {
 
   assert.ok(html);
   assert.deepEqual(requestedLayerIds, [temporalScatterId]);
+});
+
+test("getAggregatedTooltipHtml reads GeoJSON feature properties", () => {
+  const polygonPick = makeGeoJsonPropertiesPick(
+    `${LAYER_IDS.polygon}-polygons-fill`,
+    "restriction-1",
+    "<strong>Restriction</strong><br>value",
+  );
+
+  const html = getAggregatedTooltipHtml({
+    hoverInfo: polygonPick,
+    deckOverlay: null,
+    drawOrder: [...DEFAULT_LAYER_DRAW_ORDER],
+    activeTypes: new Set(["polygon"]),
+    layerIds: [LAYER_IDS.polygon],
+  });
+
+  assert.ok(html);
+  assert.match(html, /Restriction/);
+  assert.match(html, /data-geometry-id="restriction-1"/);
 });

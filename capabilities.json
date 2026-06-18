@@ -257,6 +257,16 @@
             "enumeration": []
           }
         },
+        "mapboxAccessToken": {
+          "type": {
+            "text": true
+          }
+        },
+        "aerialBasemapOpacity": {
+          "type": {
+            "numeric": true
+          }
+        },
         "show3DBuildings": {
           "type": {
             "bool": true
@@ -620,7 +630,7 @@
       }
     },
     "heatmapProps": {
-      "displayName": "Heatmap properties",
+      "displayName": "Heatmap",
       "properties": {
         "showHeatmap": {
           "type": {
@@ -660,7 +670,7 @@
       }
     },
     "h3HexagonProps": {
-      "displayName": "H3 hexagon properties",
+      "displayName": "H3 hexagon",
       "properties": {
         "showH3Hexagons": {
           "type": {
@@ -1505,7 +1515,9 @@
         "https://b.basemaps.cartocdn.com",
         "https://c.basemaps.cartocdn.com",
         "https://d.basemaps.cartocdn.com",
-        "https://tiles.openfreemap.org"
+        "https://tiles.openfreemap.org",
+        "https://server.arcgisonline.com",
+        "https://api.mapbox.com"
       ]
     }
   ]

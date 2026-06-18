@@ -29,7 +29,12 @@ import {
   getScatterSymbol,
   scatterSymbolItems,
 } from "./scatterSymbols";
-import { basemapOptions, DEFAULT_BASEMAP_ID } from "./basemaps";
+import {
+  basemapOptions,
+  DEFAULT_BASEMAP_ID,
+  isAerialBasemap,
+  isMapboxSatelliteBasemap,
+} from "./basemaps";
 import { DEFAULT_3D_BUILDINGS_MIN_ZOOM } from "./buildings";
 
 import FormattingSettingsCard = formattingSettings.SimpleCard;
@@ -704,7 +709,7 @@ export class HeatmapCardSettings extends FormattingSettingsCard {
   });
 
   name: string = "heatmapProps";
-  displayName: string = "Heatmap properties";
+  displayName: string = "Heatmap";
   topLevelSlice = this.showHeatmap;
   slices: Array<FormattingSettingsSlice> = [
     this.showScatterPoints,
@@ -798,7 +803,7 @@ export class H3HexagonCardSettings extends FormattingSettingsCard {
   lineWidth = new BaseStrokeWidthSettings();
 
   name: string = "h3HexagonProps";
-  displayName: string = "H3 hexagon properties";
+  displayName: string = "H3 hexagon";
   topLevelSlice = this.showH3Hexagons;
   slices: Array<FormattingSettingsSlice> = [
     this.showScatterPoints,
@@ -1131,6 +1136,34 @@ export class MapCardSettings extends FormattingSettingsCard {
     items: basemapOptions,
   });
 
+  mapboxAccessToken = new formattingSettings.TextInput({
+    name: "mapboxAccessToken",
+    displayName: "Mapbox access token",
+    description:
+      "Access token for the Mapbox BYOK satellite basemap. Stored with the report formatting settings.",
+    value: "",
+    placeholder: "pk...",
+    visible: false,
+  });
+
+  aerialBasemapOpacity = new formattingSettings.Slider({
+    name: "aerialBasemapOpacity",
+    displayName: "Aerial basemap opacity",
+    description: "Opacity for satellite/aerial basemaps only",
+    value: 100,
+    options: {
+      minValue: {
+        type: powerbi.visuals.ValidatorType.Min,
+        value: 0,
+      },
+      maxValue: {
+        type: powerbi.visuals.ValidatorType.Max,
+        value: 100,
+      },
+    },
+    visible: false,
+  });
+
   show3DBuildings = new formattingSettings.ToggleSwitch({
     name: "show3DBuildings",
     displayName: "Show 3D buildings",
@@ -1269,6 +1302,8 @@ export class MapCardSettings extends FormattingSettingsCard {
   displayName: string = "Map properties";
   slices: Array<FormattingSettingsSlice> = [
     this.baseMap,
+    this.mapboxAccessToken,
+    this.aerialBasemapOpacity,
     this.show3DBuildings,
     this.buildingsMinZoom,
     this.initialSouth,
@@ -1279,6 +1314,12 @@ export class MapCardSettings extends FormattingSettingsCard {
     this.flyToDuration,
     this.flyToPadding,
   ];
+
+  applyBasemapVisibility(): void {
+    const baseMap = this.baseMap.value.value;
+    this.mapboxAccessToken.visible = isMapboxSatelliteBasemap(baseMap);
+    this.aerialBasemapOpacity.visible = isAerialBasemap(baseMap);
+  }
 }
 
 export class LayerControlsCardSettings extends FormattingSettingsCard {
@@ -1568,6 +1609,8 @@ export class VisualFormattingSettingsModel extends FormattingSettingsModel {
    * the data view.
    */
   applyConditionalVisibility(): void {
+    this.map.applyBasemapVisibility();
+
     for (const card of this.cards) {
       for (const value of Object.values(card)) {
         if (value instanceof NumericGradientSettings) {

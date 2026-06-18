@@ -192,6 +192,20 @@
   position: relative;
 }
 
+.deckgl-map-visual .deck-tooltip {
+  box-sizing: border-box;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  overscroll-behavior: contain;
+  pointer-events: auto;
+}
+
+.deckgl-map-visual .deck-tooltip * {
+  box-sizing: border-box;
+}
+
 .deckgl-gradient-legend {
   position: absolute;
   left: 12px;
@@ -213,9 +227,10 @@
 }
 
 .deckgl-multi-tooltip {
-  max-width: 340px;
-  overflow: hidden;
+  max-width: 100%;
+  overflow: visible;
   color: #dbe6ef;
+  overflow-wrap: anywhere;
   word-break: break-word;
 }
 
@@ -253,8 +268,11 @@
   fill: rgba(219, 230, 239, 0.14);
 }
 
-.deckgl-multi-tooltip :where(div, span, strong, p, table) {
+.deckgl-multi-tooltip :where(div, span, strong, p, table, img),
+.deckgl-h3-tooltip,
+.deckgl-animation-time-tooltip {
   max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .deckgl-animation-time-tooltip {

@@ -1,6 +1,6 @@
 # Power BI deck.gl map custom visual
 
-High-performance Power BI custom visual using [deck.gl](https://deck.gl/) and MapLibre for WebGL map rendering. It supports multiple geometry layers in one visual, row-level styling, numeric colour gradients, geometry-aware legends, custom HTML tooltips with geometry-type icons, selection highlighting, scatter elevation, 3D stacked polygon prisms, time animation with an on-map time slider, and on-map layer ordering. It currently focuses on geometry layers rather than text or icon layers.
+High-performance Power BI custom visual using [deck.gl](https://deck.gl/) and MapLibre for WebGL map rendering. It supports multiple geometry layers in one visual, row-level styling, numeric colour gradients, geometry-aware legends, custom HTML tooltips with geometry-type icons, selection highlighting, scatter elevation, 3D stacked polygon prisms, satellite basemaps, time animation with an on-map time slider, and on-map layer ordering. It currently focuses on geometry layers rather than text or icon layers.
 
 ## Install
 
@@ -78,8 +78,8 @@ The demo dashboard is intentionally Hamilton-sized so it opens quickly and stays
   **only when the camera is tilted** — on the default top-down view they stay
   flat. The card is hidden when no timestamp is bound. See
   [Time-Based Animation](#time-based-animation).
-- Tooltips: bind `Tooltip HTML` for custom sanitized HTML tooltips. Multi-layer tooltips follow the current visual layer order and show a compact geometry-type icon in the top-right of each feature section. H3 hexagons show their joined point count from the aggregate cell, separately from the `Tooltip HTML` bucket.
-- Interaction: click selection/highlighting, hover highlighting, configurable fade for unselected polygons, reset view, fly-to, and selectable base maps.
+- Tooltips: bind `Tooltip HTML` for custom sanitized HTML tooltips. Multi-layer tooltips follow the current visual layer order, place themselves dynamically within the visual bounds, scroll when content is tall, and show a compact geometry-type icon in the top-right of each feature section. H3 hexagons show their joined point count from the aggregate cell, separately from the `Tooltip HTML` bucket.
+- Interaction: click selection/highlighting, hover highlighting, configurable fade for unselected polygons, reset view, fly-to, and selectable base maps, including Esri World Imagery and Mapbox satellite BYOK options with aerial basemap opacity control.
 - Layer ordering: multi-geometry visuals can reorder layer stacking directly on the map. The compact on-map layer order pane is off by default; turn on `Layer controls` > `Show layer order control` to use it. The visual persists the order with the report.
 - Validation: geometry validation is enabled by default and can be turned off in the Format pane once data quality is known.
 
@@ -89,9 +89,9 @@ At minimum, add `Geometry ID`, `Layer Type`, and the geometry fields required by
 
 Because Power BI custom visuals receive one categorical data view, multi-layer maps should be modelled as one combined table. Each row identifies its geometry type with `Layer Type`, and only the fields relevant to that geometry need to be populated.
 
-To render a scatter heatmap, add scatter rows as usual, then turn on `Heatmap properties` > `Show heatmap`. Bind `Heatmap weight` when each point should contribute a numeric amount; otherwise each scatter point contributes equally. Use `Show scatter points` to keep or hide the original point layer while the heatmap is active.
+To render a scatter heatmap, add scatter rows as usual, then turn on `Heatmap` > `Show heatmap`. Bind `Heatmap weight` when each point should contribute a numeric amount; otherwise each scatter point contributes equally. Use `Show scatter points` to keep or hide the original point layer while the heatmap is active.
 
-To render H3 hexagons from scatter rows, turn on `H3 hexagon properties` > `Show H3 hexagons`. Each scatter row contributes one point to its H3 cell; only occupied cells render. Use `H3 resolution` to choose the standard H3 cell size. The fill gradient follows joined point count, while the dark grey outline uses the same count-based opacity settings. Hover a hexagon to see its joined point count; the H3 tooltip does not use the `Tooltip HTML` bucket.
+To render H3 hexagons from scatter rows, turn on `H3 hexagon` > `Show H3 hexagons`. Each scatter row contributes one point to its H3 cell; only occupied cells render. Use `H3 resolution` to choose the standard H3 cell size. The fill gradient follows joined point count, while the dark grey outline uses the same count-based opacity settings. Hover a hexagon to see its joined point count; the H3 tooltip does not use the `Tooltip HTML` bucket.
 
 ## 3D Geometry (Z) and Stacked Prisms
 
@@ -245,7 +245,7 @@ Secondly, you can filter the selected shapes by click. This is two way:
 
 ## Future Ideas
 
-Potential future enhancements include satellite basemaps, Power BI standard highlight integration, and additional deck.gl layers such as column layers.
+Potential future enhancements include Power BI standard highlight integration and additional deck.gl layers such as column layers.
 
 ## Developing
 

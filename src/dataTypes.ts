@@ -45,14 +45,21 @@ interface StrokedProperties {
   lineColorValue: number | null;
   lineColorCategory: string | null;
 }
+interface TooltipProperties {
+  id?: string;
+  tooltipHtml?: string | null;
+}
 interface FilledProperties {
   fillColor: RGBAColor | null;
   fillColorValue: number | null;
   fillColorCategory: string | null;
 }
 export interface LineProperties extends StrokedProperties {}
-export interface PathProperties extends StrokedProperties {}
-export interface PolygonProperties extends StrokedProperties, FilledProperties {
+export interface PathProperties extends StrokedProperties, TooltipProperties {}
+export interface PolygonProperties
+  extends StrokedProperties,
+    FilledProperties,
+    TooltipProperties {
   elevation: number | null; // in meters
 }
 export interface ScatterProperties

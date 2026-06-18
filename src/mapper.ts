@@ -543,7 +543,11 @@ const addDataPointToLayerStore = (
     layerData.path.push({
       type: "Feature",
       geometry: data.pathData,
-      properties: data.pathProperties,
+      properties: {
+        ...data.pathProperties,
+        id: String(data.id),
+        tooltipHtml: data.tooltipHtml,
+      },
       selectionId: data.selectionId,
       tooltipHtml: data.tooltipHtml,
       id: String(data.id),
@@ -558,7 +562,11 @@ const addDataPointToLayerStore = (
     layerData.polygon.push({
       type: "Feature",
       geometry: data.polygonData,
-      properties: data.polygonProperties,
+      properties: {
+        ...data.polygonProperties,
+        id: String(data.id),
+        tooltipHtml: data.tooltipHtml,
+      },
       selectionId: data.selectionId,
       tooltipHtml: data.tooltipHtml,
       id: String(data.id),

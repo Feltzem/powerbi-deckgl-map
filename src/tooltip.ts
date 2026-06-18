@@ -12,6 +12,7 @@ interface TooltipObject {
   tooltipHtml?: unknown;
   properties?: {
     id?: unknown;
+    tooltipHtml?: unknown;
   };
 }
 
@@ -141,7 +142,7 @@ const createTooltipEntries = (
   pickedInfos.forEach((info, originalIndex) => {
     const object = getTooltipObject(info);
     const geometryType = getTooltipGeometryType(info);
-    const tooltipHtml = object?.tooltipHtml;
+    const tooltipHtml = object?.tooltipHtml ?? object?.properties?.tooltipHtml;
 
     if (
       !geometryType ||
