@@ -26,7 +26,7 @@ export default function getPolygonLayer(
   classificationCache: NumericColorBinsCache,
   dataVersion: string,
   onClick: (info: PickingInfo, event: unknown) => void,
-) {
+): any {
   const defaultLineColor = withOpacity(
     decodeHex(settings.line.color.defaultLineColor.value.value, [0, 0, 0, 100]),
     settings.line.color.defaultLineOpacity.value,

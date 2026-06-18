@@ -23,6 +23,11 @@ interface TooltipEntry {
   originalIndex: number;
 }
 
+export interface AggregatedTooltipResult {
+  html: string;
+  ids: string[];
+}
+
 export interface MultipleObjectPicker {
   pickMultipleObjects(params: {
     x: number;
@@ -205,7 +210,7 @@ const buildTooltipHtml = (entries: TooltipEntry[]): string | null => {
   return `<div class="deckgl-multi-tooltip">${sections.join("")}</div>`;
 };
 
-export const getAggregatedTooltipHtml = ({
+export const getAggregatedTooltipInfo = ({
   hoverInfo,
   deckOverlay,
   drawOrder,
@@ -213,7 +218,7 @@ export const getAggregatedTooltipHtml = ({
   layerIds,
   radius = 5,
   depth = 25,
-}: AggregatedTooltipOptions): string | null => {
+}: AggregatedTooltipOptions): AggregatedTooltipResult | null => {
   if (!hoverInfo.object) {
     return null;
   }
@@ -271,5 +276,15 @@ export const getAggregatedTooltipHtml = ({
     drawOrder,
   );
 
-  return buildTooltipHtml(sortedEntries);
+  const html = buildTooltipHtml(sortedEntries);
+  return html
+    ? {
+        html,
+        ids: sortedEntries.map((entry) => entry.id),
+      }
+    : null;
 };
+
+export const getAggregatedTooltipHtml = (
+  options: AggregatedTooltipOptions,
+): string | null => getAggregatedTooltipInfo(options)?.html ?? null;

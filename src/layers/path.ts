@@ -76,7 +76,7 @@ export default function getPathLayer(
   dataVersion: string,
   onClick: (info: PickingInfo, event: unknown) => void,
   animation: AnimationContext | null = null,
-) {
+): any {
   const defaultLineColor = withOpacity(
     decodeHex(settings.line.color.defaultLineColor.value.value, [0, 0, 0, 100]),
     settings.line.color.defaultLineOpacity.value,

@@ -62,7 +62,7 @@ import {
   RenderableGeometryType,
   parseLayerDrawOrder,
 } from "./layerState";
-import { getAggregatedTooltipHtml } from "./tooltip";
+import { getAggregatedTooltipInfo } from "./tooltip";
 import { dataViewHasRole, getDataViewSignature } from "./roleColumnUtils";
 import {
   formatAnimationTime,
@@ -138,6 +138,18 @@ interface VisualTooltipContent {
   style: Partial<CSSStyleDeclaration>;
 }
 
+interface VisualTooltipPayload {
+  content: VisualTooltipContent;
+  ids: string[];
+}
+
+interface PickedObjectWithId {
+  id?: unknown;
+  properties?: {
+    id?: unknown;
+  };
+}
+
 interface ModifierKeyEvent {
   ctrlKey?: boolean;
   metaKey?: boolean;
@@ -190,6 +202,7 @@ export class Visual implements IVisual {
   private stickyTooltipHideTimeout: number | null;
   private tooltipElement: HTMLElement | null;
   private tooltipPointerInside: boolean;
+  private tooltipLocked: boolean;
 
   private createResetViewControl() {
     const container = document.createElement("div");
@@ -985,6 +998,79 @@ export class Visual implements IVisual {
     };
   }
 
+  private getTooltipPayload(hoverInfo: PickingInfo): VisualTooltipPayload | null {
+    // Show the current playhead time only while actively playing.
+    const animationHtml = this.animationController.isPlaying()
+      ? getAnimationTimeTooltipHtml(this.getAnimationContext())
+      : null;
+
+    const h3TooltipHtml = getH3HexagonTooltipHtml(hoverInfo);
+    if (h3TooltipHtml) {
+      return {
+        content: {
+          html: animationHtml ? animationHtml + h3TooltipHtml : h3TooltipHtml,
+          style: this.getDynamicTooltipStyle(
+            hoverInfo,
+            H3_TOOLTIP_MAX_WIDTH_PX,
+            {
+              zIndex: "2",
+              color: "#dbe6ef",
+              backgroundColor: "#29323c",
+              padding: "8px 10px",
+              borderRadius: "4px",
+              margin: "0px",
+              fontSize: "12px",
+            },
+          ),
+        },
+        ids: [],
+      };
+    }
+
+    const tooltipInfo = getAggregatedTooltipInfo({
+      hoverInfo,
+      deckOverlay: this.deckOverlay,
+      drawOrder: this.currentLayerDrawOrder,
+      activeTypes: this.currentActiveGeometryTypes,
+      layerIds: this.getActiveLayerIds(),
+      radius: 5,
+      depth: 25,
+    });
+
+    // Don't float a lone time banner when nothing is actually hovered.
+    if (!tooltipInfo?.html && (!animationHtml || !hoverInfo?.object)) {
+      return null;
+    }
+
+    const combined = animationHtml
+      ? animationHtml + (tooltipInfo?.html ?? "")
+      : (tooltipInfo?.html ?? "");
+
+    if (!combined) {
+      return null;
+    }
+
+    return {
+      content: {
+        html: combined,
+        style: this.getDynamicTooltipStyle(
+          hoverInfo,
+          MULTI_TOOLTIP_MAX_WIDTH_PX,
+          {
+            zIndex: "2",
+            color: "#a0a7b4",
+            backgroundColor: "#29323c",
+            padding: "0px",
+            borderRadius: "4px",
+            margin: "0px",
+            fontSize: "12px",
+          },
+        ),
+      },
+      ids: tooltipInfo?.ids ?? [],
+    };
+  }
+
   private clearTooltipHideTimeout(): void {
     if (this.stickyTooltipHideTimeout === null) {
       return;
@@ -1047,6 +1133,7 @@ export class Visual implements IVisual {
     this.stickyTooltipContent = null;
     this.stickyTooltipExpiresAt = 0;
     this.tooltipPointerInside = false;
+    this.tooltipLocked = false;
 
     const element =
       this.tooltipElement ??
@@ -1077,6 +1164,18 @@ export class Visual implements IVisual {
     this.stickyTooltipContent = content;
     this.stickyTooltipExpiresAt =
       Date.now() + TOOLTIP_INTERACTION_HIDE_DELAY_MS;
+    this.tooltipLocked = false;
+    return content;
+  }
+
+  private pinStickyTooltip(
+    content: VisualTooltipContent,
+  ): VisualTooltipContent {
+    this.ensureTooltipInteractivity();
+    this.clearTooltipHideTimeout();
+    this.stickyTooltipContent = content;
+    this.stickyTooltipExpiresAt = Number.POSITIVE_INFINITY;
+    this.tooltipLocked = true;
     return content;
   }
 
@@ -1084,6 +1183,10 @@ export class Visual implements IVisual {
     this.ensureTooltipInteractivity();
     if (!this.stickyTooltipContent) {
       return null;
+    }
+
+    if (this.tooltipLocked) {
+      return this.stickyTooltipContent;
     }
 
     if (this.tooltipPointerInside) {
@@ -1107,6 +1210,7 @@ export class Visual implements IVisual {
     this.stickyTooltipContent = null;
     this.stickyTooltipExpiresAt = 0;
     this.tooltipPointerInside = false;
+    this.tooltipLocked = false;
     this.detachTooltipListeners();
   }
 
@@ -1117,7 +1221,7 @@ export class Visual implements IVisual {
 
   private handleTooltipMouseLeave = (): void => {
     this.tooltipPointerInside = false;
-    if (this.stickyTooltipContent) {
+    if (this.stickyTooltipContent && !this.tooltipLocked) {
       this.scheduleStickyTooltipHide();
     }
   };
@@ -1232,6 +1336,7 @@ export class Visual implements IVisual {
     this.hasInitialViewBeenSet = true;
     this.suppressNextFlyTo = true;
     this.selectedIds.clear();
+    this.hideStickyTooltip();
     this.renderCurrentState();
     this.selectionManager.clear();
   }
@@ -1307,6 +1412,7 @@ export class Visual implements IVisual {
     this.stickyTooltipHideTimeout = null;
     this.tooltipElement = null;
     this.tooltipPointerInside = false;
+    this.tooltipLocked = false;
     this.animationController = new TimeAnimationController((time) => {
       this.animationTime = time;
       this.pushAnimationFrame();
@@ -1362,85 +1468,32 @@ export class Visual implements IVisual {
             }
             canvas.style.cursor = hoverInfo?.object ? "pointer" : "grab";
           },
-          onClick: () => {
-            if (this.selectedIds.size === 0) {
+          onClick: (clickInfo) => {
+            if (clickInfo?.object) {
+              return;
+            }
+
+            if (this.selectedIds.size === 0 && !this.tooltipLocked) {
               return;
             }
             this.suppressNextFlyTo = true;
             this.selectedIds.clear();
+            this.hideStickyTooltip();
             this.renderCurrentState();
             this.selectionManager.clear();
           },
           pickingRadius: 5,
           getTooltip: (hoverInfo) => {
-            // Show the current playhead time only while actively playing.
-            const animationHtml = this.animationController.isPlaying()
-              ? getAnimationTimeTooltipHtml(this.getAnimationContext())
-              : null;
-
-            const h3TooltipHtml = getH3HexagonTooltipHtml(hoverInfo);
-            if (h3TooltipHtml) {
-              const tooltipContent = {
-                html: animationHtml
-                  ? animationHtml + h3TooltipHtml
-                  : h3TooltipHtml,
-                style: this.getDynamicTooltipStyle(
-                  hoverInfo,
-                  H3_TOOLTIP_MAX_WIDTH_PX,
-                  {
-                    zIndex: "2",
-                    color: "#dbe6ef",
-                    backgroundColor: "#29323c",
-                    padding: "8px 10px",
-                    borderRadius: "4px",
-                    margin: "0px",
-                    fontSize: "12px",
-                  },
-                ),
-              };
-              return this.rememberStickyTooltip(tooltipContent);
-            }
-
-            const tooltipHtml = getAggregatedTooltipHtml({
-              hoverInfo,
-              deckOverlay: this.deckOverlay,
-              drawOrder: this.currentLayerDrawOrder,
-              activeTypes: this.currentActiveGeometryTypes,
-              layerIds: this.getActiveLayerIds(),
-              radius: 5,
-              depth: 25,
-            });
-
-            // Don't float a lone time banner when nothing is actually hovered.
-            if (!tooltipHtml && (!animationHtml || !hoverInfo?.object)) {
+            if (this.tooltipLocked) {
               return this.getStickyTooltipFallback();
             }
 
-            const combined = animationHtml
-              ? animationHtml + (tooltipHtml ?? "")
-              : (tooltipHtml ?? "");
-
-            if (!combined) {
+            const payload = this.getTooltipPayload(hoverInfo);
+            if (!payload) {
               return this.getStickyTooltipFallback();
             }
 
-            const tooltipContent = {
-              html: combined,
-              style: this.getDynamicTooltipStyle(
-                hoverInfo,
-                MULTI_TOOLTIP_MAX_WIDTH_PX,
-                {
-                  zIndex: "2",
-                  color: "#a0a7b4",
-                  backgroundColor: "#29323c",
-                  padding: "0px",
-                  borderRadius: "4px",
-                  margin: "0px",
-                  fontSize: "12px",
-                },
-              ),
-            };
-            return this.rememberStickyTooltip(tooltipContent);
+            return this.rememberStickyTooltip(payload.content);
           },
         });
         this.map.addControl(this.deckOverlay);
@@ -1683,33 +1736,74 @@ export class Visual implements IVisual {
     });
   }
 
+  private getPickingInfoObjectId(info: PickingInfo): string | null {
+    const object =
+      info.object && typeof info.object === "object"
+        ? (info.object as PickedObjectWithId)
+        : null;
+    const id = object?.id ?? object?.properties?.id;
+    return id === null || id === undefined ? null : String(id);
+  }
+
+  private getSelectableTooltipIds(
+    payload: VisualTooltipPayload | null,
+    info: PickingInfo,
+  ): string[] {
+    const ids =
+      payload && payload.ids.length > 0
+        ? payload.ids
+        : [this.getPickingInfoObjectId(info)].filter(
+            (id): id is string => id !== null,
+          );
+    const seenIds = new Set<string>();
+    const selectableIds: string[] = [];
+
+    for (const id of ids) {
+      if (seenIds.has(id) || !this.dataset.idToSelectionId.has(id)) {
+        continue;
+      }
+
+      seenIds.add(id);
+      selectableIds.push(id);
+    }
+
+    return selectableIds;
+  }
+
   public onClick = (info: PickingInfo, event: unknown) => {
     if (!info.object) {
       return;
     }
 
-    const id = String(info.object.id);
-    if (!this.dataset.idToSelectionId.has(id)) {
+    const payload = this.getTooltipPayload(info);
+    const clickedIds = this.getSelectableTooltipIds(payload, info);
+    if (clickedIds.length === 0) {
+      if (payload) {
+        this.pinStickyTooltip(payload.content);
+      }
       return true;
     }
 
     const multiSelect = this.isMultiSelectEvent(event);
-    if (this.selectedIds.has(id)) {
-      if (multiSelect) {
-        this.selectedIds.delete(id);
-      } else {
-        const onlyThisOneSelected =
-          this.selectedIds.size === 1 && this.selectedIds.has(id);
-        this.selectedIds.clear();
-        if (!onlyThisOneSelected) {
+    if (multiSelect) {
+      for (const id of clickedIds) {
+        if (this.selectedIds.has(id)) {
+          this.selectedIds.delete(id);
+        } else {
           this.selectedIds.add(id);
         }
       }
     } else {
-      if (!multiSelect) {
-        this.selectedIds.clear();
-      }
-      this.selectedIds.add(id);
+      this.selectedIds = new Set(clickedIds);
+    }
+
+    const clickedSelectionStillActive = clickedIds.some((id) =>
+      this.selectedIds.has(id),
+    );
+    if (clickedSelectionStillActive && payload) {
+      this.pinStickyTooltip(payload.content);
+    } else {
+      this.hideStickyTooltip();
     }
 
     this.suppressNextFlyTo = true;

@@ -9,6 +9,7 @@ import {
 } from "../src/layerState";
 import {
   MultipleObjectPicker,
+  getAggregatedTooltipInfo,
   getAggregatedTooltipHtml,
 } from "../src/tooltip";
 
@@ -77,6 +78,35 @@ test("getAggregatedTooltipHtml orders, deduplicates, and decorates picked object
   assert.match(html, /<title>Scatter geometry<\/title>/);
   assert.equal((html.match(/data-geometry-id="scatter-1"/g) ?? []).length, 1);
   assert.ok(html.indexOf("Polygon") < html.indexOf("Scatter"));
+});
+
+test("getAggregatedTooltipInfo returns sorted deduped geometry ids", () => {
+  const scatterPick = makePick(
+    LAYER_IDS.scatter,
+    "scatter-1",
+    "<strong>Scatter</strong>",
+    0,
+  );
+  const polygonPick = makePick(
+    LAYER_IDS.polygon,
+    "polygon-1",
+    "<strong>Polygon</strong>",
+    1,
+  );
+  const picker: MultipleObjectPicker = {
+    pickMultipleObjects: () => [scatterPick, scatterPick, polygonPick],
+  };
+
+  const result = getAggregatedTooltipInfo({
+    hoverInfo: scatterPick,
+    deckOverlay: picker,
+    drawOrder: [...DEFAULT_LAYER_DRAW_ORDER],
+    activeTypes: new Set(["scatter", "polygon"]),
+    layerIds: [LAYER_IDS.scatter, LAYER_IDS.polygon],
+  });
+
+  assert.ok(result);
+  assert.deepEqual(result.ids, ["polygon-1", "scatter-1"]);
 });
 
 test("getAggregatedTooltipHtml passes temporal layer ids to picker", () => {
