@@ -17,9 +17,11 @@ import {
 } from "../src/scatterSymbols";
 import { VisualFormattingSettingsModel } from "../src/settings";
 
-(globalThis as unknown as {
-  powerbi: { visuals: { ValidatorType: { Min: string; Max: string } } };
-}).powerbi = {
+(
+  globalThis as unknown as {
+    powerbi: { visuals: { ValidatorType: { Min: string; Max: string } } };
+  }
+).powerbi = {
   visuals: {
     ValidatorType: {
       Min: "Min",
@@ -43,6 +45,9 @@ const expectedSymbolIds = [
 
 const makeScatterPoint = (): OurData => ({
   id: "point-1",
+  labelText: null,
+  labelPriority: null,
+  sourceOrder: 0,
   type: InputLayerType.Scatter,
   lineData: null,
   lineProperties: null,
@@ -98,7 +103,8 @@ const makeScatterLayer = (symbolType: string) => {
 
 const makeScatterLayerFromRawSymbolValue = (symbolType: unknown) => {
   const settings = new VisualFormattingSettingsModel();
-  settings.scatter.symbolType.value = symbolType as typeof settings.scatter.symbolType.value;
+  settings.scatter.symbolType.value =
+    symbolType as typeof settings.scatter.symbolType.value;
   const colorRoles = createEmptyColorRoleStatsStore();
   colorRoles.scatterFillColor.hasTextColor = true;
   colorRoles.scatterLineColor.hasTextColor = true;

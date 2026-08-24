@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 
 import {
   DEFAULT_LAYER_DRAW_ORDER,
+  LABEL_LAYER_ID,
   LAYER_IDS,
+  TEMPORAL_LABEL_LAYER_ID,
   getGeometryTypeForLayerId,
   getTemporalLayerId,
   parseLayerDrawOrder,
@@ -38,4 +40,10 @@ test("getGeometryTypeForLayerId resolves the animated -temporal layer ids", () =
     "scatter",
   );
   assert.equal(getGeometryTypeForLayerId(getTemporalLayerId("path")), "path");
+});
+
+test("label layers use dedicated non-geometry IDs", () => {
+  assert.equal(TEMPORAL_LABEL_LAYER_ID, `${LABEL_LAYER_ID}-temporal`);
+  assert.equal(getGeometryTypeForLayerId(LABEL_LAYER_ID), null);
+  assert.equal(getGeometryTypeForLayerId(TEMPORAL_LABEL_LAYER_ID), null);
 });

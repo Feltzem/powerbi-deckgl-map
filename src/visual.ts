@@ -48,9 +48,7 @@ import {
 } from "./timeAnimation";
 import getScatterLayer from "./layers/scatter";
 import getHeatmapLayer from "./layers/heatmap";
-import getH3HexagonLayer, {
-  getH3HexagonTooltipHtml,
-} from "./layers/h3Hexagon";
+import getH3HexagonLayer, { getH3HexagonTooltipHtml } from "./layers/h3Hexagon";
 import getLineLayer from "./layers/line";
 import getArcLayer from "./layers/arc";
 import getPathLayer from "./layers/path";
@@ -88,6 +86,8 @@ import {
   getActiveDeckLayerIds,
   updateTemporalAnimationLayers,
 } from "./animationLayers";
+import { getFeatureLabelLayer } from "./labels/featureLabelLayer";
+import { prepareLabelData } from "./labels/labelData";
 import { syncCompletedAnimationPlayback } from "./animationPlayback";
 import {
   getTooltipPlacementStyle,
@@ -552,7 +552,10 @@ export class Visual implements IVisual {
   }
 
   private handleAnimationPlaybackComplete() {
-    syncCompletedAnimationPlayback(this.formattingSettings.animation, this.host);
+    syncCompletedAnimationPlayback(
+      this.formattingSettings.animation,
+      this.host,
+    );
     this.renderTimeSliderControl();
   }
 
@@ -727,11 +730,7 @@ export class Visual implements IVisual {
       return;
     }
 
-    map.setPaintProperty?.(
-      BASEMAP_RASTER_LAYER_ID,
-      "raster-opacity",
-      opacity,
-    );
+    map.setPaintProperty?.(BASEMAP_RASTER_LAYER_ID, "raster-opacity", opacity);
   }
 
   private is3DBuildingsEnabled(): boolean {
@@ -798,9 +797,7 @@ export class Visual implements IVisual {
     }
 
     const labelLayerId = getFirstSymbolLayerId(map.getStyle?.().layers ?? []);
-    const buildingsLayer = create3DBuildingsLayer(
-      this.get3DBuildingsMinZoom(),
-    );
+    const buildingsLayer = create3DBuildingsLayer(this.get3DBuildingsMinZoom());
 
     if (labelLayerId) {
       map.addLayer?.(buildingsLayer, labelLayerId);
@@ -856,7 +853,9 @@ export class Visual implements IVisual {
     // still render extruded, but they only read on a tilted camera, and forcing
     // a tilt whenever the toggle is on (e.g. on a flat scatter/heatmap map)
     // breaks the 2D-by-default rule. Tilt manually to see the buildings in 3D.
-    return extrudedPolygonLayerShown || elevatedScatterLayerShown || arcLayerShown;
+    return (
+      extrudedPolygonLayerShown || elevatedScatterLayerShown || arcLayerShown
+    );
   }
 
   private getMapPitch(): number | null {
@@ -937,10 +936,7 @@ export class Visual implements IVisual {
       return null;
     }
     const animation = this.formattingSettings.animation;
-    const time = Math.min(
-      domain.t1,
-      Math.max(domain.t0, this.animationTime),
-    );
+    const time = Math.min(domain.t1, Math.max(domain.t0, this.animationTime));
     // Time-as-height only reads on a tilted map; on a top-down view the lifted
     // points project straight down and just look like a 2D scatter that has
     // drifted off its coordinates. Keep the default view genuinely 2D by zeroing
@@ -998,7 +994,9 @@ export class Visual implements IVisual {
     };
   }
 
-  private getTooltipPayload(hoverInfo: PickingInfo): VisualTooltipPayload | null {
+  private getTooltipPayload(
+    hoverInfo: PickingInfo,
+  ): VisualTooltipPayload | null {
     // Show the current playhead time only while actively playing.
     const animationHtml = this.animationController.isPlaying()
       ? getAnimationTimeTooltipHtml(this.getAnimationContext())
@@ -1106,7 +1104,8 @@ export class Visual implements IVisual {
   }
 
   private ensureTooltipInteractivity(): void {
-    const element = this.rootElement.querySelector<HTMLElement>(".deck-tooltip");
+    const element =
+      this.rootElement.querySelector<HTMLElement>(".deck-tooltip");
     if (!element) {
       this.detachTooltipListeners();
       return;
@@ -1150,7 +1149,10 @@ export class Visual implements IVisual {
     this.stickyTooltipExpiresAt = Date.now() + delayMs;
     this.stickyTooltipHideTimeout = window.setTimeout(() => {
       this.stickyTooltipHideTimeout = null;
-      if (!this.tooltipPointerInside && Date.now() >= this.stickyTooltipExpiresAt) {
+      if (
+        !this.tooltipPointerInside &&
+        Date.now() >= this.stickyTooltipExpiresAt
+      ) {
         this.hideStickyTooltip();
       }
     }, delayMs);
@@ -1413,13 +1415,17 @@ export class Visual implements IVisual {
     this.tooltipElement = null;
     this.tooltipPointerInside = false;
     this.tooltipLocked = false;
-    this.animationController = new TimeAnimationController((time) => {
-      this.animationTime = time;
-      this.pushAnimationFrame();
-      // Keep the time-slider thumb/label tracking autoplay.
-      this.renderTimeSliderControl();
-    }, undefined, undefined, undefined, () =>
-      this.handleAnimationPlaybackComplete(),
+    this.animationController = new TimeAnimationController(
+      (time) => {
+        this.animationTime = time;
+        this.pushAnimationFrame();
+        // Keep the time-slider thumb/label tracking autoplay.
+        this.renderTimeSliderControl();
+      },
+      undefined,
+      undefined,
+      undefined,
+      () => this.handleAnimationPlaybackComplete(),
     );
     this.rootElement = options.element;
 
@@ -1452,6 +1458,7 @@ export class Visual implements IVisual {
       });
       this.map.on("pitch", () => this.handleCameraPitchChanged());
       this.map.on("pitchend", () => this.handleCameraPitchChanged());
+      this.map.on("zoomend", () => this.renderCurrentState());
       this.legendContainer = document.createElement("div");
       this.legendContainer.className =
         "deckgl-gradient-legend deckgl-gradient-legend--hidden";
@@ -1530,7 +1537,9 @@ export class Visual implements IVisual {
 
   private isResizeOnlyUpdate(options: VisualUpdateOptions): boolean {
     const resizeMask = VisualUpdateType.Resize | VisualUpdateType.ResizeEnd;
-    return (options.type & resizeMask) !== 0 && (options.type & ~resizeMask) === 0;
+    return (
+      (options.type & resizeMask) !== 0 && (options.type & ~resizeMask) === 0
+    );
   }
 
   private shouldRequestMoreData(
@@ -1591,7 +1600,8 @@ export class Visual implements IVisual {
   }
 
   private updateBaseMap() {
-    const newBaseMap = this.formattingSettings.map.baseMap.value.value as string;
+    const newBaseMap = this.formattingSettings.map.baseMap.value
+      .value as string;
     const newBaseMapStyleSignature =
       this.getCurrentBasemapStyleSignature(newBaseMap);
     this.syncBaseMapTheme(newBaseMap);
@@ -1713,7 +1723,10 @@ export class Visual implements IVisual {
     this.applyAutomaticPitch();
   }
 
-  private processData(options: VisualUpdateOptions, dataView: powerbi.DataView) {
+  private processData(
+    options: VisualUpdateOptions,
+    dataView: powerbi.DataView,
+  ) {
     this.hideStickyTooltip();
     this.measureTask("powerbi-deckgl-map:parse-data", () => {
       this.dataVersionCounter += 1;
@@ -2137,6 +2150,27 @@ export class Visual implements IVisual {
         }
       }
 
+      const labelData = prepareLabelData(layerData.all, this.dataset.version);
+      if (labelData.length > 0 && settings.labels.showLabels.value === true) {
+        const labelAnimation = animation
+          ? {
+              time: animation.time,
+              domainStart: animation.domain.t0,
+              domainSpan: animation.domain.t1 - animation.domain.t0,
+              trailLength: animation.trailLength,
+              maxHeight: animation.maxHeight,
+            }
+          : null;
+        layers.push(
+          getFeatureLabelLayer(
+            labelData,
+            settings.labels,
+            this.map?.getZoom?.() ?? 0,
+            labelAnimation,
+          ),
+        );
+      }
+
       return { layers, layerDrawOrder, activeGeometryTypes };
     }
   }
@@ -2187,20 +2221,25 @@ export class Visual implements IVisual {
       return;
     }
 
-    if (this.shouldRequestMoreData(options, dataView)) {
-      this.host.fetchMoreData(true);
-      return;
-    }
-
+    const needsMoreData = this.shouldRequestMoreData(options, dataView);
     const parseData = this.shouldParseData(options, dataView);
     if (parseData) {
       this.processData(options, dataView);
       this.syncAnimationController();
       this.renderCurrentState(dataView);
+      if (needsMoreData) {
+        this.host.fetchMoreData(true);
+        return;
+      }
       const didFlyTo = this.applyFlyTo(dataView);
       if (!didFlyTo) {
         this.applyAutomaticPitch();
       }
+      return;
+    }
+
+    if (needsMoreData) {
+      this.host.fetchMoreData(true);
       return;
     }
 

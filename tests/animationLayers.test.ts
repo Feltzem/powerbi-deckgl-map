@@ -7,7 +7,7 @@ import {
   getTemporalDeckLayerIds,
   updateTemporalAnimationLayers,
 } from "../src/animationLayers";
-import { LAYER_IDS } from "../src/layerState";
+import { LAYER_IDS, TEMPORAL_LABEL_LAYER_ID } from "../src/layerState";
 import { AnimationContext } from "../src/timeAnimation";
 
 interface FakeLayer extends AnimationLayerLike {
@@ -49,9 +49,10 @@ test("updateTemporalAnimationLayers clones only temporal layers", () => {
   const staticLayer: FakeLayer = { id: LAYER_IDS.polygon };
   const scatterLayer = makeCloneableLayer(temporalIds.scatter);
   const pathLayer = makeCloneableLayer(temporalIds.path);
+  const labelLayer = makeCloneableLayer(TEMPORAL_LABEL_LAYER_ID);
 
   const result = updateTemporalAnimationLayers(
-    [staticLayer, scatterLayer, pathLayer],
+    [staticLayer, scatterLayer, pathLayer, labelLayer],
     animation,
   );
 
@@ -67,4 +68,22 @@ test("updateTemporalAnimationLayers clones only temporal layers", () => {
   assert.deepEqual(result.layers[2].cloneProps, {
     timeRange: [10, 25],
   });
+  assert.equal(typeof result.layers[3].cloneProps?.getText, "function");
+  assert.equal(typeof result.layers[3].cloneProps?.getPosition, "function");
+  assert.deepEqual(
+    result.layers[3].cloneProps && {
+      time: result.layers[3].cloneProps.time,
+      domainStart: result.layers[3].cloneProps.domainStart,
+      domainSpan: result.layers[3].cloneProps.domainSpan,
+      trailLength: result.layers[3].cloneProps.trailLength,
+      maxHeight: result.layers[3].cloneProps.maxHeight,
+    },
+    {
+      time: 125,
+      domainStart: 100,
+      domainSpan: 100,
+      trailLength: 15,
+      maxHeight: 750,
+    },
+  );
 });

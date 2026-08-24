@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.9.0.1 - 2026-08-20
+
+### Fixed
+
+- Rendered feature labels as depth-independent overlays so points and other geometry cannot occlude parts of the text or background.
+- Changed feature-label defaults to black text on an opaque white rounded background with a black border.
+
+## 1.9.0.0 - 2026-08-20
+
+### Added
+
+- Added configurable feature labels for point, line, arc, path, and polygon geometries, including placement, styling, zoom visibility, collision padding, label priority, and temporal playback support.
+
+### Fixed
+
+- Bound text fields in the Feature label well as categorical data so Power BI preserves row-aligned label values.
+
 ## 1.8.1.0 - 2026-06-18
 
 ### Added

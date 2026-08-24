@@ -24,6 +24,9 @@ export const LAYER_IDS: Record<RenderableGeometryType, string> = {
   polygon: "polygon-layer-base",
 };
 
+export const LABEL_LAYER_ID = "feature-label-layer-base";
+export const TEMPORAL_LABEL_LAYER_ID = `${LABEL_LAYER_ID}-temporal`;
+
 export const getTemporalLayerId = (
   geometryType: RenderableGeometryType,
 ): string => `${LAYER_IDS[geometryType]}-temporal`;

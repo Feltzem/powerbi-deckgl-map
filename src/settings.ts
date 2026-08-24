@@ -458,8 +458,7 @@ export class CategoricalPaletteSettings extends FormattingSettingsCard {
     const displayPrefix = options.displayPrefix
       ? `${options.displayPrefix} `
       : "";
-    const paletteKey =
-      options.defaultPalette ?? defaultCategoricalPaletteKey;
+    const paletteKey = options.defaultPalette ?? defaultCategoricalPaletteKey;
     const palette = getCategoricalPalette(paletteKey);
 
     this.palette = new formattingSettings.ItemDropdown({
@@ -471,6 +470,362 @@ export class CategoricalPaletteSettings extends FormattingSettingsCard {
     });
 
     this.slices = [this.palette];
+  }
+}
+
+export const LABEL_PLACEMENT_ITEMS = [
+  { value: "top-left", displayName: "Top left" },
+  { value: "top-center", displayName: "Top center" },
+  { value: "top-right", displayName: "Top right" },
+  { value: "middle-left", displayName: "Middle left" },
+  { value: "middle-center", displayName: "Middle center" },
+  { value: "middle-right", displayName: "Middle right" },
+  { value: "bottom-left", displayName: "Bottom left" },
+  { value: "bottom-center", displayName: "Bottom center" },
+  { value: "bottom-right", displayName: "Bottom right" },
+] as const;
+
+export type LabelPlacement = (typeof LABEL_PLACEMENT_ITEMS)[number]["value"];
+
+export const LABEL_BOX_SHAPE_ITEMS = [
+  { value: "rectangle", displayName: "Rectangle" },
+  { value: "rounded", displayName: "Rounded" },
+  { value: "pill", displayName: "Pill" },
+] as const;
+
+export type LabelBoxShape = (typeof LABEL_BOX_SHAPE_ITEMS)[number]["value"];
+
+const labelNumberOptions = (
+  minValue: number,
+  maxValue?: number,
+): formattingSettings.NumUpDown["options"] => ({
+  minValue: {
+    type: powerbi.visuals.ValidatorType.Min,
+    value: minValue,
+  },
+  ...(maxValue === undefined
+    ? {}
+    : {
+        maxValue: {
+          type: powerbi.visuals.ValidatorType.Max,
+          value: maxValue,
+        },
+      }),
+});
+
+export class LabelCardSettings extends FormattingSettingsCard {
+  showLabels = new formattingSettings.ToggleSwitch({
+    name: "showLabels",
+    displayName: "Show labels",
+    description: "Render labels for features with a non-blank Feature label",
+    value: false,
+  });
+
+  minZoom = new formattingSettings.NumUpDown({
+    name: "minZoom",
+    displayName: "Minimum zoom",
+    description: "Minimum map zoom at which labels are visible",
+    value: 0,
+    options: labelNumberOptions(0, 24),
+  });
+
+  maxZoom = new formattingSettings.NumUpDown({
+    name: "maxZoom",
+    displayName: "Maximum zoom",
+    description: "Maximum map zoom at which labels are visible",
+    value: 24,
+    options: labelNumberOptions(0, 24),
+  });
+
+  font = new formattingSettings.FontControl({
+    name: "font",
+    displayName: "Font",
+    description: "Font used for feature labels",
+    fontFamily: new formattingSettings.FontPicker({
+      name: "fontFamily",
+      displayName: "Font family",
+      value: "Segoe UI",
+    }),
+    fontSize: new formattingSettings.NumUpDown({
+      name: "fontSize",
+      displayName: "Font size",
+      value: 12,
+      options: labelNumberOptions(1, 256),
+    }),
+    bold: new formattingSettings.ToggleSwitch({
+      name: "fontBold",
+      displayName: "Bold",
+      value: false,
+    }),
+    italic: new formattingSettings.ToggleSwitch({
+      name: "fontItalic",
+      displayName: "Italic",
+      value: false,
+    }),
+  });
+
+  textColor = new formattingSettings.ColorPicker({
+    name: "textColor",
+    displayName: "Text color",
+    value: { value: "#000000" },
+  });
+
+  textOpacity = new formattingSettings.Slider({
+    name: "textOpacity",
+    displayName: "Text opacity",
+    value: 255,
+    options: {
+      minValue: { type: powerbi.visuals.ValidatorType.Min, value: 0 },
+      maxValue: { type: powerbi.visuals.ValidatorType.Max, value: 255 },
+    },
+  });
+
+  placement = new formattingSettings.ItemDropdown({
+    name: "placement",
+    displayName: "Placement",
+    value: LABEL_PLACEMENT_ITEMS[4],
+    items: [...LABEL_PLACEMENT_ITEMS],
+  });
+
+  offsetX = new formattingSettings.NumUpDown({
+    name: "offsetX",
+    displayName: "X offset (pixels)",
+    value: 0,
+    options: labelNumberOptions(-500, 500),
+  });
+
+  offsetY = new formattingSettings.NumUpDown({
+    name: "offsetY",
+    displayName: "Y offset (pixels)",
+    value: 0,
+    options: labelNumberOptions(-500, 500),
+  });
+
+  showBox = new formattingSettings.ToggleSwitch({
+    name: "showBox",
+    displayName: "Show background box",
+    value: true,
+  });
+
+  boxFillColor = new formattingSettings.ColorPicker({
+    name: "boxFillColor",
+    displayName: "Box fill color",
+    value: { value: "#ffffff" },
+  });
+
+  boxFillOpacity = new formattingSettings.Slider({
+    name: "boxFillOpacity",
+    displayName: "Box fill opacity",
+    value: 255,
+    options: {
+      minValue: { type: powerbi.visuals.ValidatorType.Min, value: 0 },
+      maxValue: { type: powerbi.visuals.ValidatorType.Max, value: 255 },
+    },
+  });
+
+  boxShape = new formattingSettings.ItemDropdown({
+    name: "boxShape",
+    displayName: "Box shape",
+    value: LABEL_BOX_SHAPE_ITEMS[1],
+    items: [...LABEL_BOX_SHAPE_ITEMS],
+  });
+
+  boxPadding = new formattingSettings.NumUpDown({
+    name: "boxPadding",
+    displayName: "Box padding (pixels)",
+    value: 4,
+    options: labelNumberOptions(0, 100),
+  });
+
+  borderColor = new formattingSettings.ColorPicker({
+    name: "borderColor",
+    displayName: "Box border color",
+    value: { value: "#000000" },
+  });
+
+  borderOpacity = new formattingSettings.Slider({
+    name: "borderOpacity",
+    displayName: "Box border opacity",
+    value: 255,
+    options: {
+      minValue: { type: powerbi.visuals.ValidatorType.Min, value: 0 },
+      maxValue: { type: powerbi.visuals.ValidatorType.Max, value: 255 },
+    },
+  });
+
+  borderWidth = new formattingSettings.NumUpDown({
+    name: "borderWidth",
+    displayName: "Box border width (pixels)",
+    value: 1,
+    options: labelNumberOptions(0, 20),
+  });
+
+  showShadow = new formattingSettings.ToggleSwitch({
+    name: "showShadow",
+    displayName: "Show shadow",
+    value: false,
+  });
+
+  shadowColor = new formattingSettings.ColorPicker({
+    name: "shadowColor",
+    displayName: "Shadow color",
+    value: { value: "#000000" },
+  });
+
+  shadowOpacity = new formattingSettings.Slider({
+    name: "shadowOpacity",
+    displayName: "Shadow opacity",
+    value: 120,
+    options: {
+      minValue: { type: powerbi.visuals.ValidatorType.Min, value: 0 },
+      maxValue: { type: powerbi.visuals.ValidatorType.Max, value: 255 },
+    },
+  });
+
+  shadowBlur = new formattingSettings.NumUpDown({
+    name: "shadowBlur",
+    displayName: "Shadow blur (pixels)",
+    value: 3,
+    options: labelNumberOptions(0, 50),
+  });
+
+  shadowOffsetX = new formattingSettings.NumUpDown({
+    name: "shadowOffsetX",
+    displayName: "Shadow X offset (pixels)",
+    value: 2,
+    options: labelNumberOptions(-100, 100),
+  });
+
+  shadowOffsetY = new formattingSettings.NumUpDown({
+    name: "shadowOffsetY",
+    displayName: "Shadow Y offset (pixels)",
+    value: 2,
+    options: labelNumberOptions(-100, 100),
+  });
+
+  showGlow = new formattingSettings.ToggleSwitch({
+    name: "showGlow",
+    displayName: "Show glow",
+    value: false,
+  });
+
+  glowColor = new formattingSettings.ColorPicker({
+    name: "glowColor",
+    displayName: "Glow color",
+    value: { value: "#ffffff" },
+  });
+
+  glowOpacity = new formattingSettings.Slider({
+    name: "glowOpacity",
+    displayName: "Glow opacity",
+    value: 160,
+    options: {
+      minValue: { type: powerbi.visuals.ValidatorType.Min, value: 0 },
+      maxValue: { type: powerbi.visuals.ValidatorType.Max, value: 255 },
+    },
+  });
+
+  glowWidth = new formattingSettings.NumUpDown({
+    name: "glowWidth",
+    displayName: "Glow width (pixels)",
+    value: 2,
+    options: labelNumberOptions(0, 50),
+  });
+
+  collisionPadding = new formattingSettings.NumUpDown({
+    name: "collisionPadding",
+    displayName: "Collision padding (pixels)",
+    value: 2,
+    options: labelNumberOptions(0, 100),
+  });
+
+  name: string = "labelProps";
+  displayName: string = "Feature labels";
+  topLevelSlice = this.showLabels;
+  slices: Array<FormattingSettingsSlice> = [
+    this.minZoom,
+    this.maxZoom,
+    this.font,
+    this.textColor,
+    this.textOpacity,
+    this.placement,
+    this.offsetX,
+    this.offsetY,
+    this.showBox,
+    this.boxFillColor,
+    this.boxFillOpacity,
+    this.boxShape,
+    this.boxPadding,
+    this.borderColor,
+    this.borderOpacity,
+    this.borderWidth,
+    this.showShadow,
+    this.shadowColor,
+    this.shadowOpacity,
+    this.shadowBlur,
+    this.shadowOffsetX,
+    this.shadowOffsetY,
+    this.showGlow,
+    this.glowColor,
+    this.glowOpacity,
+    this.glowWidth,
+    this.collisionPadding,
+  ];
+
+  applyConditionalVisibility(): void {
+    const labelsVisible = this.showLabels.value === true;
+    const setVisible = (
+      slices: Array<FormattingSettingsSlice>,
+      visible: boolean,
+    ): void => {
+      for (const slice of slices) {
+        slice.visible = visible;
+      }
+    };
+
+    setVisible(
+      [
+        this.minZoom,
+        this.maxZoom,
+        this.font,
+        this.textColor,
+        this.textOpacity,
+        this.placement,
+        this.offsetX,
+        this.offsetY,
+        this.showBox,
+        this.showShadow,
+        this.showGlow,
+        this.collisionPadding,
+      ],
+      labelsVisible,
+    );
+    setVisible(
+      [
+        this.boxFillColor,
+        this.boxFillOpacity,
+        this.boxShape,
+        this.boxPadding,
+        this.borderColor,
+        this.borderOpacity,
+        this.borderWidth,
+      ],
+      labelsVisible && this.showBox.value === true,
+    );
+    setVisible(
+      [
+        this.shadowColor,
+        this.shadowOpacity,
+        this.shadowBlur,
+        this.shadowOffsetX,
+        this.shadowOffsetY,
+      ],
+      labelsVisible && this.showShadow.value === true,
+    );
+    setVisible(
+      [this.glowColor, this.glowOpacity, this.glowWidth],
+      labelsVisible && this.showGlow.value === true,
+    );
   }
 }
 
@@ -739,7 +1094,8 @@ export class H3HexagonCardSettings extends FormattingSettingsCard {
   resolution = new formattingSettings.NumUpDown({
     name: "resolution",
     displayName: "H3 resolution",
-    description: "H3 grid resolution, from 0 for largest cells to 15 for smallest cells",
+    description:
+      "H3 grid resolution, from 0 for largest cells to 15 for smallest cells",
     value: 7,
     options: {
       minValue: {
@@ -1573,6 +1929,7 @@ export class AnimationCardSettings extends FormattingSettingsCard {
 }
 
 export class VisualFormattingSettingsModel extends FormattingSettingsModel {
+  labels = new LabelCardSettings();
   scatter = new ScatterCardSettings();
   heatmap = new HeatmapCardSettings();
   h3Hexagon = new H3HexagonCardSettings();
@@ -1593,6 +1950,7 @@ export class VisualFormattingSettingsModel extends FormattingSettingsModel {
     this.validation,
     this.highlighting,
     this.animation,
+    this.labels,
     this.scatter,
     this.heatmap,
     this.h3Hexagon,
@@ -1610,6 +1968,7 @@ export class VisualFormattingSettingsModel extends FormattingSettingsModel {
    */
   applyConditionalVisibility(): void {
     this.map.applyBasemapVisibility();
+    this.labels.applyConditionalVisibility();
 
     for (const card of this.cards) {
       for (const value of Object.values(card)) {

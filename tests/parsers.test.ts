@@ -2,7 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import powerbi from "powerbi-visuals-api";
 
-import { InputLayerType, OurData, RowValueAvailability, RowValues } from "../src/dataTypes";
+import {
+  InputLayerType,
+  OurData,
+  RowValueAvailability,
+  RowValues,
+} from "../src/dataTypes";
 import { parseLine } from "../src/parsers/lineArc";
 import { parsePolygon } from "../src/parsers/polygon";
 import { parseScatter } from "../src/parsers/scatter";
@@ -21,6 +26,8 @@ const makeAvailability = (
 
 const makeRow = (overrides: Partial<RowValues> = {}): RowValues => ({
   geometryId: "geometry-1",
+  featureLabel: null,
+  labelPriority: null,
   layerType: null,
   wkp: null,
   wkt: null,
@@ -52,6 +59,9 @@ const makeRow = (overrides: Partial<RowValues> = {}): RowValues => ({
 
 const makeData = (): OurData => ({
   id: "geometry-1",
+  labelText: null,
+  labelPriority: null,
+  sourceOrder: 0,
   type: null,
   lineData: null,
   lineProperties: null,
@@ -147,11 +157,7 @@ test("parseScatter stores positive heatmap weight and zeroes invalid bound weigh
 
   assert.equal(
     parseScatter(
-      makeAvailability([
-        "point1Latitude",
-        "point1Longitude",
-        "heatmapWeight",
-      ]),
+      makeAvailability(["point1Latitude", "point1Longitude", "heatmapWeight"]),
       makeRow({
         point1Latitude: "-37.8",
         point1Longitude: "175.2",
@@ -167,11 +173,7 @@ test("parseScatter stores positive heatmap weight and zeroes invalid bound weigh
   const invalidData = makeData();
   assert.equal(
     parseScatter(
-      makeAvailability([
-        "point1Latitude",
-        "point1Longitude",
-        "heatmapWeight",
-      ]),
+      makeAvailability(["point1Latitude", "point1Longitude", "heatmapWeight"]),
       makeRow({
         point1Latitude: "-37.8",
         point1Longitude: "175.2",

@@ -1,7 +1,7 @@
 {
   "name": "visual",
   "description": "powerbi-deckgl-map",
-  "version": "1.8.1.0",
+  "version": "1.9.0.1",
   "repository": {
     "type": "git",
     "url": "https://github.com/Feltzem/powerbi-deckgl-map"
@@ -28,6 +28,7 @@
   "dependencies": {
     "@loaders.gl/core": "^4.3.4",
     "@loaders.gl/wkt": "^4.3.4",
+    "@deck.gl/extensions": "^9.1.14",
     "@wkpjs/web": "0.4.0",
     "deck.gl": "^9.1.14",
     "h3-js": "^4.4.0",

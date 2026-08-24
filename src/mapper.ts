@@ -40,6 +40,8 @@ import {
 
 const roleMappings: Array<[keyof RowValues, string]> = [
   ["layerType", "layerType"],
+  ["featureLabel", "featureLabel"],
+  ["labelPriority", "labelPriority"],
   ["wkp", "wkp"],
   ["wkt", "wkt"],
   ["point1Latitude", "point1Latitude"],
@@ -81,6 +83,7 @@ const colorRoleFields = new Set<keyof RowValues>([
 ]);
 
 const numericRoleFields = new Set<keyof RowValues>([
+  "labelPriority",
   "scatterElevation",
   "heatmapWeight",
   "polygonExtrudeElevation",
@@ -89,7 +92,9 @@ const numericRoleFields = new Set<keyof RowValues>([
 const tooltipHtmlMaxLength = 4000;
 const groupedNumericTolerance = 1e-12;
 
-const normalizeSourceName = (value: string | null | undefined): string | null => {
+const normalizeSourceName = (
+  value: string | null | undefined,
+): string | null => {
   const normalized = value?.replace(/[^a-z0-9]/gi, "").toLowerCase();
   return normalized ? normalized : null;
 };
@@ -124,6 +129,15 @@ const sanitizeTooltipHtml = (value: unknown): string | null => {
     .slice(0, tooltipHtmlMaxLength)
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
     .replace(/\son\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+};
+
+const normalizeFeatureLabel = (value: unknown): string | null => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const normalized = String(value).trim();
+  return normalized.length > 0 ? normalized : null;
 };
 
 const hashString = (value: string): string => {
@@ -219,9 +233,14 @@ const getRoleColumns = (
   values: powerbi.DataViewValueColumns | null | undefined,
   categories: powerbi.DataViewCategoryColumn[] = [],
 ): Partial<
-  Record<keyof RowValues, powerbi.DataViewValueColumn | powerbi.DataViewCategoryColumn>
+  Record<
+    keyof RowValues,
+    powerbi.DataViewValueColumn | powerbi.DataViewCategoryColumn
+  >
 > => {
-  const roleColumnCandidates: Partial<Record<keyof RowValues, RoleColumnCandidate[]>> = {};
+  const roleColumnCandidates: Partial<
+    Record<keyof RowValues, RoleColumnCandidate[]>
+  > = {};
 
   const addRoleColumnCandidates = (columns: RoleColumnCandidate[]) => {
     for (const column of columns) {
@@ -414,6 +433,8 @@ const getRowValues = (
   index: number,
 ): RowValues => ({
   geometryId: rowValueArrays.geometryId?.[index] ?? null,
+  featureLabel: rowValueArrays.featureLabel?.[index] ?? null,
+  labelPriority: rowValueArrays.labelPriority?.[index] ?? null,
   layerType: rowValueArrays.layerType?.[index] ?? null,
   wkp: rowValueArrays.wkp?.[index] ?? null,
   wkt: rowValueArrays.wkt?.[index] ?? null,
@@ -487,7 +508,9 @@ const getDataPointTypeFromGeometry = (
   return null;
 };
 
-const dataPointTypeRoleEvidence: Array<[InputLayerType, Array<keyof RowValues>]> = [
+const dataPointTypeRoleEvidence: Array<
+  [InputLayerType, Array<keyof RowValues>]
+> = [
   [
     InputLayerType.Scatter,
     [
@@ -527,10 +550,7 @@ const getDataPointTypeFromRoleValues = (
   return matchingTypes.length === 1 ? matchingTypes[0] : null;
 };
 
-const addDataPointToLayerStore = (
-  layerData: LayerDataStore,
-  data: OurData,
-) => {
+const addDataPointToLayerStore = (layerData: LayerDataStore, data: OurData) => {
   layerData.all.push(data);
 
   if (data.type === InputLayerType.Scatter) {
@@ -539,7 +559,11 @@ const addDataPointToLayerStore = (
     layerData.line.push(data);
   } else if (data.type === InputLayerType.Arc) {
     layerData.arc.push(data);
-  } else if (data.type === InputLayerType.Path && data.pathData && data.pathProperties) {
+  } else if (
+    data.type === InputLayerType.Path &&
+    data.pathData &&
+    data.pathProperties
+  ) {
     layerData.path.push({
       type: "Feature",
       geometry: data.pathData,
@@ -551,6 +575,9 @@ const addDataPointToLayerStore = (
       selectionId: data.selectionId,
       tooltipHtml: data.tooltipHtml,
       id: String(data.id),
+      labelText: data.labelText,
+      labelPriority: data.labelPriority,
+      sourceOrder: data.sourceOrder,
       hasZ: geometryHasZ(data.pathData),
       timestampSeconds: data.timestampSeconds,
     });
@@ -570,6 +597,9 @@ const addDataPointToLayerStore = (
       selectionId: data.selectionId,
       tooltipHtml: data.tooltipHtml,
       id: String(data.id),
+      labelText: data.labelText,
+      labelPriority: data.labelPriority,
+      sourceOrder: data.sourceOrder,
       hasZ: geometryHasZ(data.polygonData),
       timestampSeconds: data.timestampSeconds,
     });
@@ -706,7 +736,10 @@ export function createDatasetSnapshot(
     return emptySnapshot();
   }
 
-  const roleColumns = getRoleColumns(categorical.values, categorical.categories);
+  const roleColumns = getRoleColumns(
+    categorical.values,
+    categorical.categories,
+  );
   const layerTypeValue = roleColumns.layerType;
   if (!layerTypeValue) {
     return emptySnapshot();
@@ -714,6 +747,8 @@ export function createDatasetSnapshot(
 
   const rowValueArrays: RowValueArrays = {
     geometryId: getColumnValues(geometryIdValue),
+    featureLabel: getColumnValues(roleColumns.featureLabel ?? null),
+    labelPriority: getColumnValues(roleColumns.labelPriority ?? null),
     layerType: getColumnValues(layerTypeValue),
     wkp: getColumnValues(roleColumns.wkp ?? null),
     wkt: getColumnValues(roleColumns.wkt ?? null),
@@ -750,6 +785,8 @@ export function createDatasetSnapshot(
 
   const isProvided: RowValueAvailability = {
     geometryId: !!rowValueArrays.geometryId,
+    featureLabel: !!rowValueArrays.featureLabel,
+    labelPriority: !!rowValueArrays.labelPriority,
     layerType: !!rowValueArrays.layerType,
     wkp: !!rowValueArrays.wkp,
     wkt: !!rowValueArrays.wkt,
@@ -794,7 +831,11 @@ export function createDatasetSnapshot(
     ),
   );
 
-  for (let index = 0, len = rowValueArrays.geometryId.length; index < len; index += 1) {
+  for (
+    let index = 0, len = rowValueArrays.geometryId.length;
+    index < len;
+    index += 1
+  ) {
     const rowValues = getRowValues(rowValueArrays, index);
     const id = rowValues.geometryId;
     const selectionId: ISelectionId = host
@@ -861,6 +902,9 @@ export function createDatasetSnapshot(
       );
     const data: OurData = {
       id: String(rowValues.geometryId),
+      labelText: normalizeFeatureLabel(rowValues.featureLabel),
+      labelPriority: getStrictNumberFromValue(rowValues.labelPriority),
+      sourceOrder: index,
       type: null,
       lineData: null,
       lineProperties: null,
@@ -960,11 +1004,6 @@ export function createSelectorDataPoints(
   host: IVisualHost,
   geometryCache: GeometryCache,
 ): OurData[] {
-  return createDatasetSnapshot(
-    options,
-    settings,
-    host,
-    geometryCache,
-    "compat",
-  ).layers.all;
+  return createDatasetSnapshot(options, settings, host, geometryCache, "compat")
+    .layers.all;
 }

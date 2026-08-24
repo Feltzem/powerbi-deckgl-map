@@ -7,6 +7,9 @@ import { getDataBoundingBox, validateData } from "../src/geom";
 
 const makeData = (overrides: Partial<OurData>): OurData => ({
   id: "geometry-1",
+  labelText: null,
+  labelPriority: null,
+  sourceOrder: 0,
   type: null,
   selectionId: {} as powerbi.visuals.ISelectionId,
   tooltipHtml: null,

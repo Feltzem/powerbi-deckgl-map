@@ -57,9 +57,7 @@ interface FilledProperties {
 export interface LineProperties extends StrokedProperties {}
 export interface PathProperties extends StrokedProperties, TooltipProperties {}
 export interface PolygonProperties
-  extends StrokedProperties,
-    FilledProperties,
-    TooltipProperties {
+  extends StrokedProperties, FilledProperties, TooltipProperties {
   elevation: number | null; // in meters
 }
 export interface ScatterProperties
@@ -76,6 +74,9 @@ export interface ArcProperties {
 
 export interface OurData {
   id: string;
+  labelText: string | null;
+  labelPriority: number | null;
+  sourceOrder: number;
   type: InputLayerType | null;
   lineData?: LineData | null;
   lineProperties?: LineProperties | null;
@@ -101,6 +102,9 @@ export interface PathFeature {
   selectionId: ISelectionId;
   tooltipHtml: string | null;
   id: string;
+  labelText: string | null;
+  labelPriority: number | null;
+  sourceOrder: number;
   /** True when the geometry carries a finite Z ordinate (3D WKP). */
   hasZ: boolean;
   /** Bound timestamp normalised to Unix seconds, or null when unbound/blank. */
@@ -114,6 +118,9 @@ export interface PolygonFeature {
   selectionId: ISelectionId;
   tooltipHtml: string | null;
   id: string;
+  labelText: string | null;
+  labelPriority: number | null;
+  sourceOrder: number;
   /** True when the ring vertices carry a finite Z ordinate (3D WKP). */
   hasZ: boolean;
   /** Bound timestamp normalised to Unix seconds, or null when unbound/blank. */
@@ -176,6 +183,8 @@ export type GeometryCache = Map<string, Geometry>;
 
 export interface RowValues {
   geometryId: PrimitiveValue | null;
+  featureLabel: PrimitiveValue | null;
+  labelPriority: PrimitiveValue | null;
   layerType: PrimitiveValue | null;
   wkp: PrimitiveValue | null;
   wkt: PrimitiveValue | null;

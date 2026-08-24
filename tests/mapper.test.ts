@@ -3,11 +3,14 @@ import assert from "node:assert/strict";
 import powerbi from "powerbi-visuals-api";
 
 import { createDatasetSnapshot } from "../src/mapper";
+import { prepareLabelData } from "../src/labels/labelData";
 import { VisualFormattingSettingsModel } from "../src/settings";
 
-(globalThis as unknown as {
-  powerbi: { visuals: { ValidatorType: { Min: string; Max: string } } };
-}).powerbi = {
+(
+  globalThis as unknown as {
+    powerbi: { visuals: { ValidatorType: { Min: string; Max: string } } };
+  }
+).powerbi = {
   visuals: {
     ValidatorType: {
       Min: "Min",
@@ -57,14 +60,18 @@ const makeValues = (
   source?: powerbi.DataViewMetadataColumn,
   extraColumns: powerbi.DataViewValueColumn[] = [],
 ): powerbi.DataViewValueColumns => {
-  const values = [...groups.flatMap((group) => group.values), ...extraColumns] as unknown as
-    powerbi.DataViewValueColumns;
+  const values = [
+    ...groups.flatMap((group) => group.values),
+    ...extraColumns,
+  ] as unknown as powerbi.DataViewValueColumns;
   values.source = source;
   values.grouped = () => groups;
   return values;
 };
 
-const makeHost = (warnings: string[]): powerbi.extensibility.visual.IVisualHost =>
+const makeHost = (
+  warnings: string[],
+): powerbi.extensibility.visual.IVisualHost =>
   ({
     displayWarningIcon: (title: string, detail?: string) => {
       warnings.push([title, detail].filter(Boolean).join(": "));
@@ -165,6 +172,63 @@ test("createDatasetSnapshot infers grouped path rows with missing layer types", 
     "unmetalled",
   ]);
   assert.equal(snapshot.colorRoles.pathColor.categoryCounts.get("sealed"), 2);
+});
+
+test("createDatasetSnapshot normalizes labels and preserves row order", () => {
+  const ids = ["point-1", "point-2", "point-3"];
+  const options = {
+    dataViews: [
+      {
+        categorical: {
+          categories: [
+            makeCategory("geometryId", ids),
+            makeCategory("featureLabel", ["  First point ", "   ", null]),
+          ],
+          values: makeValues([], undefined, [
+            makeColumn("layerType", ["scatter", "scatter", "scatter"]),
+            makeColumn("point1Latitude", [-37.8, -37.81, -37.82]),
+            makeColumn("point1Longitude", [175, 175.01, 175.02]),
+            makeColumn("labelPriority", ["2.5", "not-a-number", 7]),
+          ]),
+        },
+        metadata: {},
+      },
+    ],
+  } as powerbi.extensibility.visual.VisualUpdateOptions;
+
+  const snapshot = createDatasetSnapshot(
+    options,
+    new VisualFormattingSettingsModel(),
+    makeHost([]),
+    new Map(),
+    "labels",
+  );
+
+  assert.deepEqual(
+    snapshot.layers.scatter.map((item) => ({
+      id: item.id,
+      labelText: item.labelText,
+      labelPriority: item.labelPriority,
+      sourceOrder: item.sourceOrder,
+    })),
+    [
+      {
+        id: "point-1",
+        labelText: "First point",
+        labelPriority: 2.5,
+        sourceOrder: 0,
+      },
+      { id: "point-2", labelText: null, labelPriority: null, sourceOrder: 1 },
+      { id: "point-3", labelText: null, labelPriority: 7, sourceOrder: 2 },
+    ],
+  );
+  assert.deepEqual(
+    prepareLabelData(snapshot.layers.all, "labels").map((label) => ({
+      id: label.id,
+      text: label.text,
+    })),
+    [{ id: "point-1", text: "First point" }],
+  );
 });
 
 test("createDatasetSnapshot coalesces sparse grouped role candidates by row", () => {
@@ -485,8 +549,14 @@ test("createDatasetSnapshot maps heatmap weights for scatter rows", () => {
               "scatter",
               "scatter",
             ]),
-            makeColumn("point1Latitude", [-37.8, -37.81, -37.82, -37.83, -37.84]),
-            makeColumn("point1Longitude", [175.2, 175.21, 175.22, 175.23, 175.24]),
+            makeColumn(
+              "point1Latitude",
+              [-37.8, -37.81, -37.82, -37.83, -37.84],
+            ),
+            makeColumn(
+              "point1Longitude",
+              [175.2, 175.21, 175.22, 175.23, 175.24],
+            ),
             makeColumn("heatmapWeight", [2.5, null, "not-a-number", 0, -4]),
           ]),
         },
