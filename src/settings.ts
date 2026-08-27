@@ -34,6 +34,7 @@ import {
   DEFAULT_BASEMAP_ID,
   isAerialBasemap,
   isMapboxSatelliteBasemap,
+  resolveBasemap,
 } from "./basemaps";
 import { DEFAULT_3D_BUILDINGS_MIN_ZOOM } from "./buildings";
 
@@ -1502,6 +1503,16 @@ export class MapCardSettings extends FormattingSettingsCard {
     visible: false,
   });
 
+  cartoApiKey = new formattingSettings.TextInput({
+    name: "cartoApiKey",
+    displayName: "CARTO API key",
+    description:
+      "API key for CARTO basemaps. Request one at carto.com/basemaps/apikey/. Stored with the report formatting settings.",
+    value: "",
+    placeholder: "Your CARTO API key",
+    visible: false,
+  });
+
   aerialBasemapOpacity = new formattingSettings.Slider({
     name: "aerialBasemapOpacity",
     displayName: "Aerial basemap opacity",
@@ -1659,6 +1670,7 @@ export class MapCardSettings extends FormattingSettingsCard {
   slices: Array<FormattingSettingsSlice> = [
     this.baseMap,
     this.mapboxAccessToken,
+    this.cartoApiKey,
     this.aerialBasemapOpacity,
     this.show3DBuildings,
     this.buildingsMinZoom,
@@ -1674,6 +1686,7 @@ export class MapCardSettings extends FormattingSettingsCard {
   applyBasemapVisibility(): void {
     const baseMap = this.baseMap.value.value;
     this.mapboxAccessToken.visible = isMapboxSatelliteBasemap(baseMap);
+    this.cartoApiKey.visible = resolveBasemap(baseMap).kind === "carto-raster";
     this.aerialBasemapOpacity.visible = isAerialBasemap(baseMap);
   }
 }

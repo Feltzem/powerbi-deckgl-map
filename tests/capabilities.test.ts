@@ -69,6 +69,9 @@ test("map properties include satellite basemap settings", () => {
   assert.deepEqual(getObjectProperty("mapProps", "mapboxAccessToken")?.type, {
     text: true,
   });
+  assert.deepEqual(getObjectProperty("mapProps", "cartoApiKey")?.type, {
+    text: true,
+  });
   assert.deepEqual(
     getObjectProperty("mapProps", "aerialBasemapOpacity")?.type,
     {

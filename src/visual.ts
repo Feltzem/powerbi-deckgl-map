@@ -687,6 +687,7 @@ export class Visual implements IVisual {
 
     return {
       mapboxAccessToken: mapSettings.mapboxAccessToken.value,
+      cartoApiKey: mapSettings.cartoApiKey.value,
       aerialOpacity: mapSettings.aerialBasemapOpacity.value,
     };
   }
@@ -695,6 +696,7 @@ export class Visual implements IVisual {
     return getBasemapStyleSignature(
       baseMap,
       this.formattingSettings.map.mapboxAccessToken.value,
+      this.formattingSettings.map.cartoApiKey.value,
     );
   }
 

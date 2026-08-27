@@ -284,6 +284,11 @@
             "text": true
           }
         },
+        "cartoApiKey": {
+          "type": {
+            "text": true
+          }
+        },
         "aerialBasemapOpacity": {
           "type": {
             "numeric": true

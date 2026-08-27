@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.9.0.2 - 2026-08-27
+
+### Added
+
+- Added a report-level CARTO API key setting for authenticated CARTO raster basemaps, with URL encoding, conditional Format pane visibility, and style refresh when the key changes.
+- Documented CARTO key request, Power BI domain, attribution, and fair-use setup requirements.
+
 ## 1.9.0.1 - 2026-08-20
 
 ### Fixed

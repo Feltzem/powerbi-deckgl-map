@@ -32,17 +32,26 @@ test("satellite formatting controls are visible only for relevant basemaps", () 
   setBaseMap(settings, "positron");
   settings.applyConditionalVisibility();
   assert.equal(settings.map.mapboxAccessToken.visible, false);
+  assert.equal(settings.map.cartoApiKey.visible, true);
   assert.equal(settings.map.aerialBasemapOpacity.visible, false);
 
   setBaseMap(settings, "esri_world_imagery");
   settings.applyConditionalVisibility();
   assert.equal(settings.map.mapboxAccessToken.visible, false);
+  assert.equal(settings.map.cartoApiKey.visible, false);
   assert.equal(settings.map.aerialBasemapOpacity.visible, true);
 
   setBaseMap(settings, "mapbox_satellite");
   settings.applyConditionalVisibility();
   assert.equal(settings.map.mapboxAccessToken.visible, true);
+  assert.equal(settings.map.cartoApiKey.visible, false);
   assert.equal(settings.map.aerialBasemapOpacity.visible, true);
+
+  setBaseMap(settings, "blank");
+  settings.applyConditionalVisibility();
+  assert.equal(settings.map.mapboxAccessToken.visible, false);
+  assert.equal(settings.map.cartoApiKey.visible, false);
+  assert.equal(settings.map.aerialBasemapOpacity.visible, false);
 });
 
 test("label formatting controls follow label, box, shadow, and glow toggles", () => {

@@ -1,6 +1,6 @@
 # Power BI deck.gl map custom visual
 
-High-performance Power BI custom visual using [deck.gl](https://deck.gl/) and MapLibre for WebGL map rendering. It supports multiple geometry layers in one visual, row-level styling, numeric colour gradients, geometry-aware legends, custom HTML tooltips with geometry-type icons, selection highlighting, scatter elevation, 3D stacked polygon prisms, satellite basemaps, time animation with an on-map time slider, and on-map layer ordering. It currently focuses on geometry layers rather than text or icon layers.
+High-performance Power BI custom visual using [deck.gl](https://deck.gl/) and MapLibre for WebGL map rendering. It supports multiple geometry layers in one visual, row-level styling, numeric colour gradients, geometry-aware legends, custom HTML tooltips with geometry-type icons, selection highlighting, scatter elevation, 3D stacked polygon prisms, satellite basemaps, CARTO basemap BYOK, time animation with an on-map time slider, and on-map layer ordering. It currently focuses on geometry layers rather than text or icon layers.
 
 ## Install
 
@@ -43,7 +43,7 @@ The demo dashboard is intentionally Hamilton-sized so it opens quickly and stays
 - 2D by default, 3D when it matters: the map opens **top-down (pitch 0)** and
   stays 2D unless there is real height to show. It tilts to 45° automatically
   only when elevated scatter points are drawn, a field is bound to `Polygon
-  extrude elevation`, arcs are drawn, or polygons carry a baked ring Z. You can
+extrude elevation`, arcs are drawn, or polygons carry a baked ring Z. You can
   always tilt manually (right-drag / Ctrl-drag), and a manual tilt is preserved.
 - 3D camera: `Map properties` > `Show 3D buildings` adds OpenStreetMap building
   extrusions; `3D buildings zoom` controls the zoom level where they appear at
@@ -79,7 +79,7 @@ The demo dashboard is intentionally Hamilton-sized so it opens quickly and stays
   flat. The card is hidden when no timestamp is bound. See
   [Time-Based Animation](#time-based-animation).
 - Tooltips: bind `Tooltip HTML` for custom sanitized HTML tooltips. Multi-layer tooltips follow the current visual layer order, place themselves dynamically within the visual bounds, scroll when content is tall, and show a compact geometry-type icon in the top-right of each feature section. H3 hexagons show their joined point count from the aggregate cell, separately from the `Tooltip HTML` bucket.
-- Interaction: click selection/highlighting, hover highlighting, configurable fade for unselected polygons, reset view, fly-to, and selectable base maps, including Esri World Imagery and Mapbox satellite BYOK options with aerial basemap opacity control.
+- Interaction: click selection/highlighting, hover highlighting, configurable fade for unselected polygons, reset view, fly-to, and selectable base maps, including CARTO basemaps with per-report API keys, Esri World Imagery, and Mapbox satellite BYOK options with aerial basemap opacity control.
 - Layer ordering: multi-geometry visuals can reorder layer stacking directly on the map. The compact on-map layer order pane is off by default; turn on `Layer controls` > `Show layer order control` to use it. The visual persists the order with the report.
 - Validation: geometry validation is enabled by default and can be turned off in the Format pane once data quality is known.
 
@@ -92,6 +92,24 @@ Because Power BI custom visuals receive one categorical data view, multi-layer m
 To render a scatter heatmap, add scatter rows as usual, then turn on `Heatmap` > `Show heatmap`. Bind `Heatmap weight` when each point should contribute a numeric amount; otherwise each scatter point contributes equally. Use `Show scatter points` to keep or hide the original point layer while the heatmap is active.
 
 To render H3 hexagons from scatter rows, turn on `H3 hexagon` > `Show H3 hexagons`. Each scatter row contributes one point to its H3 cell; only occupied cells render. Use `H3 resolution` to choose the standard H3 cell size. The fill gradient follows joined point count, while the dark grey outline uses the same count-based opacity settings. Hover a hexagon to see its joined point count; the H3 tooltip does not use the `Tooltip HTML` bucket.
+
+## CARTO Basemap API Key
+
+CARTO raster basemaps require an API key. Each report owner or organization must [request its own key from CARTO](https://carto.com/basemaps/apikey/); do not share a key between unrelated projects.
+
+When requesting the key, enter the domains where the report will be viewed, one per line, without a protocol or path. Typical entries are:
+
+```text
+app.powerbi.com
+localhost
+your-embedded-report.example.com
+```
+
+Use `app.powerbi.com` for Power BI Service and Publish to Web, `localhost` for local development, and each customer-owned host used for Power BI Embedded. Power BI Desktop has no customer-owned web domain, so describe Desktop usage in CARTO's project-description field. Do not enter `basemaps.cartocdn.com`; that is the tile-service host, not the report domain.
+
+After CARTO emails the key, enter it in `Map properties` > `CARTO API key`. The value is stored in the report formatting settings and is sent in browser tile URLs, so it is a public-client identifier rather than a server-side secret. Every map must retain visible CARTO and OpenStreetMap attribution. CARTO's free tier allows up to 5 million tile requests per calendar month across the customer's keys; higher or commercial usage may require a separate agreement.
+
+If tiles still show CARTO's API-key watermark after entering a valid key, hard-refresh Power BI or reopen the report because the browser and CDN may have cached older tiles.
 
 ## 3D Geometry (Z) and Stacked Prisms
 
@@ -118,7 +136,7 @@ For scatter points, bind a numeric `Scatter elevation (m)` column alongside `Poi
 
 ### Stacking polygons by a start/end datetime (the parking-review "walls")
 
-Because the base and the height are independent, you can encode a **time range** (a start and an end) as a floating block, and features that share a footprint but cover **sequential, non-overlapping** ranges stack base-to-top into a column. Laid along a road centreline this gives the stacked "Gantt in 3D" look: each prism's floor and ceiling mark *when* that version was in force.
+Because the base and the height are independent, you can encode a **time range** (a start and an end) as a floating block, and features that share a footprint but cover **sequential, non-overlapping** ranges stack base-to-top into a column. Laid along a road centreline this gives the stacked "Gantt in 3D" look: each prism's floor and ceiling mark _when_ that version was in force.
 
 You do this in **two layers of data**, computed once when you prepare the table (it is static — it does not move with the animation playhead):
 
@@ -142,7 +160,7 @@ Pick a single `MAX_HEIGHT` (in metres) for the whole dataset so every feature sh
 2. Bind your `height` column to **`Polygon extrude elevation`**.
 3. Bind `Polygon fill` to the category or measure you want to colour by, and `Tooltip HTML` to your label.
 4. **Make every field deliver one value per `Geometry ID`** so Power BI does not group or aggregate it away. There is one row per prism, so any aggregation returns the right number, but it is safer to be explicit:
-   - **Text fields** (e.g. `parking_type` on `Polygon fill`, and `tooltip_html`): if the field well shows the column *grouping* the data, switch it to **First** (e.g. `First parking_type`) — or set the column to **Don't summarize**.
+   - **Text fields** (e.g. `parking_type` on `Polygon fill`, and `tooltip_html`): if the field well shows the column _grouping_ the data, switch it to **First** (e.g. `First parking_type`) — or set the column to **Don't summarize**.
    - **Numeric fields** (e.g. `polygon_extrude_elevation`): numeric wells have no "Don't summarize", so leave the default **Sum**/**Average** (both equal the value when there is one row per ID), or wrap it in a `MIN`/`MAX`/`First` measure if you want to be explicit.
 5. The visual auto-extrudes the prisms and tilts to 45° because the ring carries a Z. No Animation card is needed — stacking is static.
 
@@ -328,7 +346,7 @@ If a colour bucket contains numbers instead of colour strings, the visual maps t
 
 The supported classification methods are `Natural breaks`, `Quantile`, `Equal interval`, `Defined interval`, and `Manual interval`. When a numeric field is active, the visual also renders a matching legend for the active classes.
 
-**Manual interval** lets you define your own class boundaries. Enter comma-separated break values in the *Manual interval breaks* field (e.g. `0, 10, 50, 100, 500`); the visual creates one colour class per gap between adjacent values. Values below the first break fall into the first class; values above the last break fall into the last class. Optionally enter comma-separated hex colours in the *Manual interval colours* field (e.g. `#e41a1c, #ff7f00, #4daf4a`) to assign a specific colour to each class. If fewer colours than classes are provided the last colour repeats. If the colours field is left blank the chosen gradient scale is used. The *Default fill/line opacity* slider applies to manual colours automatically, the same way it does to gradient colours.
+**Manual interval** lets you define your own class boundaries. Enter comma-separated break values in the _Manual interval breaks_ field (e.g. `0, 10, 50, 100, 500`); the visual creates one colour class per gap between adjacent values. Values below the first break fall into the first class; values above the last break fall into the last class. Optionally enter comma-separated hex colours in the _Manual interval colours_ field (e.g. `#e41a1c, #ff7f00, #4daf4a`) to assign a specific colour to each class. If fewer colours than classes are provided the last colour repeats. If the colours field is left blank the chosen gradient scale is used. The _Default fill/line opacity_ slider applies to manual colours automatically, the same way it does to gradient colours.
 
 ## Format Pane Options For Categorical Fields
 

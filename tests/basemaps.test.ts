@@ -31,12 +31,24 @@ test("getBasemapStyle preserves CARTO raster tile styles", () => {
   assert.equal(style.layers[0].paint["raster-opacity"], 1);
 });
 
+test("getBasemapStyle adds a trimmed and encoded CARTO API key", () => {
+  const style = getBasemapStyle("dark_all", {
+    cartoApiKey: " carto key/? ",
+  }) as any;
+
+  assert.deepEqual(style.sources["raster-tiles"].tiles, [
+    "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=carto%20key%2F%3F",
+    "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=carto%20key%2F%3F",
+    "https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=carto%20key%2F%3F",
+    "https://d.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=carto%20key%2F%3F",
+  ]);
+  assert.match(style.sources["raster-tiles"].attribution, /OpenStreetMap/);
+  assert.match(style.sources["raster-tiles"].attribution, /CARTO/);
+});
+
 test("basemap options expose a concise author-facing list", () => {
   assert.deepEqual(
-    basemapOptions.map((option) => [
-      option.value,
-      option.displayName,
-    ]),
+    basemapOptions.map((option) => [option.value, option.displayName]),
     [
       ["positron", "Light (Positron)"],
       ["positron_no_labels", "Light, no labels"],
@@ -141,6 +153,18 @@ test("basemap style signatures rebuild only when provider tiles change", () => {
   assert.notEqual(
     getBasemapStyleSignature("mapbox_satellite", "token-a"),
     getBasemapStyleSignature("mapbox_satellite", "token-b"),
+  );
+  assert.equal(
+    getBasemapStyleSignature("dark_all", "mapbox-a", " carto-a "),
+    "dark_matter:carto-a",
+  );
+  assert.notEqual(
+    getBasemapStyleSignature("dark_all", "mapbox-a", "carto-a"),
+    getBasemapStyleSignature("dark_all", "mapbox-a", "carto-b"),
+  );
+  assert.equal(
+    getBasemapStyleSignature("esri_world_imagery", "mapbox-a", "carto-a"),
+    getBasemapStyleSignature("esri_world_imagery", "mapbox-b", "carto-b"),
   );
   assert.equal(
     getBasemapStyleSignature("not-a-real-basemap", "token-a"),

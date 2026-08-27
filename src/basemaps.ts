@@ -61,6 +61,7 @@ export interface BasemapDefinition {
 
 export interface BasemapStyleOptions {
   mapboxAccessToken?: unknown;
+  cartoApiKey?: unknown;
   aerialOpacity?: unknown;
 }
 
@@ -275,6 +276,9 @@ export const isMapboxSatelliteBasemap = (baseMap: unknown): boolean =>
 export const normalizeMapboxAccessToken = (token: unknown): string =>
   typeof token === "string" ? token.trim() : "";
 
+export const normalizeCartoApiKey = (key: unknown): string =>
+  typeof key === "string" ? key.trim() : "";
+
 export const clampAerialBasemapOpacity = (opacity: unknown): number => {
   const numericOpacity =
     typeof opacity === "number" && Number.isFinite(opacity) ? opacity : 100;
@@ -284,13 +288,17 @@ export const clampAerialBasemapOpacity = (opacity: unknown): number => {
 export const getBasemapStyleSignature = (
   baseMap: unknown,
   mapboxAccessToken?: unknown,
+  cartoApiKey?: unknown,
 ): string => {
   const definition = resolveBasemap(baseMap);
-  const token = definition.id === MAPBOX_SATELLITE_BASEMAP_ID
-    ? normalizeMapboxAccessToken(mapboxAccessToken)
-    : "";
+  const credential =
+    definition.kind === "mapbox-raster"
+      ? normalizeMapboxAccessToken(mapboxAccessToken)
+      : definition.kind === "carto-raster"
+        ? normalizeCartoApiKey(cartoApiKey)
+        : "";
 
-  return `${definition.id}:${token}`;
+  return `${definition.id}:${credential}`;
 };
 
 const getRasterStyle = (
@@ -325,14 +333,15 @@ const getRasterStyle = (
 
 const getCartoRasterStyle = (
   baseMap: CartoRasterBasemapId,
+  cartoApiKey: string,
 ): RasterStyleSpecification =>
   getRasterStyle(
-    [
-      `https://a.basemaps.cartocdn.com/${baseMap}/{z}/{x}/{y}{r}.png`,
-      `https://b.basemaps.cartocdn.com/${baseMap}/{z}/{x}/{y}{r}.png`,
-      `https://c.basemaps.cartocdn.com/${baseMap}/{z}/{x}/{y}{r}.png`,
-      `https://d.basemaps.cartocdn.com/${baseMap}/{z}/{x}/{y}{r}.png`,
-    ],
+    ["a", "b", "c", "d"].map(
+      (subdomain) =>
+        `https://${subdomain}.basemaps.cartocdn.com/${baseMap}/{z}/{x}/{y}{r}.png${
+          cartoApiKey ? `?key=${encodeURIComponent(cartoApiKey)}` : ""
+        }`,
+    ),
     CARTO_ATTRIBUTION,
   );
 
@@ -392,5 +401,8 @@ export const getBasemapStyle = (
     return getMapboxSatelliteStyle(mapboxAccessToken, opacity);
   }
 
-  return getCartoRasterStyle(definition.rasterBaseMapId ?? "light_all");
+  return getCartoRasterStyle(
+    definition.rasterBaseMapId ?? "light_all",
+    normalizeCartoApiKey(options.cartoApiKey),
+  );
 };
