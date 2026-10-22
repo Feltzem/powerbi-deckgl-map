@@ -27,7 +27,8 @@
     "bench:stages": "node --expose-gc --max-old-space-size=16384 --import tsx scripts/benchmarks/stages-node.ts",
     "bench:browser": "node --import tsx scripts/benchmarks/browser/run.ts",
     "bench:profile": "node --import tsx scripts/benchmarks/profile-node.ts",
-    "bench:report": "node --import tsx scripts/benchmarks/report.ts"
+    "bench:report": "node --import tsx scripts/benchmarks/report.ts",
+    "bench:parity": "node --max-old-space-size=8192 --import tsx scripts/benchmarks/parity-snapshot.ts"
   },
   "dependencies": {
     "@loaders.gl/core": "^4.3.4",
