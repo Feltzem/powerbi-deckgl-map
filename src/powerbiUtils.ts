@@ -91,7 +91,33 @@ const getTrimmedTextValue = (
   return trimmed.length > 0 ? trimmed : null;
 };
 
+// Colour cells repeat heavily (hex codes, category labels) and the mapper
+// checks each cell several times, so string results are memoised. Results are
+// shared and must be treated as read-only.
+const parsedColorCache = new Map<string, ParsedColorInput>();
+const parsedColorCacheLimit = 100000;
+
 export const parseColorInput = (
+  col: powerbi.PrimitiveValue | null | undefined,
+): ParsedColorInput => {
+  if (typeof col !== "string") {
+    return parseColorInputUncached(col);
+  }
+
+  const cached = parsedColorCache.get(col);
+  if (cached) {
+    return cached;
+  }
+
+  if (parsedColorCache.size >= parsedColorCacheLimit) {
+    parsedColorCache.clear();
+  }
+  const parsed = parseColorInputUncached(col);
+  parsedColorCache.set(col, parsed);
+  return parsed;
+};
+
+const parseColorInputUncached = (
   col: powerbi.PrimitiveValue | null | undefined,
 ): ParsedColorInput => {
   const textValue = getTrimmedTextValue(col);
