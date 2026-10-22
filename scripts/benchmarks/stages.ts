@@ -3,7 +3,6 @@
 // Runs unchanged under Node (tsx) and in Chrome (esbuild bundle).
 
 import { FormattingSettingsService } from "powerbi-visuals-utils-formattingmodel";
-import { parseSync } from "@loaders.gl/core";
 import { WKTLoader } from "@loaders.gl/wkt";
 import { createDatasetSnapshot } from "../../src/mapper";
 import { VisualFormattingSettingsModel } from "../../src/settings";
@@ -321,12 +320,13 @@ export const runScenarioStages = (
 
   if (wkt) {
     const strings = wkt.filter((value) => value !== null).map(String);
+    const wktOptions = { wkt: WKTLoader.options.wkt };
     stages.push(
       timeStage("parse.geometry.wkt", strings.length, () => {
         for (const value of strings) {
-          parseSync(value, WKTLoader);
+          WKTLoader.parseTextSync(value, wktOptions);
         }
-      }, options, "@loaders.gl/wkt parseSync per row"),
+      }, options, "@loaders.gl/wkt parseTextSync per row, as src/mapper.ts calls it"),
     );
   }
   if (wkp && options.decodeWkp) {
