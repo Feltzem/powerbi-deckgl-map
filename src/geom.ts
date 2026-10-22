@@ -47,86 +47,119 @@ function getMinimalLongitudeRange(lons: number[]): { minLon: number; maxLon: num
     };
 }
 
-export function getLatLons(d: OurData): number[][] {
-    const lats: number[] = [];
-    const lons: number[] = [];
+// Visits every coordinate getLatLons reports, in the same order, without
+// building arrays. Returns false as soon as visit returns false.
+const visitLatLons = (
+    d: OurData,
+    visit: (lat: number, lon: number) => boolean,
+): boolean => {
     if (d.scatterData) {
-        lats.push(d.scatterData.lat);
-        lons.push(d.scatterData.lon);
+        if (!visit(d.scatterData.lat, d.scatterData.lon)) return false;
     }
     if (d.lineData) {
         const p1 = d.lineData.point1;
         const p2 = d.lineData.point2;
-        lats.push(p1.lat, p2.lat);
-        lons.push(p1.lon, p2.lon);
+        if (!visit(p1.lat, p1.lon) || !visit(p2.lat, p2.lon)) return false;
     }
     if (d.arcData) {
         const p1 = d.arcData.point1;
         const p2 = d.arcData.point2;
-        lats.push(p1.lat, p2.lat);
-        lons.push(p1.lon, p2.lon);
+        if (!visit(p1.lat, p1.lon) || !visit(p2.lat, p2.lon)) return false;
     }
     if (d.pathData) {
         if (d.pathData.bbox) {
-            lats.push(d.pathData.bbox[1], d.pathData.bbox[3]);
-            lons.push(d.pathData.bbox[0], d.pathData.bbox[2]);
-        } else {
-            if (d.pathData.type === "LineString") {
-                for (const coord of d.pathData.coordinates) {
-                    lons.push(coord[0]);
-                    lats.push(coord[1]);
-                }
-            } else if (d.pathData.type === "MultiLineString") {
-                for (const line of d.pathData.coordinates) {
-                    for (const coord of line) {
-                        lons.push(coord[0]);
-                        lats.push(coord[1]);
-                    }
+            const bbox = d.pathData.bbox;
+            if (!visit(bbox[1], bbox[0]) || !visit(bbox[3], bbox[2])) return false;
+        } else if (d.pathData.type === "LineString") {
+            for (const coord of d.pathData.coordinates) {
+                if (!visit(coord[1], coord[0])) return false;
+            }
+        } else if (d.pathData.type === "MultiLineString") {
+            for (const line of d.pathData.coordinates) {
+                for (const coord of line) {
+                    if (!visit(coord[1], coord[0])) return false;
                 }
             }
         }
     }
     if (d.polygonData) {
         if (d.polygonData.bbox) {
-            lats.push(d.polygonData.bbox[1], d.polygonData.bbox[3]);
-            lons.push(d.polygonData.bbox[0], d.polygonData.bbox[2]);
-        } else {
-            if (d.polygonData.type === "Polygon") {
-                for (const ring of d.polygonData.coordinates) {
-                    for (const coord of ring) {
-                        lons.push(coord[0]);
-                        lats.push(coord[1]);
-                    }
+            const bbox = d.polygonData.bbox;
+            if (!visit(bbox[1], bbox[0]) || !visit(bbox[3], bbox[2])) return false;
+        } else if (d.polygonData.type === "Polygon") {
+            for (const ring of d.polygonData.coordinates) {
+                for (const coord of ring) {
+                    if (!visit(coord[1], coord[0])) return false;
                 }
-            } else if (d.polygonData.type === "MultiPolygon") {
-                for (const polygon of d.polygonData.coordinates) {
-                    for (const ring of polygon) {
-                        for (const coord of ring) {
-                            lons.push(coord[0]);
-                            lats.push(coord[1]);
-                        }
+            }
+        } else if (d.polygonData.type === "MultiPolygon") {
+            for (const polygon of d.polygonData.coordinates) {
+                for (const ring of polygon) {
+                    for (const coord of ring) {
+                        if (!visit(coord[1], coord[0])) return false;
                     }
                 }
             }
         }
     }
+    return true;
+};
+
+export function getLatLons(d: OurData): number[][] {
+    const lats: number[] = [];
+    const lons: number[] = [];
+    visitLatLons(d, (lat, lon) => {
+        lats.push(lat);
+        lons.push(lon);
+        return true;
+    });
     return [lats, lons];
 }
 
 
+// getMinimalLongitudeRange sorts every longitude to find the widest gap. When
+// the wrap-around gap is wider than the whole span, no interior gap can beat
+// it (floating-point subtraction is monotonic), so the range is simply the
+// first minimum and last maximum, which is what the stable sort would return.
+// Wider data falls back to the sort.
 export function getDataBoundingBox(data: OurData[]): BoundingBox | null {
     let minLat = Infinity;
     let maxLat = -Infinity;
-    const lons: number[] = [];
-    for (const d of data) {
-        const [lats, rowLons] = getLatLons(d);
-        for (const lat of lats) {
-            if (lat < minLat) minLat = lat;
-            if (lat > maxLat) maxLat = lat;
+    let lonCount = 0;
+    let minNormalized = Infinity;
+    let maxNormalized = -Infinity;
+    const visit = (lat: number, lon: number): boolean => {
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+        if (Number.isFinite(lon)) {
+            const normalized = lon < 0 ? lon + 360 : lon;
+            lonCount += 1;
+            if (normalized < minNormalized) minNormalized = normalized;
+            if (normalized >= maxNormalized) maxNormalized = normalized;
         }
-        lons.push(...rowLons);
+        return true;
+    };
+    for (const d of data) {
+        visitLatLons(d, visit);
     }
-    const lonRange = getMinimalLongitudeRange(lons);
+
+    let lonRange: { minLon: number; maxLon: number } | null;
+    if (lonCount >= 2 && minNormalized + 360 - maxNormalized > maxNormalized - minNormalized) {
+        lonRange =
+            minNormalized > 180 && maxNormalized > 180
+                ? { minLon: minNormalized - 360, maxLon: maxNormalized - 360 }
+                : { minLon: minNormalized > 180 ? minNormalized - 360 : minNormalized, maxLon: maxNormalized };
+    } else {
+        const lons: number[] = [];
+        for (const d of data) {
+            visitLatLons(d, (_lat, lon) => {
+                lons.push(lon);
+                return true;
+            });
+        }
+        lonRange = getMinimalLongitudeRange(lons);
+    }
+
     if (!lonRange || minLat === Infinity || maxLat === -Infinity) {
         return null; // No valid data found
     }
@@ -134,17 +167,10 @@ export function getDataBoundingBox(data: OurData[]): BoundingBox | null {
 }
 
 
+const isValidLatLon = (lat: number, lon: number): boolean =>
+    !(isNaN(lat) || !isFinite(lat) || lat < -90 || lat > 90) &&
+    !(isNaN(lon) || !isFinite(lon) || lon < -180 || lon > 180);
+
 export function validateData(data: OurData): boolean {
-    const [lats, lons] = getLatLons(data);
-    for (const lat of lats) {
-        if (isNaN(lat) || !isFinite(lat) || lat < -90 || lat > 90) {
-            return false;
-        }
-    }
-    for (const lon of lons) {
-        if (isNaN(lon) || !isFinite(lon) || lon < -180 || lon > 180) {
-            return false;
-        }
-    }
-    return true;
+    return visitLatLons(data, isValidLatLon);
 }
