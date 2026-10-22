@@ -23,7 +23,11 @@
     "check": "npm run lint && npm run typecheck && npm run typecheck:all && npm test && npm run check:version",
     "bench": "node --expose-gc --import tsx scripts/benchmarks/run.ts",
     "bench:current": "node --expose-gc --import tsx scripts/benchmarks/run.ts --label working-tree",
-    "bench:compare": "node --expose-gc --import tsx scripts/benchmarks/compare.ts"
+    "bench:compare": "node --expose-gc --import tsx scripts/benchmarks/compare.ts",
+    "bench:stages": "node --expose-gc --max-old-space-size=16384 --import tsx scripts/benchmarks/stages-node.ts",
+    "bench:browser": "node --import tsx scripts/benchmarks/browser/run.ts",
+    "bench:profile": "node --import tsx scripts/benchmarks/profile-node.ts",
+    "bench:report": "node --import tsx scripts/benchmarks/report.ts"
   },
   "dependencies": {
     "@loaders.gl/core": "^4.3.4",
