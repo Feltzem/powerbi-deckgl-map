@@ -168,33 +168,31 @@ export const getGroupedRoleColumns = <TRoleKey extends string>(
       group.values.filter((column) => column.source?.roles?.[roleName]),
     );
     if (sourceColumns.length > 0) {
-      const groupedValues = Array.from(
-        { length: rowCount },
-        () => [] as powerbi.PrimitiveValue[],
-      );
-      for (const group of groups) {
-        for (const column of group.values) {
-          if (!column.source?.roles?.[roleName]) {
-            continue;
-          }
-          for (let index = 0; index < rowCount; index += 1) {
-            const value = column.values?.[index] ?? null;
-            if (hasMeaningfulRoleValue(roleKey, value)) {
-              groupedValues[index].push(value);
-            }
+      // Row by row over the source columns in group order, reusing one
+      // scratch array; the merger never keeps it.
+      const mergedValues: Array<powerbi.PrimitiveValue | null> = [];
+      const rowValues: powerbi.PrimitiveValue[] = [];
+      let hasMeaningfulValue = false;
+      for (let index = 0; index < rowCount; index += 1) {
+        rowValues.length = 0;
+        for (const column of sourceColumns) {
+          const value = column.values?.[index] ?? null;
+          if (hasMeaningfulRoleValue(roleKey, value)) {
+            rowValues.push(value);
           }
         }
+
+        if (rowValues.length === 0) {
+          mergedValues.push(null);
+          continue;
+        }
+
+        const merged = mergeGroupedRoleValues?.(roleKey, rowValues) ?? rowValues[0];
+        mergedValues.push(merged);
+        hasMeaningfulValue ||= hasMeaningfulRoleValue(roleKey, merged);
       }
 
-      const mergedValues = groupedValues.map((rowValues) => {
-        if (rowValues.length === 0) {
-          return null;
-        }
-
-        return mergeGroupedRoleValues?.(roleKey, rowValues) ?? rowValues[0];
-      });
-
-      if (mergedValues.some((value) => hasMeaningfulRoleValue(roleKey, value))) {
+      if (hasMeaningfulValue) {
         groupedRoleColumns.push({
           source: sourceColumns[0].source,
           values: mergedValues,
