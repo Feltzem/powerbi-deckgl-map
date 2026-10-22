@@ -1,6 +1,6 @@
 # Benchmarks
 
-Performance baseline for the `perf/rust-core` work. Every number below is from release 1.9.0.2 (`73ea904`) with no changes to `src/`. Later phases add before/after columns from the same harness.
+Performance work on `perf/rust-core`. The baseline is release 1.9.0.2 (`73ea904`) with no changes to `src/`. [Phase 2](#phase-2-typescript-fixes) compares the cheap TypeScript fixes against it with the same harness.
 
 ## Summary
 
@@ -11,6 +11,7 @@ Performance baseline for the `perf/rust-core` work. Every number below is from r
 - Natural breaks (Jenks) costs a near-flat 120–370 ms per classified role in Chrome, because the input is sampled down to 5,000 values.
 - Point animation is already GPU-side and cheap, with no dropped frames at 500k points. Path animation at 100k paths is GPU-bound at 30 fps.
 - H3 aggregation reruns on every render (data, format, click, `zoomend`), and the legend runs it a second time.
+- Phase 2 fixes cut data change → first draw by up to 2× on Hamilton tables (crash points with H3: 397 → 203 ms) and up to 2.4× at 500k rows (lines: 2,311 → 949 ms). Screenshots are byte-identical and pipeline output is unchanged.
 
 ## Method
 
@@ -26,6 +27,7 @@ Performance baseline for the `perf/rust-core` work. Every number below is from r
 | `scripts/benchmarks/browser/e2e-page.ts` | Loads the packaged `.tmp/drop/visual.js`, creates it with `plugin.create({ element, host })` and times `update()` to first draw |
 | `scripts/benchmarks/profile-node.ts` | V8 CPU profile of parse and layer build, self time by function |
 | `scripts/benchmarks/report.ts` | Generates the tables in this file |
+| `scripts/benchmarks/parity-snapshot.ts` | Digests the pipeline's output per scenario so two checkouts can be compared |
 
 The harness adds no npm dependencies. esbuild comes with `tsx`, the CDP client uses Node's built-in `WebSocket`, and Chrome is the installed copy. Chrome runs with `--host-resolver-rules` mapping every host except 127.0.0.1 to NOTFOUND, and every scenario uses the `blank` basemap, so no tile or network requests are made.
 
@@ -38,6 +40,7 @@ npm run bench:browser -- --mode both --label baseline
 npm run bench:browser -- --mode e2e --filter 'hamilton|10k|prism|polygon' --screenshots .tmp/benchmarks/screens/baseline
 npm run bench:profile -- --scenario line-hex-100k
 npm run bench:report -- --label after --compare baseline
+npm run bench:parity -- --label after                # then --compare baseline,after
 ```
 
 Results go to `.tmp/benchmarks/` (git-ignored).
@@ -106,12 +109,12 @@ Chrome caches compiled shaders for the browser session. The first scenario in a 
 
 ## Bundle size
 
-| Artifact | Bytes |
-|---|---:|
-| `dist/powerbi_deckgl_map.1.9.0.2.pbiviz` | 655,966 |
-| `.tmp/drop/visual.js` | 2,363,754 |
-| `.tmp/drop/visual.css` | 88,867 |
-| Embedded WKP wasm (`src/wkpWasmBase64.ts`, base64 of 28,142 bytes) | 40,381 |
+| Artifact | Baseline bytes | After Phase 2 (`c03d9e1`) |
+|---|---:|---:|
+| `dist/powerbi_deckgl_map.1.9.0.2.pbiviz` | 655,966 | 656,010 |
+| `.tmp/drop/visual.js` | 2,363,754 | 2,363,491 |
+| `.tmp/drop/visual.css` | 88,867 | 88,867 |
+| Embedded WKP wasm (`src/wkpWasmBase64.ts`, base64 of 28,142 bytes) | 40,381 | 40,381 |
 
 ## Hotspot ranking
 
@@ -148,18 +151,103 @@ From `npm run bench:profile` (Node, self time per 100k rows):
 
 ### Candidates this ranking points to
 
-| Candidate | Phase | Expected effect |
+| Candidate | Phase | Expected effect | Status |
+|---|---|---|---|
+| Cache `parseColorInput` by value | 2 | Removes the repeated regex parsing in rank 1 | Done, `49fac4d` |
+| Make role coalescing cheaper | 2 | Removes the per-row allocations in rank 1 | Done, `d1a9e7b`. The duplicate candidates are still merged: skipping them changes blank-cell handling, so it needs a semantics decision |
+| Replace the longitude sort in `getMinimalLongitudeRange` with a min/max pass plus a fallback for wide data | 2 | Removes most of rank 2; output must stay identical | Done, `a093c4e` |
+| Cache H3 cells by scatter data and resolution; reuse them in the legend | 2 | Removes 2 aggregations per render, on every zoom | Done, `fccb591` |
+| Call `WKTLoader.parseTextSync` instead of `parseSync` | 2 | Cuts per-row loader overhead | Done, `2a78519` |
+| Move the path trailing-window test from fragment `discard` to the vertex shader | 2 | Fixes the GPU-bound path animation | Not done: interpolated and per-vertex timestamps can disagree by one float32 step at the window edge, so boundary paths could flip one frame early or late. Needs a decision on whether that counts as an output change |
+| Profile `update()` outside parse and layer build | 2 | Rank 5, 12% at Hamilton scale | Not done |
+| WKT parsing to flat coordinates in Rust | 3 | Rank 3 for WKT tables | |
+| Bounds and validation over flat coordinate arrays in Rust | 3 | Bounds is now 6–20× cheaper; validation is about 1% | Re-profile first |
+| Jenks in Rust | 3 | Near-flat 120–370 ms per classified role | |
+| H3 aggregation in Rust (h3o) | 3 | 470 ms at 500k points, now once per data change | |
+| Trailing-window time filter in Rust | 3 | Probably not worth it: the filter already runs on the GPU, and the CPU reference costs 3 ms at 500k | |
+
+## Phase 2: TypeScript fixes
+
+Five changes, one commit each, every one checked three ways:
+
+- **Pipeline parity:** `npm run bench:parity` digests parsed rows, colour stats, bounds, time domain, every colour accessor's output, legend specs and H3 cells for 24 scenarios. All 264 sections match 1.9.0.2 after every commit.
+- **Pixels:** the 22 baseline screenshots (Hamilton, 10k synthetic, polygons and prisms up to 500k) are byte-identical after Phase 2.
+- **Tests:** new parity tests pin the bounds code to a frozen copy of 1.9.0.2 on seeded fuzz data, and the WKT call to `parseSync`'s output. `npm run check` passes with 169 tests.
+
+### Per-change stage gains
+
+Node 26 on the M5. A/B rounds alternate the previous commit (worktree) and the change, and report the best time across rounds; the machine's run-to-run noise was up to 2× on a single median.
+
+| Commit | Change | Stage gain |
 |---|---|---|
-| Skip duplicate role candidates (the same column delivered via `grouped()` and `values`) and cache `parseColorInput` by value | 2 | Removes most of rank 1 |
-| Replace the longitude sort in `getMinimalLongitudeRange` with a min/max pass plus a fallback for antimeridian data | 2 | Removes most of rank 2; output must stay identical |
-| Cache H3 cells by data version and resolution; reuse them in the legend | 2 | Removes 2 aggregations per render, on every zoom |
-| Call `WKTLoader.parseTextSync` instead of `parseSync` | 2 | Cuts per-row loader overhead |
-| Move the path trailing-window test from fragment `discard` to the vertex shader | 2 | Fixes the GPU-bound path animation; needs pixel parity |
-| WKT parsing to flat coordinates in Rust | 3 | Rank 3 for WKT tables |
-| Bounds and validation over flat coordinate arrays in Rust | 3 | Rank 2 if it is still significant after Phase 2 |
-| Jenks in Rust | 3 | Near-flat 120–370 ms per classified role |
-| H3 aggregation in Rust (h3o) | 3 | 470 ms at 500k points; only if Phase 2 caching leaves it on the hot path |
-| Trailing-window time filter in Rust | 3 | Probably not worth it: the filter already runs on the GPU, and the CPU reference costs 3 ms at 500k |
+| `49fac4d` | Cache `parseColorInput` by string | Parse 1.2–2.1× (`line-hex-100k` 654 → 307 ms); colour parsing up to 41× |
+| `d1a9e7b` | Role coalescing without per-row arrays | Parse 1.22–1.37× on point, line and mixed tables; neutral on polygons |
+| `a093c4e` | Bounds without sorting every longitude | Bounds 6–20× (`polygon-wkt-numeric-100k` 518 → 87 ms); parse 1.2–1.4× |
+| `fccb591` | Reuse H3 cells across renders and the legend | Per render with H3 on (31,704 points): layer build 34.6 → 1.1 ms, legend 39.2 → 3.4 ms |
+| `2a78519` | `WKTLoader.parseTextSync` directly | WKT decode 1.18–1.31× |
+
+Combined, Node parse against 1.9.0.2 (interleaved A/B, best of two rounds): `arc-numeric-100k` 637 → 285 ms (2.2×), `scatter-numeric-timed-100k` 333 → 220 ms (1.5×), `hamilton-od-arc-numeric` 13.2 → 7.6 ms (1.7×).
+
+### Chrome, interleaved A/B against the rebuilt 1.9.0.2 visual.js
+
+Best of 6 runs per build (two alternating rounds of three).
+
+| Scenario | Data change → first draw | Parse | deck.gl layer updates |
+|---|---:|---:|---:|
+| arc-numeric-100k | 367 → 238 ms | 282 → 151 ms | 27 → 28 ms |
+| roads-x44 (99,352 WKP paths) | 804 → 483 ms | 622 → 326 ms | 102 → 98 ms |
+| polygon-wkp-numeric-100k | 1,647 → 981 ms | 1,035 → 434 ms | 413 → 446 ms |
+| hamilton-multigeometry | 186 → 168 ms | 37 → 25 ms | 106 → 99 ms |
+
+The single run below put `arc-numeric-100k`, `roads-x44` and several deck.gl layer-update times on the slow side. The interleaved runs above show those were machine noise: deck.gl code did not change, and its layer-update time is flat when the builds alternate.
+
+### Single run, all scenarios, baseline → Phase 2 (median of 3 per build, ms)
+
+| Scenario | Rows | update() | of which parse | layer build + legend | deck first frame CPU | of which layer updates | heaviest sublayer | Data change → first draw (GPU synced) | JS heap Δ MB |
+|---|---:|---:|---:|---:|---:|---:|---|---:|---:|
+| hamilton-crash-scatter | 31,704 | 185 → 105 | 164 → 97.2 | 8.60 → 2.50 | 16.7 → 14.2 | 14.8 → 12.4 | scatterplot-layer-base 12.4 | 211 → 131 | 40 |
+| hamilton-crash-heatmap | 31,704 | 188 → 114 | 167 → 104 | 8.60 → 3.10 | 27.0 → 27.7 | 26.4 → 26.9 | scatter-heatmap-layer-base 22.0 | 510 → 432 | 40 |
+| hamilton-crash-h3 | 31,704 | 376 → 182 | 193 → 121 | 81.4 → 3.20 | 15.7 → 15.8 | 13.0 → 13.2 | h3-hexagon-layer-base-hexagon-cell 11.5 | 397 → 203 | 28 |
+| hamilton-earthquake-animation | 20,326 | 129 → 80.3 | 109 → 67.8 | 4.60 → 1.10 | 18.6 → 19.6 | 16.7 → 17.9 | scatterplot-layer-base-temporal 17.9 | 152 → 105 | 14 |
+| hamilton-road-path-categorical | 2,258 | 39.8 → 25.1 | 31.2 → 17.5 | 0.80 → 0.40 | 19.1 → 15.2 | 18.2 → 14.0 | path-layer-base-linestrings 12.5 | 65.1 → 46.2 | 25 |
+| hamilton-place-polygon-numeric | 68 | 14.5 → 11.4 | 6.40 → 3.50 | 0.20 → 0.30 | 21.7 → 19.5 | 20.4 → 18.2 | polygon-layer-base-polygons-fill 17.5 | 42.5 → 39.2 | 14 |
+| hamilton-od-arc-numeric | 2,324 | 25.8 → 22.9 | 16.6 → 13.8 | 0.60 → 0.60 | 12.8 → 11.3 | 11.9 → 10.3 | arc-layer-base 10.3 | 53.6 → 48.7 | 23 |
+| hamilton-ferry-line | 47 | 5.40 → 5.00 | 1.90 → 1.60 | 0.10 → 0.10 | 9.00 → 9.40 | 7.30 → 7.50 | line-layer-base 7.50 | 28.3 → 28.7 | 2 |
+| hamilton-traffic-points | 39 | 9.30 → 9.10 | 1.80 → 1.60 | 0.20 → 0.20 | 8.60 → 9.50 | 7.10 → 7.80 | scatterplot-layer-base 7.80 | 27.6 → 28.9 | 3 |
+| hamilton-multigeometry | 2,313 | 60.3 → 44.0 | 38.9 → 25.4 | 1.10 → 1.00 | 74.9 → 123 | 67.0 → 111 | feature-label-layer-base 36.7 | 148 → 180 | -11 |
+| hamilton-stacked-prisms | 340 | 13.7 → 11.9 | 9.40 → 7.10 | 0.40 → 0.20 | 17.2 → 20.8 | 15.9 → 19.3 | polygon-layer-base-polygons-fill 18.3 | 35.1 → 40.5 | 11 |
+| scatter-numeric-timed-10k | 10,000 | 34.5 → 31.0 | 26.3 → 22.1 | 0.70 → 0.90 | 15.3 → 15.5 | 13.7 → 13.8 | scatterplot-layer-base-temporal 13.8 | 54.0 → 50.4 | 16 |
+| line-hex-10k | 10,000 | 50.4 → 27.3 | 42.4 → 22.4 | 2.30 → 0.90 | 10.9 → 10.9 | 9.20 → 9.20 | line-layer-base 9.20 | 65.3 → 42.2 | 16 |
+| arc-numeric-10k | 10,000 | 44.0 → 36.0 | 35.0 → 25.7 | 0.90 → 1.30 | 12.7 → 11.6 | 11.6 → 10.5 | arc-layer-base 10.5 | 70.2 → 61.1 | 21 |
+| path-wkp-categorical-10k | 10,000 | 68.2 → 52.1 | 58.4 → 42.2 | 1.70 → 1.40 | 18.5 → 22.7 | 17.3 → 21.5 | path-layer-base-linestrings 18.4 | 99.2 → 87.4 | 35 |
+| polygon-wkp-numeric-10k | 10,000 | 105 → 59.1 | 92.0 → 49.5 | 3.00 → 1.60 | 61.1 → 58.6 | 59.5 → 57.2 | polygon-layer-base-polygons-fill 37.7 | 185 → 135 | 63 |
+| prism-wkt-hex-10k | 10,000 | 110 → 58.3 | 97.5 → 52.0 | 4.40 → 1.50 | 30.3 → 29.0 | 28.8 → 27.4 | polygon-layer-base-polygons-fill 25.5 | 145 → 92.2 | 42 |
+| mixed-wkt-numeric-10k | 10,000 | 117 → 80.9 | 100 → 65.1 | 4.50 → 2.30 | 48.5 → 48.7 | 44.4 → 45.6 | polygon-layer-base-polygons-fill 18.6 | 177 → 141 | 43 |
+| scatter-numeric-timed-100k | 100,000 | 226 → 180 | 207 → 158 | 4.20 → 4.80 | 37.9 → 40.7 | 35.9 → 38.2 | scatterplot-layer-base-temporal 38.2 | 275 → 232 | 91 |
+| line-hex-100k | 100,000 | 432 → 366 | 378 → 334 | 25.5 → 13.5 | 25.3 → 55.4 | 23.3 → 51.0 | line-layer-base 51.0 | 466 → 431 | 63 |
+| arc-numeric-100k | 100,000 | 320 → 443 | 296 → 384 | 8.70 → 17.3 | 29.5 → 67.2 | 28.3 → 64.3 | arc-layer-base 64.3 | 379 → 547 | 47 |
+| path-wkp-categorical-100k | 100,000 | 605 → 315 | 564 → 285 | 17.1 → 11.4 | 90.8 → 88.4 | 89.5 → 86.1 | path-layer-base-linestrings 81.1 | 735 → 440 | 266 |
+| polygon-wkp-numeric-100k | 100,000 | 948 → 488 | 879 → 453 | 30.1 → 9.80 | 383 → 519 | 385 → 485 | polygon-layer-base-polygons-fill 326 | 1394 → 1076 | 666 |
+| prism-wkt-hex-100k | 100,000 | 1005 → 621 | 911 → 594 | 46.2 → 8.70 | 144 → 151 | 142 → 149 | polygon-layer-base-polygons-fill 135 | 1163 → 781 | 288 |
+| mixed-wkt-numeric-100k | 100,000 | 1043 → 683 | 939 → 613 | 44.6 → 27.6 | 154 → 189 | 149 → 182 | polygon-layer-base-polygons-fill 103 | 1221 → 899 | 292 |
+| scatter-numeric-timed-500k | 500,000 | 1237 → 863 | 1168 → 802 | 28.2 → 22.5 | 104 → 112 | 101 → 109 | scatterplot-layer-base-temporal 109 | 1361 → 998 | 473 |
+| line-hex-500k | 500,000 | 2158 → 847 | 1920 → 787 | 114 → 24.5 | 119 → 79.1 | 116 → 76.5 | line-layer-base 76.5 | 2311 → 949 | 456 |
+| arc-numeric-500k | 500,000 | 1745 → 1111 | 1570 → 999 | 93.2 → 48.7 | 119 → 123 | 117 → 122 | arc-layer-base 122 | 1979 → 1336 | 509 |
+| path-wkp-categorical-500k | 500,000 | 3321 → 2004 | 3130 → 1903 | 91.8 → 39.3 | 456 → 582 | 453 → 582 | path-layer-base-linestrings 556 | 3992 → 2727 | 1254 |
+| polygon-wkp-numeric-500k | 500,000 | 5420 → 2711 | 4994 → 2595 | 215 → 47.9 | 1729 → 2290 | 1737 → 2286 | polygon-layer-base-polygons-fill 1439 | 7543 → 5309 | 2995 |
+| prism-wkt-hex-500k | 500,000 | 5544 → 3013 | 5042 → 2908 | 245 → 46.0 | 566 → 1007 | 564 → 996 | polygon-layer-base-polygons-fill 936 | 6156 → 4052 | 1317 |
+| mixed-wkt-numeric-500k | 500,000 | 5676 → 3941 | 4928 → 3503 | 300 → 236 | 680 → 986 | 677 → 1010 | polygon-layer-base-polygons-fill 509 | 6438 → 4989 | 1193 |
+| roads-x44 | 99,352 | 752 → 760 | 709 → 720 | 17.9 → 10.1 | 112 → 247 | 111 → 247 | path-layer-base-linestrings 234 | 910 → 1049 | 396 |
+
+### Animation frame time after Phase 2
+
+| Scenario | Rows | Visual tick p50 / p95 ms | deck frame p50 / p95 ms | rAF interval p50 / p95 ms | Dropped frames |
+|---|---:|---:|---:|---:|---:|
+| hamilton-earthquake-animation | 20,326 | 0.10 / 0.50 | 0.80 / 1.10 | 16.7 / 16.7 | 0.3% |
+| scatter-numeric-timed-100k | 100,000 | 0.10 / 0.20 | 0.80 / 1.00 | 16.7 / 16.7 | 0.0% |
+| scatter-numeric-timed-500k | 500,000 | 0.10 / 0.20 | 0.70 / 0.90 | 16.7 / 16.7 | 0.0% |
+| path-wkp-categorical-timed-100k | 100,000 | 0.10 / 0.20 | 0.60 / 0.80 | 33.3 / 33.4 | 71.4% |
+
 
 ## Baseline results
 

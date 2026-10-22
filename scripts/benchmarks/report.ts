@@ -21,7 +21,9 @@ const compareLabel = argValue("--compare", "");
 
 const load = (name: string) => ({
   node: readJson(path.join(root, "stages", `node-${name}.json`)),
-  chrome: readJson(path.join(root, "browser-results", `chrome-both-${name}.json`)),
+  chrome:
+    readJson(path.join(root, "browser-results", `chrome-both-${name}.json`)) ??
+    readJson(path.join(root, "browser-results", `chrome-e2e-${name}.json`)),
 });
 
 const current = load(label);
