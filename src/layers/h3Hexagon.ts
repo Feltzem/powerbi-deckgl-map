@@ -57,11 +57,44 @@ const isValidPoint = (dataPoint: OurData): boolean => {
   );
 };
 
+// The layer and the legend both aggregate on every render, including each
+// zoom, so the last result is reused while the scatter rows and resolution
+// are unchanged. Snapshots build a new scatter array per parse.
+let h3CellCache: {
+  source: OurData[];
+  length: number;
+  resolution: number;
+  cells: H3HexagonCell[];
+} | null = null;
+
 export const aggregateScatterToH3Cells = (
   data: OurData[],
   resolution: number,
 ): H3HexagonCell[] => {
   const resolvedResolution = clampH3Resolution(resolution);
+  if (
+    h3CellCache &&
+    h3CellCache.source === data &&
+    h3CellCache.length === data.length &&
+    h3CellCache.resolution === resolvedResolution
+  ) {
+    return h3CellCache.cells;
+  }
+
+  const cells = aggregateUncached(data, resolvedResolution);
+  h3CellCache = {
+    source: data,
+    length: data.length,
+    resolution: resolvedResolution,
+    cells,
+  };
+  return cells;
+};
+
+const aggregateUncached = (
+  data: OurData[],
+  resolvedResolution: number,
+): H3HexagonCell[] => {
   const cellsByHexagon = new Map<string, H3HexagonCell>();
 
   for (const dataPoint of data) {
