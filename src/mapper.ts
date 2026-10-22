@@ -23,7 +23,6 @@ import {
 } from "./colorRoles";
 import { VisualFormattingSettingsModel } from "./settings";
 import { WKTLoader } from "@loaders.gl/wkt";
-import { parseSync } from "@loaders.gl/core";
 import { Geometry } from "geojson";
 import { parsePath } from "./parsers/path";
 import { parsePolygon } from "./parsers/polygon";
@@ -156,6 +155,10 @@ const getGeometryCacheKey = (
 ): string =>
   `${encoding}:${String(geometryId)}:${encoded.length}:${hashString(encoded)}`;
 
+// parseSync merged the loader's default options on every call before calling
+// parseTextSync; passing those defaults directly gives the same geometry.
+const wktParseOptions = { wkt: WKTLoader.options.wkt };
+
 const parseWkt = (
   wkt: string,
   geometryId: unknown,
@@ -165,7 +168,7 @@ const parseWkt = (
     return null;
   }
   try {
-    const geojson = parseSync(wkt, WKTLoader);
+    const geojson = WKTLoader.parseTextSync(wkt, wktParseOptions);
     if (!geojson) {
       errorMessages.push(`Geometry ${geometryId}: invalid WKT geometry.`);
       return null;
