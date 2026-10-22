@@ -393,11 +393,15 @@ export const runScenarioStages = (
 
   const scatter = snapshot.layers.scatter;
   if (scatter.length > 0) {
+    // Fresh array copies defeat the visual's per-render H3 cache, so this
+    // stage keeps measuring the aggregation itself.
     for (const resolution of [7, 9]) {
+      const copies = Array.from({ length: (options.maxSamples ?? 9) + 1 }, () => scatter.slice());
+      let copy = 0;
       stages.push(
         timeStage(`h3.aggregate.r${resolution}`, scatter.length, () =>
-          aggregateScatterToH3Cells(scatter, resolution), options,
-          "h3-js latLngToCell per point plus Map counting"),
+          aggregateScatterToH3Cells(copies[copy++ % copies.length], resolution), options,
+          "h3-js latLngToCell per point plus Map counting, uncached"),
       );
     }
   }
