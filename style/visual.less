@@ -532,3 +532,70 @@
   background-color: rgba(15, 23, 31, 0.82);
   color: #e8eef5;
 }
+
+.deckgl-capability-probe {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 5;
+  max-width: min(640px, calc(100% - 24px));
+  max-height: calc(100% - 24px);
+  overflow: auto;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid #c8c8c8;
+  border-radius: 6px;
+  font: 9pt "Segoe UI", sans-serif;
+  color: #252423;
+  user-select: text;
+
+  table {
+    border-collapse: collapse;
+    margin: 6px 0;
+  }
+
+  td {
+    padding: 2px 8px 2px 0;
+    vertical-align: top;
+  }
+
+  button {
+    margin-right: 6px;
+  }
+}
+
+.deckgl-capability-probe__title {
+  font-weight: 600;
+}
+
+.deckgl-capability-probe__status {
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.deckgl-capability-probe__status--pass {
+  color: #107c10;
+}
+
+.deckgl-capability-probe__status--fail {
+  color: #a4262c;
+}
+
+.deckgl-capability-probe__status--unavailable {
+  color: #797775;
+}
+
+.deckgl-load-banner {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  max-width: calc(100% - 24px);
+  padding: 4px 10px;
+  background: rgba(37, 36, 35, 0.85);
+  color: #ffffff;
+  border-radius: 4px;
+  font: 9pt "Segoe UI", sans-serif;
+  pointer-events: none;
+}

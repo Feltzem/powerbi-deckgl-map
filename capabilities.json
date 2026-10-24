@@ -458,6 +458,31 @@
         }
       }
     },
+    "dataLoadingProps": {
+      "displayName": "Data loading",
+      "properties": {
+        "maxRows": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "memoryBudgetMb": {
+          "type": {
+            "numeric": true
+          }
+        }
+      }
+    },
+    "diagnosticsProps": {
+      "displayName": "Diagnostics",
+      "properties": {
+        "showCapabilityProbe": {
+          "type": {
+            "bool": true
+          }
+        }
+      }
+    },
     "animationProps": {
       "displayName": "Animation properties",
       "properties": {
@@ -1430,7 +1455,7 @@
           ],
           "dataReductionAlgorithm": {
             "window": {
-              "count": 10000
+              "count": 30000
             }
           }
         },
@@ -1594,7 +1619,7 @@
           ],
           "dataReductionAlgorithm": {
             "window": {
-              "count": 10000
+              "count": 30000
             }
           }
         },

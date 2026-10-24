@@ -4,8 +4,9 @@ import ISelectionId = powerbi.visuals.ISelectionId;
 import IVisualHost = powerbi.extensibility.visual.IVisualHost;
 import { decodeAsGeometry } from "./encoding";
 import { geometryHasZ } from "./geometryZ";
-import { computeTimeDomain, toUnixSeconds } from "./time";
+import { computeTimeDomain, TimeDomain, toUnixSeconds } from "./time";
 import {
+  BoundingBox,
   DatasetSnapshot,
   ColorRoleStatsStore,
   GeometryCache,
@@ -691,18 +692,64 @@ const hasVisibleScatterElevation = (data: OurData): boolean => {
   );
 };
 
+/**
+ * Resume parsing from a previous snapshot when Power BI appends a fetchMoreData segment. In segment aggregation
+ * mode each update carries every row loaded so far, so rows [0, previous.parsedRowCount) are unchanged and only
+ * the new tail is parsed. `final` marks the last segment: bounds and time domain are then recomputed exactly
+ * (intermediate segments merge them, which is enough because fly-to only runs after the last segment).
+ */
+export interface DatasetAppend {
+  previous: DatasetSnapshot;
+  final: boolean;
+}
+
+const cloneLayerStore = (store: LayerDataStore): LayerDataStore => ({
+  all: store.all.slice(),
+  scatter: store.scatter.slice(),
+  line: store.line.slice(),
+  arc: store.arc.slice(),
+  path: store.path.slice(),
+  polygon: store.polygon.slice(),
+});
+
+const cloneColorRoles = (store: ColorRoleStatsStore): ColorRoleStatsStore =>
+  Object.fromEntries(
+    Object.entries(store).map(([key, stats]) => [
+      key,
+      { ...stats, categoryCounts: new Map(stats.categoryCounts), categoryOrder: stats.categoryOrder.slice() },
+    ]),
+  ) as ColorRoleStatsStore;
+
+const mergeBounds = (left: BoundingBox | null, right: BoundingBox | null): BoundingBox | null => {
+  if (!left) return right;
+  if (!right) return left;
+  return {
+    minLon: Math.min(left.minLon, right.minLon),
+    minLat: Math.min(left.minLat, right.minLat),
+    maxLon: Math.max(left.maxLon, right.maxLon),
+    maxLat: Math.max(left.maxLat, right.maxLat),
+  };
+};
+
+const mergeTimeDomains = (left: TimeDomain | null, right: TimeDomain | null): TimeDomain | null => {
+  if (!left) return right;
+  if (!right) return left;
+  return { t0: Math.min(left.t0, right.t0), t1: Math.max(left.t1, right.t1) };
+};
+
 export function createDatasetSnapshot(
   options: VisualUpdateOptions,
   settings: VisualFormattingSettingsModel,
   host: IVisualHost,
   geometryCache: GeometryCache,
   version: string,
+  append: DatasetAppend | null = null,
 ): DatasetSnapshot {
-  const layerData = createEmptyLayerDataStore();
-  const colorRoles = createEmptyColorRoleStatsStore();
-  const idToDataPoint = new Map<string, OurData>();
-  const idToSelectionId = new Map<string, ISelectionId>();
-  const dataHighlightedIds: string[] = [];
+  let layerData = createEmptyLayerDataStore();
+  let colorRoles = createEmptyColorRoleStatsStore();
+  let idToDataPoint = new Map<string, OurData>();
+  let idToSelectionId = new Map<string, ISelectionId>();
+  let dataHighlightedIds: string[] = [];
   const emptySnapshot = (): DatasetSnapshot => ({
     layers: layerData,
     colorRoles,
@@ -715,6 +762,8 @@ export function createDatasetSnapshot(
     elevationFieldBound: false,
     scatterElevationFieldBound: false,
     scatterHasVisibleElevation: false,
+    parsedRowCount: 0,
+    parseKey: "",
   });
 
   const dataViews = options.dataViews;
@@ -822,6 +871,33 @@ export function createDatasetSnapshot(
   const pathString = settings.path.layerType.value.trim().toLowerCase();
   const polygonString = settings.polygon.layerType.value.trim().toLowerCase();
   const validateGeometries = settings.validation.validateGeometries.value;
+  const parseKey = JSON.stringify([
+    Object.entries(roleColumns).map(([role, column]) => [role, column?.source?.queryName ?? null]),
+    geometryIdValue.source?.queryName ?? null,
+    scatterString,
+    lineString,
+    arcString,
+    pathString,
+    polygonString,
+    validateGeometries,
+  ]);
+  const rowCount = rowValueArrays.geometryId.length;
+  const previous =
+    append &&
+    append.previous.parseKey === parseKey &&
+    append.previous.parsedRowCount > 0 &&
+    append.previous.parsedRowCount <= rowCount
+      ? append.previous
+      : null;
+  const firstRow = previous ? previous.parsedRowCount : 0;
+  if (previous) {
+    layerData = cloneLayerStore(previous.layers);
+    colorRoles = cloneColorRoles(previous.colorRoles);
+    idToDataPoint = new Map(previous.idToDataPoint);
+    idToSelectionId = new Map(previous.idToSelectionId);
+    dataHighlightedIds = previous.dataHighlightedIds.slice();
+  }
+  const firstNewPoint = layerData.all.length;
   const highlightColumns = (categorical.values ?? []).filter((valueColumn) =>
     Array.isArray(valueColumn?.highlights),
   );
@@ -831,11 +907,7 @@ export function createDatasetSnapshot(
     ),
   );
 
-  for (
-    let index = 0, len = rowValueArrays.geometryId.length;
-    index < len;
-    index += 1
-  ) {
+  for (let index = firstRow, len = rowCount; index < len; index += 1) {
     const rowValues = getRowValues(rowValueArrays, index);
     const id = rowValues.geometryId;
     const selectionId: ISelectionId = host
@@ -979,22 +1051,28 @@ export function createDatasetSnapshot(
     );
   }
 
+  const exact = !previous || append?.final;
+  const newPoints = exact ? layerData.all : layerData.all.slice(firstNewPoint);
+  const bounds = exact
+    ? getDataBoundingBox(layerData.all)
+    : mergeBounds(previous!.bounds, getDataBoundingBox(newPoints));
+  const newTimeDomain = computeTimeDomain(newPoints.map((point) => point.timestampSeconds));
   return {
     layers: layerData,
     colorRoles,
     idToDataPoint,
     idToSelectionId,
     dataHighlightedIds,
-    bounds: getDataBoundingBox(layerData.all),
+    bounds,
     version,
-    timeDomain: computeTimeDomain(
-      layerData.all.map((point) => point.timestampSeconds),
-    ),
+    timeDomain: exact ? newTimeDomain : mergeTimeDomains(previous!.timeDomain, newTimeDomain),
     elevationFieldBound: isProvided.polygonExtrudeElevation,
     scatterElevationFieldBound: isProvided.scatterElevation,
-    scatterHasVisibleElevation: layerData.scatter.some(
-      hasVisibleScatterElevation,
-    ),
+    scatterHasVisibleElevation:
+      (previous?.scatterHasVisibleElevation ?? false) ||
+      newPoints.some((point) => point.type === InputLayerType.Scatter && hasVisibleScatterElevation(point)),
+    parsedRowCount: rowCount,
+    parseKey,
   };
 }
 

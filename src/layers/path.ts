@@ -34,10 +34,10 @@ const flattenPaths = (data: PathFeature[]): FlatPath[] => {
   for (const feature of data) {
     const geometry = feature.geometry;
     if (geometry.type === "LineString") {
-      flat.push({ path: geometry.coordinates as Position[], feature });
+      flat.push({ path: geometry.coordinates as unknown as Position[], feature });
     } else if (geometry.type === "MultiLineString") {
       for (const line of geometry.coordinates) {
-        flat.push({ path: line as Position[], feature });
+        flat.push({ path: line as unknown as Position[], feature });
       }
     }
   }

@@ -1843,6 +1843,50 @@ export class ValidationPropertiesCardSettings extends FormattingSettingsCard {
   slices: Array<FormattingSettingsSlice> = [this.validateGeometries];
 }
 
+export class DataLoadingCardSettings extends FormattingSettingsCard {
+  maxRows = new formattingSettings.NumUpDown({
+    name: "maxRows",
+    displayName: "Max rows to load",
+    description:
+      "Stop requesting more rows from Power BI after this many. Power BI itself stops at 1,048,576 rows or 100 MB.",
+    value: 1048576,
+    options: {
+      minValue: { type: powerbi.visuals.ValidatorType.Min, value: 30000 },
+      maxValue: { type: powerbi.visuals.ValidatorType.Max, value: 1048576 },
+    },
+  });
+
+  memoryBudgetMb = new formattingSettings.NumUpDown({
+    name: "memoryBudgetMb",
+    displayName: "Memory budget (MB)",
+    description:
+      "Stop loading when the visual's memory has grown this much since the load started. Only enforced in hosts that report memory use (Chromium-based: Desktop, Edge, Chrome).",
+    value: 400,
+    options: {
+      minValue: { type: powerbi.visuals.ValidatorType.Min, value: 50 },
+      maxValue: { type: powerbi.visuals.ValidatorType.Max, value: 4000 },
+    },
+  });
+
+  name: string = "dataLoadingProps";
+  displayName: string = "Data loading";
+  slices: Array<FormattingSettingsSlice> = [this.maxRows, this.memoryBudgetMb];
+}
+
+export class DiagnosticsCardSettings extends FormattingSettingsCard {
+  showCapabilityProbe = new formattingSettings.ToggleSwitch({
+    name: "showCapabilityProbe",
+    displayName: "Show capability probe",
+    description:
+      "Test what this Power BI host allows (workers, Wasm, WebGPU, WebGL2 limits) and show the results over the map.",
+    value: false,
+  });
+
+  name: string = "diagnosticsProps";
+  displayName: string = "Diagnostics";
+  slices: Array<FormattingSettingsSlice> = [this.showCapabilityProbe];
+}
+
 export class AnimationCardSettings extends FormattingSettingsCard {
   play = new formattingSettings.ToggleSwitch({
     name: "play",
@@ -1956,6 +2000,8 @@ export class VisualFormattingSettingsModel extends FormattingSettingsModel {
   highlighting = new HighlightingCardSettings();
   validation = new ValidationPropertiesCardSettings();
   animation = new AnimationCardSettings();
+  dataLoading = new DataLoadingCardSettings();
+  diagnostics = new DiagnosticsCardSettings();
   cards = [
     this.map,
     this.layerControls,
@@ -1971,6 +2017,8 @@ export class VisualFormattingSettingsModel extends FormattingSettingsModel {
     this.path,
     this.arc,
     this.polygon,
+    this.dataLoading,
+    this.diagnostics,
   ];
 
   /**
