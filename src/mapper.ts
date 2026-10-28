@@ -3,6 +3,7 @@ import VisualUpdateOptions = powerbi.extensibility.visual.VisualUpdateOptions;
 import ISelectionId = powerbi.visuals.ISelectionId;
 import IVisualHost = powerbi.extensibility.visual.IVisualHost;
 import { decodeAsGeometry } from "./encoding";
+import { PackedGeometryBatch, unpackGeometry } from "./geometryPacking";
 import { geometryHasZ } from "./geometryZ";
 import { computeTimeDomain, TimeDomain, toUnixSeconds } from "./time";
 import {
@@ -201,19 +202,27 @@ const parseWkp = (
   }
 };
 
+/**
+ * Cache keys `collectGeometryToDecode` already computed, per source column array and row, so the parse that
+ * follows doesn't hash the same (often long) geometry strings a second time. Column arrays are immutable for
+ * an update, so a key stored against one is valid for as long as the array lives.
+ */
+const geometryKeyMemo = new WeakMap<readonly unknown[], Array<string | undefined>>();
+
 const parseCachedGeometry = (
   encoding: "wkt" | "wkp",
   encodedValue: unknown,
   geometryId: unknown,
   errorMessages: string[],
   geometryCache: GeometryCache,
+  precomputedKey?: string,
 ): Geometry | null => {
   if (encodedValue === null || encodedValue === undefined) {
     return null;
   }
 
   const encoded = encodedValue.toString();
-  const cacheKey = getGeometryCacheKey(encoding, geometryId, encoded);
+  const cacheKey = precomputedKey ?? getGeometryCacheKey(encoding, geometryId, encoded);
   const cached = geometryCache.get(cacheKey);
   if (cached) {
     return cached;
@@ -243,7 +252,10 @@ const getRoleColumns = (
     Record<keyof RowValues, RoleColumnCandidate[]>
   > = {};
 
-  const addRoleColumnCandidates = (columns: RoleColumnCandidate[]) => {
+  const addRoleColumnCandidates = (
+    columns: RoleColumnCandidate[],
+    skipRoles: ReadonlySet<string> = new Set(),
+  ) => {
     for (const column of columns) {
       const roles = column.source?.roles;
       if (!roles) {
@@ -251,7 +263,7 @@ const getRoleColumns = (
       }
 
       for (const [fieldName, roleName] of roleMappings) {
-        if (roles[roleName]) {
+        if (roles[roleName] && !skipRoles.has(roleName)) {
           roleColumnCandidates[fieldName] ??= [];
           roleColumnCandidates[fieldName]!.push(column);
         }
@@ -339,17 +351,37 @@ const getRoleColumns = (
 
   addRoleColumnCandidates(getGroupedSourceCategoryRoleColumns());
   addRoleColumnCandidates(categories);
-  addRoleColumnCandidates(
-    getGroupedRoleColumns(
-      values,
-      rowCount,
-      roleMappings,
-      hasMeaningfulRoleValue,
-      mergeGroupedRoleValues,
-    ),
+  const groupedRoleColumns = getGroupedRoleColumns(
+    values,
+    rowCount,
+    roleMappings,
+    hasMeaningfulRoleValue,
+    mergeGroupedRoleValues,
   );
+  addRoleColumnCandidates(groupedRoleColumns);
   if (values) {
-    addRoleColumnCandidates(values as RoleColumnCandidate[]);
+    // `values` is the flat list of every group's columns, plus any columns outside the groups. Where a role has
+    // already been merged across the groups, adding those same group columns again counted each row twice:
+    // split numeric values (a measure spread over a Legend field) were summed with their own merged total.
+    // Columns that aren't group members are still added, since they fill rows the groups leave empty.
+    const mergedFromGroups = new Set<string>();
+    for (const column of groupedRoleColumns) {
+      if (column.source === values.source) {
+        continue; // series-name columns, not merged group members
+      }
+      for (const [, roleName] of roleMappings) {
+        if (column.source?.roles?.[roleName]) {
+          mergedFromGroups.add(roleName);
+        }
+      }
+    }
+    const groupMembers = new Set<unknown>(
+      mergedFromGroups.size > 0 ? getGroupedValueColumns(values) : [],
+    );
+    const noRolesSkipped = new Set<string>();
+    for (const column of values as RoleColumnCandidate[]) {
+      addRoleColumnCandidates([column], groupMembers.has(column) ? mergedFromGroups : noRolesSkipped);
+    }
   }
 
   const roleColumns: Partial<Record<keyof RowValues, RoleColumnCandidate>> = {};
@@ -423,6 +455,18 @@ const mergeGroupedRoleValues = (
   }
 
   return values[0] ?? null;
+};
+
+/** Every column inside `values.grouped()`, or none if the values aren't grouped. */
+const getGroupedValueColumns = (values: powerbi.DataViewValueColumns): unknown[] => {
+  if (typeof values.grouped !== "function") {
+    return [];
+  }
+  try {
+    return (values.grouped() ?? []).flatMap((group) => group.values ?? []);
+  } catch {
+    return [];
+  }
 };
 
 const getColumnValues = (
@@ -697,6 +741,7 @@ const hasVisibleScatterElevation = (data: OurData): boolean => {
  * mode each update carries every row loaded so far, so rows [0, previous.parsedRowCount) are unchanged and only
  * the new tail is parsed. `final` marks the last segment: bounds and time domain are then recomputed exactly
  * (intermediate segments merge them, which is enough because fly-to only runs after the last segment).
+ * The previous snapshot's lookup maps are reused, so it must not be read after the append.
  */
 export interface DatasetAppend {
   previous: DatasetSnapshot;
@@ -736,6 +781,129 @@ const mergeTimeDomains = (left: TimeDomain | null, right: TimeDomain | null): Ti
   if (!right) return left;
   return { t0: Math.min(left.t0, right.t0), t1: Math.max(left.t1, right.t1) };
 };
+
+const getLayerTypeStrings = (settings: VisualFormattingSettingsModel) => ({
+  scatterString: settings.scatter.layerType.value.trim().toLowerCase(),
+  lineString: settings.line.layerType.value.trim().toLowerCase(),
+  arcString: settings.arc.layerType.value.trim().toLowerCase(),
+  pathString: settings.path.layerType.value.trim().toLowerCase(),
+  polygonString: settings.polygon.layerType.value.trim().toLowerCase(),
+});
+
+/** Identifies what a parse depends on besides row values; an append only resumes when this is unchanged. */
+const getParseKey = (
+  roleColumns: Partial<Record<keyof RowValues, RoleColumnCandidate>>,
+  geometryIdValue: powerbi.DataViewCategoryColumn,
+  settings: VisualFormattingSettingsModel,
+): string => {
+  const types = getLayerTypeStrings(settings);
+  return JSON.stringify([
+    Object.entries(roleColumns).map(([role, column]) => [role, column?.source?.queryName ?? null]),
+    geometryIdValue.source?.queryName ?? null,
+    types.scatterString,
+    types.lineString,
+    types.arcString,
+    types.pathString,
+    types.polygonString,
+    settings.validation.validateGeometries.value,
+  ]);
+};
+
+/** Geometry strings to decode off the main thread, keyed exactly as the mapper's geometry cache. */
+export interface GeometryDecodeRequest {
+  keys: string[];
+  /** 0 = WKT, 1 = WKP, per value. */
+  encodings: Uint8Array;
+  values: string[];
+}
+
+/**
+ * Collect the WKT/WKP strings that `createDatasetSnapshot` would parse and that aren't cached yet. It follows
+ * the same rules: only rows that are (or may be) paths or polygons, WKT before WKP, and only rows after
+ * `previous.parsedRowCount` when the append will resume from it.
+ */
+export function collectGeometryToDecode(
+  options: VisualUpdateOptions,
+  settings: VisualFormattingSettingsModel,
+  geometryCache: GeometryCache,
+  previous: DatasetSnapshot | null,
+): GeometryDecodeRequest {
+  const request: GeometryDecodeRequest = { keys: [], encodings: new Uint8Array(0), values: [] };
+  const categorical = options.dataViews?.[0]?.categorical;
+  const geometryIdValue = categorical?.categories?.[0];
+  if (!categorical || !geometryIdValue) return request;
+  const roleColumns = getRoleColumns(categorical.values, categorical.categories);
+  const wkt = getColumnValues(roleColumns.wkt ?? null);
+  const wkp = getColumnValues(roleColumns.wkp ?? null);
+  const layerType = getColumnValues(roleColumns.layerType ?? null);
+  const ids = geometryIdValue.values;
+  if ((!wkt && !wkp) || !layerType || !ids) return request;
+
+  const types = getLayerTypeStrings(settings);
+  const simpleTypes = new Set([types.scatterString, types.lineString, types.arcString]);
+  const complexTypes = new Set([types.pathString, types.polygonString]);
+  const firstRow =
+    previous &&
+    previous.parsedRowCount > 0 &&
+    previous.parsedRowCount <= ids.length &&
+    previous.parseKey === getParseKey(roleColumns, geometryIdValue, settings)
+      ? previous.parsedRowCount
+      : 0;
+  const rowValueArrays = { geometryId: ids } as RowValueArrays;
+  for (const [field] of roleMappings) {
+    rowValueArrays[field] = getColumnValues(roleColumns[field] ?? null);
+  }
+
+  const encodings: number[] = [];
+  const seen = new Set<string>();
+  const wktKeys = wkt ? new Array<string | undefined>(ids.length) : null;
+  const wkpKeys = wkp ? new Array<string | undefined>(ids.length) : null;
+  if (wkt && wktKeys) geometryKeyMemo.set(wkt, wktKeys);
+  if (wkp && wkpKeys) geometryKeyMemo.set(wkp, wkpKeys);
+  for (let index = firstRow; index < ids.length; index += 1) {
+    const geomType = layerType[index] ? layerType[index]!.toString().trim().toLowerCase() : null;
+    if (geomType !== null && simpleTypes.has(geomType)) continue;
+    if (geomType === null || !complexTypes.has(geomType)) {
+      // Unknown type: the mapper infers it from role values, and only parses geometry if that fails or
+      // points at a path/polygon.
+      const inferred = getDataPointTypeFromRoleValues(getRowValues(rowValueArrays, index));
+      if (inferred !== null && inferred !== InputLayerType.Path && inferred !== InputLayerType.Polygon) continue;
+    }
+    const wktValue = wkt?.[index];
+    const useWkt = wkt !== null && wktValue !== null && wktValue !== undefined && wktValue.toString().trim() !== "";
+    const raw = useWkt ? wktValue : wkp?.[index];
+    if (raw === null || raw === undefined || raw === "" || raw === false) continue;
+    const encoded = raw.toString();
+    const key = getGeometryCacheKey(useWkt ? "wkt" : "wkp", ids[index] ?? null, encoded);
+    (useWkt ? wktKeys : wkpKeys)![index] = key;
+    if (geometryCache.has(key) || seen.has(key)) continue;
+    seen.add(key);
+    request.keys.push(key);
+    request.values.push(encoded);
+    encodings.push(useWkt ? 0 : 1);
+  }
+  request.encodings = Uint8Array.from(encodings);
+  return request;
+}
+
+/** Put decoded geometry into the cache; rows the decoder left empty are parsed by the mapper as before. */
+export function storeDecodedGeometry(
+  geometryCache: GeometryCache,
+  keys: string[],
+  chunks: Array<{ start: number; batch: PackedGeometryBatch }>,
+): number {
+  let stored = 0;
+  for (const { start, batch } of chunks) {
+    for (let row = 0; row < batch.count; row += 1) {
+      const geometry = unpackGeometry(batch, row);
+      if (geometry) {
+        geometryCache.set(keys[start + row], geometry);
+        stored += 1;
+      }
+    }
+  }
+  return stored;
+}
 
 export function createDatasetSnapshot(
   options: VisualUpdateOptions,
@@ -865,22 +1033,9 @@ export function createDatasetSnapshot(
   };
 
   const errorMessages: string[] = [];
-  const scatterString = settings.scatter.layerType.value.trim().toLowerCase();
-  const lineString = settings.line.layerType.value.trim().toLowerCase();
-  const arcString = settings.arc.layerType.value.trim().toLowerCase();
-  const pathString = settings.path.layerType.value.trim().toLowerCase();
-  const polygonString = settings.polygon.layerType.value.trim().toLowerCase();
+  const { scatterString, lineString, arcString, pathString, polygonString } = getLayerTypeStrings(settings);
   const validateGeometries = settings.validation.validateGeometries.value;
-  const parseKey = JSON.stringify([
-    Object.entries(roleColumns).map(([role, column]) => [role, column?.source?.queryName ?? null]),
-    geometryIdValue.source?.queryName ?? null,
-    scatterString,
-    lineString,
-    arcString,
-    pathString,
-    polygonString,
-    validateGeometries,
-  ]);
+  const parseKey = getParseKey(roleColumns, geometryIdValue, settings);
   const rowCount = rowValueArrays.geometryId.length;
   const previous =
     append &&
@@ -891,11 +1046,14 @@ export function createDatasetSnapshot(
       : null;
   const firstRow = previous ? previous.parsedRowCount : 0;
   if (previous) {
+    // The previous snapshot is replaced by this one, so its lookup maps are taken over rather than copied:
+    // copying them on every segment made a segmented load quadratic in the row count. Layer arrays are still
+    // sliced because deck.gl detects data changes by array identity.
     layerData = cloneLayerStore(previous.layers);
     colorRoles = cloneColorRoles(previous.colorRoles);
-    idToDataPoint = new Map(previous.idToDataPoint);
-    idToSelectionId = new Map(previous.idToSelectionId);
-    dataHighlightedIds = previous.dataHighlightedIds.slice();
+    idToDataPoint = previous.idToDataPoint;
+    idToSelectionId = previous.idToSelectionId;
+    dataHighlightedIds = previous.dataHighlightedIds;
   }
   const firstNewPoint = layerData.all.length;
   const highlightColumns = (categorical.values ?? []).filter((valueColumn) =>
@@ -944,6 +1102,7 @@ export function createDatasetSnapshot(
           rowValues.geometryId,
           errorMessages,
           geometryCache,
+          geometryKeyMemo.get(rowValueArrays.wkt!)?.[index],
         );
       } else if (isProvided.wkp && rowValues.wkp) {
         wkpGeometry = parseCachedGeometry(
@@ -952,6 +1111,7 @@ export function createDatasetSnapshot(
           rowValues.geometryId,
           errorMessages,
           geometryCache,
+          geometryKeyMemo.get(rowValueArrays.wkp!)?.[index],
         );
       }
     }

@@ -25,7 +25,13 @@ import {
 import { Map as MapLibreMap, NavigationControl } from "maplibre-gl";
 import { MapboxOverlay as DeckOverlay } from "@deck.gl/mapbox";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { createDatasetSnapshot } from "./mapper";
+import {
+  collectGeometryToDecode,
+  createDatasetSnapshot,
+  storeDecodedGeometry,
+} from "./mapper";
+import { defaultPoolSize, GeometryWorkerPool } from "./geometryWorkerPool";
+import { GeometryDecodeQueue } from "./geometryDecodeQueue";
 import { getDataBoundingBox } from "./geom";
 import {
   GradientLegendRenderOptions,
@@ -114,6 +120,9 @@ const createEmptyDatasetSnapshot = (version = "0"): DatasetSnapshot => ({
 });
 
 const AUTO_3D_PITCH = 45;
+
+/** Below this many uncached geometries, parsing on the main thread is quicker than a round trip to workers. */
+const WORKER_DECODE_MIN_GEOMETRIES = 2000;
 const FLAT_MAP_PITCH = 0;
 const PITCH_EPSILON = 0.5;
 const MAPLIBRE_CONTROL_MARGIN_PX = 10;
@@ -203,6 +212,12 @@ export class Visual implements IVisual {
   private loadBanner: HTMLElement | null = null;
   private loadBaselineHeap: number | null = null;
   private loadStopMessage: string | null = null;
+  private geometryPool: GeometryWorkerPool | null = null;
+  private readonly geometryDecodeQueue = new GeometryDecodeQueue(
+    () => this.getGeometryPool(),
+    WORKER_DECODE_MIN_GEOMETRIES,
+  );
+  private parseToken = 0;
   private lastPerspectiveLayerShown: boolean | null;
   private automaticPitchOwned: boolean;
   private buildingLayerSignature: string | null;
@@ -1780,9 +1795,9 @@ export class Visual implements IVisual {
     this.applyAutomaticPitch();
   }
 
-  private renderLoadBanner(loading: boolean, rowCount: number) {
+  private renderLoadBanner(loading: boolean, rowCount: number, loadingMessage?: string) {
     const message = loading
-      ? `Loading rows… ${rowCount.toLocaleString("en-NZ")} so far`
+      ? (loadingMessage ?? `Loading rows… ${rowCount.toLocaleString("en-NZ")} so far`)
       : this.loadStopMessage;
     if (!message) {
       this.loadBanner?.remove();
@@ -1795,6 +1810,47 @@ export class Visual implements IVisual {
       this.rootElement.appendChild(this.loadBanner);
     }
     this.loadBanner.textContent = message;
+  }
+
+  /** The previous snapshot an Append update will resume from, matching `processData`. */
+  private getAppendPrevious(options: VisualUpdateOptions) {
+    return options.operationKind === VisualDataChangeOperationKind.Append && this.dataset.parsedRowCount > 0
+      ? this.dataset
+      : null;
+  }
+
+  /**
+   * Decode the update's uncached WKT/WKP in the worker pool and store the results in the geometry cache, so the
+   * synchronous parse that follows finds them there. Returns null when there is too little to decode or workers
+   * aren't available; the parse then runs on the main thread exactly as before. The returned promise never
+   * rejects: a worker failure disables the pool and leaves the geometry for the main thread.
+   */
+  private decodeGeometryInWorkers(options: VisualUpdateOptions): Promise<void> | null {
+    if (!GeometryWorkerPool.isSupported()) {
+      return null;
+    }
+    return this.geometryDecodeQueue.schedule(
+      () =>
+        collectGeometryToDecode(
+          options,
+          this.formattingSettings,
+          this.geometryCache,
+          this.getAppendPrevious(options),
+        ),
+      (request, chunks) => storeDecodedGeometry(this.geometryCache, request.keys, chunks),
+    );
+  }
+
+  /** The worker pool, started on first use; null once it can't be created. */
+  private getGeometryPool(): GeometryWorkerPool | null {
+    if (!this.geometryPool) {
+      try {
+        this.geometryPool = new GeometryWorkerPool({ size: defaultPoolSize(), wasm: getWkpWasmBytes() });
+      } catch {
+        return null;
+      }
+    }
+    return this.geometryPool;
   }
 
   /**
@@ -2327,17 +2383,32 @@ export class Visual implements IVisual {
     this.renderLoadBanner(needsMoreData, rowCount);
     const parseData = this.shouldParseData(options, dataView);
     if (parseData) {
-      this.processData(options, dataView, !needsMoreData);
-      this.syncAnimationController();
-      this.renderCurrentState(dataView);
-      if (needsMoreData) {
-        this.host.fetchMoreData(true);
+      // A newer data update supersedes this one if it arrives while geometry is still decoding.
+      const token = ++this.parseToken;
+      const finishParse = () => {
+        if (token !== this.parseToken || this.deckOverlay === null) {
+          return;
+        }
+        this.renderLoadBanner(needsMoreData, rowCount);
+        this.processData(options, dataView, !needsMoreData);
+        this.syncAnimationController();
+        this.renderCurrentState(dataView);
+        if (needsMoreData) {
+          this.host.fetchMoreData(true);
+          return;
+        }
+        const didFlyTo = this.applyFlyTo(dataView);
+        if (!didFlyTo) {
+          this.applyAutomaticPitch();
+        }
+      };
+      const decoding = this.decodeGeometryInWorkers(options);
+      if (decoding) {
+        this.renderLoadBanner(true, rowCount, "Decoding geometry…");
+        void decoding.then(finishParse);
         return;
       }
-      const didFlyTo = this.applyFlyTo(dataView);
-      if (!didFlyTo) {
-        this.applyAutomaticPitch();
-      }
+      finishParse();
       return;
     }
 
@@ -2375,6 +2446,9 @@ export class Visual implements IVisual {
     this.selectedIds.clear();
     this.geometryCache.clear();
     this.classificationCache.clear();
+    this.parseToken += 1;
+    this.geometryPool?.destroy();
+    this.geometryPool = null;
     try {
       (this.deckOverlay as any)?.finalize?.();
     } catch {

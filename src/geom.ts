@@ -1,38 +1,77 @@
 import { BoundingBox, OurData } from './dataTypes';
 
-function getMinimalLongitudeRange(lons: number[]): { minLon: number; maxLon: number } | null {
-    if (lons.length === 0) {
+/**
+ * The narrowest longitude range covering every value, allowing it to cross the antimeridian: the complement of
+ * the widest gap between neighbouring longitudes around the circle.
+ *
+ * Finds that gap in linear time with the pigeonhole method instead of sorting. With n values in n equal buckets
+ * over [lo, hi], any gap inside a bucket is narrower than (hi - lo) / n, while the widest gap is at least
+ * (hi - lo) / (n - 1), so the widest gap always lies between neighbouring non-empty buckets. Buckets are walked
+ * in ascending order and the wrap-around gap is checked last, so ties resolve exactly as a sorted scan would.
+ */
+function getMinimalLongitudeRange(
+    lons: ArrayLike<number>,
+    count = lons.length,
+): { minLon: number; maxLon: number } | null {
+    if (count === 0) {
         return null;
     }
 
-    const normalized = lons
-        .filter((lon) => Number.isFinite(lon))
-        .map((lon) => (lon < 0 ? lon + 360 : lon))
-        .sort((a, b) => a - b);
-
-    if (normalized.length === 0) {
+    const normalized = new Float64Array(count);
+    let length = 0;
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (let i = 0; i < count; i++) {
+        const lon = lons[i];
+        if (Number.isFinite(lon)) {
+            const value = lon < 0 ? lon + 360 : lon;
+            normalized[length++] = value;
+            if (value < lo) lo = value;
+            if (value > hi) hi = value;
+        }
+    }
+    if (length === 0) {
         return null;
     }
-
-    if (normalized.length === 1) {
-        const lon = normalized[0] > 180 ? normalized[0] - 360 : normalized[0];
+    if (length === 1) {
+        const lon = lo > 180 ? lo - 360 : lo;
         return { minLon: lon, maxLon: lon };
     }
 
+    // Widest gap: start with the wrap-around gap's competitors (inside [lo, hi]); the wrap gap is compared last.
     let largestGap = -1;
-    let gapIndex = -1;
-    for (let i = 0; i < normalized.length; i++) {
-        const current = normalized[i];
-        const next = i === normalized.length - 1 ? normalized[0] + 360 : normalized[i + 1];
-        const gap = next - current;
-        if (gap > largestGap) {
-            largestGap = gap;
-            gapIndex = i;
+    let rangeStart = lo;
+    let rangeEnd = hi;
+    if (hi > lo) {
+        const bucketMin = new Float64Array(length).fill(Infinity);
+        const bucketMax = new Float64Array(length).fill(-Infinity);
+        const scale = length / (hi - lo);
+        for (let i = 0; i < length; i++) {
+            const value = normalized[i];
+            let bucket = Math.floor((value - lo) * scale);
+            if (bucket >= length) bucket = length - 1;
+            if (value < bucketMin[bucket]) bucketMin[bucket] = value;
+            if (value > bucketMax[bucket]) bucketMax[bucket] = value;
+        }
+        let previousMax = bucketMax[0];
+        for (let bucket = 1; bucket < length; bucket++) {
+            const min = bucketMin[bucket];
+            if (min === Infinity) continue;
+            const gap = min - previousMax;
+            if (gap > largestGap) {
+                largestGap = gap;
+                rangeStart = min;
+                rangeEnd = previousMax;
+            }
+            previousMax = bucketMax[bucket];
         }
     }
+    const wrapGap = lo + 360 - hi;
+    if (wrapGap > largestGap) {
+        rangeStart = lo;
+        rangeEnd = hi;
+    }
 
-    const rangeStart = gapIndex === normalized.length - 1 ? normalized[0] : normalized[gapIndex + 1];
-    let rangeEnd = normalized[gapIndex];
     if (rangeEnd < rangeStart) {
         rangeEnd += 360;
     }
@@ -45,6 +84,50 @@ function getMinimalLongitudeRange(lons: number[]): { minLon: number; maxLon: num
         minLon: rangeStart > 180 ? rangeStart - 360 : rangeStart,
         maxLon: rangeEnd,
     };
+}
+
+/**
+ * Call `visit(lon, lat)` for every position of a data point, in the same order as `getLatLons`, without
+ * building intermediate arrays. Returns false as soon as `visit` does.
+ */
+function visitLonLats(d: OurData, visit: (lon: number, lat: number) => boolean | void): boolean {
+    const line = (coords: number[][]) => {
+        for (let i = 0; i < coords.length; i++) {
+            if (visit(coords[i][0], coords[i][1]) === false) return false;
+        }
+        return true;
+    };
+    if (d.scatterData && visit(d.scatterData.lon, d.scatterData.lat) === false) return false;
+    if (d.lineData) {
+        if (visit(d.lineData.point1.lon, d.lineData.point1.lat) === false) return false;
+        if (visit(d.lineData.point2.lon, d.lineData.point2.lat) === false) return false;
+    }
+    if (d.arcData) {
+        if (visit(d.arcData.point1.lon, d.arcData.point1.lat) === false) return false;
+        if (visit(d.arcData.point2.lon, d.arcData.point2.lat) === false) return false;
+    }
+    if (d.pathData) {
+        const path = d.pathData;
+        if (path.bbox) {
+            // getLatLons pairs bbox[1] with bbox[0] and bbox[3] with bbox[2].
+            if (visit(path.bbox[0], path.bbox[1]) === false || visit(path.bbox[2], path.bbox[3]) === false) return false;
+        } else if (path.type === "LineString") {
+            if (!line(path.coordinates)) return false;
+        } else if (path.type === "MultiLineString") {
+            for (const part of path.coordinates) if (!line(part)) return false;
+        }
+    }
+    if (d.polygonData) {
+        const polygon = d.polygonData;
+        if (polygon.bbox) {
+            if (visit(polygon.bbox[0], polygon.bbox[1]) === false || visit(polygon.bbox[2], polygon.bbox[3]) === false) return false;
+        } else if (polygon.type === "Polygon") {
+            for (const ring of polygon.coordinates) if (!line(ring)) return false;
+        } else if (polygon.type === "MultiPolygon") {
+            for (const part of polygon.coordinates) for (const ring of part) if (!line(ring)) return false;
+        }
+    }
+    return true;
 }
 
 export function getLatLons(d: OurData): number[][] {
@@ -117,16 +200,22 @@ export function getLatLons(d: OurData): number[][] {
 export function getDataBoundingBox(data: OurData[]): BoundingBox | null {
     let minLat = Infinity;
     let maxLat = -Infinity;
-    const lons: number[] = [];
-    for (const d of data) {
-        const [lats, rowLons] = getLatLons(d);
-        for (const lat of lats) {
-            if (lat < minLat) minLat = lat;
-            if (lat > maxLat) maxLat = lat;
+    let lons = new Float64Array(1024);
+    let count = 0;
+    const visit = (lon: number, lat: number) => {
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+        if (count === lons.length) {
+            const grown = new Float64Array(lons.length * 2);
+            grown.set(lons);
+            lons = grown;
         }
-        lons.push(...rowLons);
+        lons[count++] = lon;
+    };
+    for (const d of data) {
+        visitLonLats(d, visit);
     }
-    const lonRange = getMinimalLongitudeRange(lons);
+    const lonRange = getMinimalLongitudeRange(lons, count);
     if (!lonRange || minLat === Infinity || maxLat === -Infinity) {
         return null; // No valid data found
     }
@@ -135,16 +224,9 @@ export function getDataBoundingBox(data: OurData[]): BoundingBox | null {
 
 
 export function validateData(data: OurData): boolean {
-    const [lats, lons] = getLatLons(data);
-    for (const lat of lats) {
-        if (isNaN(lat) || !isFinite(lat) || lat < -90 || lat > 90) {
-            return false;
-        }
-    }
-    for (const lon of lons) {
-        if (isNaN(lon) || !isFinite(lon) || lon < -180 || lon > 180) {
-            return false;
-        }
-    }
-    return true;
+    // Same checks as before: every latitude in [-90, 90] and every longitude in [-180, 180], NaN rejected.
+    return visitLonLats(
+        data,
+        (lon, lat) => !(isNaN(lat) || !isFinite(lat) || lat < -90 || lat > 90 || isNaN(lon) || !isFinite(lon) || lon < -180 || lon > 180),
+    );
 }

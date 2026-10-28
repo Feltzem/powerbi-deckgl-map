@@ -914,3 +914,44 @@ test("createDatasetSnapshot leaves timeDomain null without a timestamp", () => {
   assert.equal(snapshot.timeDomain, null);
   assert.equal(snapshot.layers.scatter[0].timestampSeconds, null);
 });
+
+test("createDatasetSnapshot merges a numeric colour split across Legend groups once", () => {
+  // A measure split by a Legend field arrives as one column per group, in both `values.grouped()` and the flat
+  // `values` list. Each row's group values must be merged once (summed when they differ), not twice.
+  const ids = ["sa2-high", "sa2-mid"];
+  const wkts = [
+    "POLYGON ((175 -37.8, 175.001 -37.8, 175.001 -37.799, 175 -37.799, 175 -37.8))",
+    "POLYGON ((175.002 -37.8, 175.003 -37.8, 175.003 -37.799, 175.002 -37.799, 175.002 -37.8))",
+  ];
+  const groups: powerbi.DataViewValueColumnGroup[] = [
+    { name: "metalled", density: [0, 1.25] },
+    { name: "sealed", density: [13.124993676550858, 2.5] },
+    { name: "unmetalled", density: [0, 0.25] },
+  ].map((group) => ({
+    name: group.name,
+    values: [
+      makeColumn("layerType", ["polygon", "polygon"]),
+      makeColumn("wkt", wkts),
+      makeColumn("polygonFillColor", group.density, "Road Density"),
+    ],
+  }));
+  const options = {
+    dataViews: [
+      {
+        categorical: {
+          categories: [makeCategory("geometryId", ids, "geometry_id")],
+          values: makeValues(groups, { displayName: "road_surface", roles: { pathColor: true } }),
+        },
+        metadata: {},
+      },
+    ],
+  } as powerbi.extensibility.visual.VisualUpdateOptions;
+
+  const snapshot = createDatasetSnapshot(options, new VisualFormattingSettingsModel(), makeHost([]), new Map(), "test");
+
+  const fill = snapshot.layers.polygon.map((feature) => feature.properties.fillColorValue);
+  assert.equal(fill.length, 2);
+  assert.ok(Math.abs((fill[0] ?? NaN) - 13.124993676550858) < 1e-9, `row 1 fill ${fill[0]}`);
+  assert.ok(Math.abs((fill[1] ?? NaN) - 4) < 1e-9, `row 2 fill ${fill[1]}`);
+  assert.ok(Math.abs((snapshot.colorRoles.polygonFillColor.maxValue ?? NaN) - 13.124993676550858) < 1e-9);
+});
