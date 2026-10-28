@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Decoded WKT and WKP geometry in a pool of Blob-URL Web Workers, so large path and polygon loads no longer freeze the report. Results go into the existing geometry cache and the main thread falls back to its own parser for anything the fast path declines, or if workers fail, so output and error messages are unchanged. Updates with fewer than 2,000 uncached geometries still parse on the main thread.
+- Added a fast WKT parser for POINT, LINESTRING, POLYGON and their MULTI forms (with optional Z). SRID prefixes, EMPTY, M values, collections and malformed text still go through loaders.gl.
+- Stopped copying every earlier row's lookup maps on each fetchMoreData segment, which made segmented loads quadratic. A 1,048,576-row scatter load drops from about 22 s to 8 s.
+- Computed data bounds in linear time without per-row arrays (same result, roughly 3x faster on path-heavy data), and reused geometry cache keys instead of hashing each geometry string twice.
+
 ## 1.9.0.3 - 2026-10-29
 
 ### Added
