@@ -252,7 +252,10 @@ const getRoleColumns = (
     Record<keyof RowValues, RoleColumnCandidate[]>
   > = {};
 
-  const addRoleColumnCandidates = (columns: RoleColumnCandidate[]) => {
+  const addRoleColumnCandidates = (
+    columns: RoleColumnCandidate[],
+    skipRoles: ReadonlySet<string> = new Set(),
+  ) => {
     for (const column of columns) {
       const roles = column.source?.roles;
       if (!roles) {
@@ -260,7 +263,7 @@ const getRoleColumns = (
       }
 
       for (const [fieldName, roleName] of roleMappings) {
-        if (roles[roleName]) {
+        if (roles[roleName] && !skipRoles.has(roleName)) {
           roleColumnCandidates[fieldName] ??= [];
           roleColumnCandidates[fieldName]!.push(column);
         }
@@ -348,17 +351,37 @@ const getRoleColumns = (
 
   addRoleColumnCandidates(getGroupedSourceCategoryRoleColumns());
   addRoleColumnCandidates(categories);
-  addRoleColumnCandidates(
-    getGroupedRoleColumns(
-      values,
-      rowCount,
-      roleMappings,
-      hasMeaningfulRoleValue,
-      mergeGroupedRoleValues,
-    ),
+  const groupedRoleColumns = getGroupedRoleColumns(
+    values,
+    rowCount,
+    roleMappings,
+    hasMeaningfulRoleValue,
+    mergeGroupedRoleValues,
   );
+  addRoleColumnCandidates(groupedRoleColumns);
   if (values) {
-    addRoleColumnCandidates(values as RoleColumnCandidate[]);
+    // `values` is the flat list of every group's columns, plus any columns outside the groups. Where a role has
+    // already been merged across the groups, adding those same group columns again counted each row twice:
+    // split numeric values (a measure spread over a Legend field) were summed with their own merged total.
+    // Columns that aren't group members are still added, since they fill rows the groups leave empty.
+    const mergedFromGroups = new Set<string>();
+    for (const column of groupedRoleColumns) {
+      if (column.source === values.source) {
+        continue; // series-name columns, not merged group members
+      }
+      for (const [, roleName] of roleMappings) {
+        if (column.source?.roles?.[roleName]) {
+          mergedFromGroups.add(roleName);
+        }
+      }
+    }
+    const groupMembers = new Set<unknown>(
+      mergedFromGroups.size > 0 ? getGroupedValueColumns(values) : [],
+    );
+    const noRolesSkipped = new Set<string>();
+    for (const column of values as RoleColumnCandidate[]) {
+      addRoleColumnCandidates([column], groupMembers.has(column) ? mergedFromGroups : noRolesSkipped);
+    }
   }
 
   const roleColumns: Partial<Record<keyof RowValues, RoleColumnCandidate>> = {};
@@ -432,6 +455,18 @@ const mergeGroupedRoleValues = (
   }
 
   return values[0] ?? null;
+};
+
+/** Every column inside `values.grouped()`, or none if the values aren't grouped. */
+const getGroupedValueColumns = (values: powerbi.DataViewValueColumns): unknown[] => {
+  if (typeof values.grouped !== "function") {
+    return [];
+  }
+  try {
+    return (values.grouped() ?? []).flatMap((group) => group.values ?? []);
+  } catch {
+    return [];
+  }
 };
 
 const getColumnValues = (

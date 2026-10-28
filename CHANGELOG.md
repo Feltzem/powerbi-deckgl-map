@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 1.9.0.4 - 2026-10-29
+
+### Fixed
+
+- Merged numeric colour values split across a Legend (series) field once per row instead of twice. Each group's column was added both as part of the merged column and again on its own, so split values were summed with their own total: fills, gradient classes and legend numbers came out doubled. Rows that belong to a single group, or whose group values are equal, were not affected.
 
 ### Changed
 
