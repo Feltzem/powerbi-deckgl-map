@@ -18,6 +18,11 @@ function base64ToUint8Array(base64: string): Uint8Array {
     return bytes;
 }
 
+/** The inlined WKP Wasm bytes; the capability probe compiles them in a worker as a realistic test module. */
+export function getWkpWasmBytes(): Uint8Array {
+    return base64ToUint8Array(WKP_CORE_WASM_BASE64);
+}
+
 (async () => {
     try {
         const wasmBinary = base64ToUint8Array(WKP_CORE_WASM_BASE64);

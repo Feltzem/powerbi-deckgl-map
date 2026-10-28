@@ -177,6 +177,10 @@ export interface DatasetSnapshot {
   scatterElevationFieldBound: boolean;
   /** True when at least one scatter row has a finite, non-zero elevation. */
   scatterHasVisibleElevation: boolean;
+  /** DataView rows already parsed into this snapshot (incremental fetchMoreData segments resume from here). */
+  parsedRowCount: number;
+  /** Bound role columns plus parse-affecting settings; an append is only valid while this is unchanged. */
+  parseKey: string;
 }
 
 export type GeometryCache = Map<string, Geometry>;

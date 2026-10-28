@@ -89,6 +89,9 @@ import {
 import { getFeatureLabelLayer } from "./labels/featureLabelLayer";
 import { prepareLabelData } from "./labels/labelData";
 import { syncCompletedAnimationPlayback } from "./animationPlayback";
+import { ProbeResult, renderProbePanel, runCapabilityProbe } from "./capabilityProbe";
+import { getWkpWasmBytes } from "./encoding";
+import { checkLoadBudget, readHeapBytes } from "./loadBudget";
 import {
   getTooltipPlacementStyle,
   TooltipPlacementBounds,
@@ -106,6 +109,8 @@ const createEmptyDatasetSnapshot = (version = "0"): DatasetSnapshot => ({
   elevationFieldBound: false,
   scatterElevationFieldBound: false,
   scatterHasVisibleElevation: false,
+  parsedRowCount: 0,
+  parseKey: "",
 });
 
 const AUTO_3D_PITCH = 45;
@@ -191,6 +196,13 @@ export class Visual implements IVisual {
   private currentActiveLayerIds: string[];
   private layerOrderControl: LayerOrderControl | null;
   private timeSliderControl: MapOverlayControl | null;
+  private probePanel: HTMLElement | null = null;
+  private probeResults: ProbeResult[] | null = null;
+  private probeRunning = false;
+  private probeDismissed = false;
+  private loadBanner: HTMLElement | null = null;
+  private loadBaselineHeap: number | null = null;
+  private loadStopMessage: string | null = null;
   private lastPerspectiveLayerShown: boolean | null;
   private automaticPitchOwned: boolean;
   private buildingLayerSignature: string | null;
@@ -545,6 +557,49 @@ export class Visual implements IVisual {
       },
       render,
     };
+  }
+
+  /** Format pane > Diagnostics > Show capability probe: run once, show results until dismissed or toggled off. */
+  private syncCapabilityProbe() {
+    const enabled = this.formattingSettings.diagnostics.showCapabilityProbe.value;
+    if (!enabled) {
+      this.probeDismissed = false;
+      this.probePanel?.remove();
+      this.probePanel = null;
+      return;
+    }
+    if (this.probeDismissed) return;
+    if (!this.probePanel) {
+      this.probePanel = document.createElement("div");
+      this.rootElement.appendChild(this.probePanel);
+    }
+    const close = () => {
+      this.probeDismissed = true;
+      this.probePanel?.remove();
+      this.probePanel = null;
+    };
+    renderProbePanel(this.probePanel, this.probeResults, close);
+    if (this.probeResults || this.probeRunning) return;
+    this.probeRunning = true;
+    let wasmBytes: Uint8Array | undefined;
+    try {
+      wasmBytes = getWkpWasmBytes();
+    } catch {
+      wasmBytes = undefined;
+    }
+    runCapabilityProbe({ hostEnv: this.host.hostEnv, wasmBytes })
+      .then((results) => {
+        this.probeResults = results;
+      })
+      .catch((error) => {
+        this.probeResults = [
+          { id: "probe", label: "Probe", status: "fail", detail: String(error?.message ?? error) },
+        ];
+      })
+      .finally(() => {
+        this.probeRunning = false;
+        if (this.probePanel) renderProbePanel(this.probePanel, this.probeResults, close);
+      });
   }
 
   private renderTimeSliderControl() {
@@ -1725,21 +1780,49 @@ export class Visual implements IVisual {
     this.applyAutomaticPitch();
   }
 
+  private renderLoadBanner(loading: boolean, rowCount: number) {
+    const message = loading
+      ? `Loading rows… ${rowCount.toLocaleString("en-NZ")} so far`
+      : this.loadStopMessage;
+    if (!message) {
+      this.loadBanner?.remove();
+      this.loadBanner = null;
+      return;
+    }
+    if (!this.loadBanner) {
+      this.loadBanner = document.createElement("div");
+      this.loadBanner.className = "deckgl-load-banner";
+      this.rootElement.appendChild(this.loadBanner);
+    }
+    this.loadBanner.textContent = message;
+  }
+
+  /**
+   * Parse the data view into the dataset snapshot. On an Append segment only the new rows are parsed; the rest
+   * is carried over from the previous snapshot. `final` is false while more segments are coming.
+   */
   private processData(
     options: VisualUpdateOptions,
     dataView: powerbi.DataView,
+    final = true,
   ) {
     this.hideStickyTooltip();
     this.measureTask("powerbi-deckgl-map:parse-data", () => {
       this.dataVersionCounter += 1;
       this.classificationCache.clear();
       this.lastLegendSignature = null;
+      const append =
+        options.operationKind === VisualDataChangeOperationKind.Append &&
+        this.dataset.parsedRowCount > 0
+          ? { previous: this.dataset, final }
+          : null;
       this.dataset = createDatasetSnapshot(
         options,
         this.formattingSettings,
         this.host,
         this.geometryCache,
         String(this.dataVersionCounter),
+        append,
       );
       this.dataPoints = this.dataset.layers.all;
       this.lastDataSignature = this.getDataSignature(dataView);
@@ -2217,16 +2300,34 @@ export class Visual implements IVisual {
     this.renderLayerOrderControl();
     this.renderTimeSliderControl();
     this.updateOverlayLayout();
+    this.syncCapabilityProbe();
 
     if (!dataView) {
       this.clearData();
       return;
     }
 
-    const needsMoreData = this.shouldRequestMoreData(options, dataView);
+    if (options.operationKind === VisualDataChangeOperationKind.Create) {
+      this.loadBaselineHeap = readHeapBytes();
+      this.loadStopMessage = null;
+    }
+    const wantsMoreData = this.shouldRequestMoreData(options, dataView);
+    const rowCount = dataView.categorical?.categories?.[0]?.values?.length ?? 0;
+    const budget = wantsMoreData
+      ? checkLoadBudget({
+          rows: rowCount,
+          maxRows: this.formattingSettings.dataLoading.maxRows.value,
+          heapBytes: readHeapBytes(),
+          baselineHeapBytes: this.loadBaselineHeap,
+          budgetMb: this.formattingSettings.dataLoading.memoryBudgetMb.value,
+        })
+      : null;
+    const needsMoreData = wantsMoreData && !budget?.stop;
+    if (budget?.stop) this.loadStopMessage = budget.message;
+    this.renderLoadBanner(needsMoreData, rowCount);
     const parseData = this.shouldParseData(options, dataView);
     if (parseData) {
-      this.processData(options, dataView);
+      this.processData(options, dataView, !needsMoreData);
       this.syncAnimationController();
       this.renderCurrentState(dataView);
       if (needsMoreData) {
