@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.9.0.3 - 2026-10-29
+
+### Added
+
+- Added a Diagnostics card with a capability probe that checks Wasm, SIMD, Blob-URL workers, Wasm in workers, transferable buffers, OffscreenCanvas, WebGPU, WebGL2 limits, SharedArrayBuffer and the host environment, and shows the results in a copyable panel.
+- Added a Data loading card with Max rows to load and a memory budget. Loading stops early with an on-map banner instead of freezing the report, and the banner shows progress while rows load.
+
+### Changed
+
+- Parsed only the new rows on each fetchMoreData segment and carried earlier rows over. A full 1,048,576-row load in 30,000-row segments drops from about 88 s to 17 s.
+- Raised the data reduction window from 10,000 to 30,000 rows per segment.
+- Upgraded deck.gl and @deck.gl/extensions to 9.4.
+
 ## 1.9.0.2 - 2026-08-27
 
 ### Added
