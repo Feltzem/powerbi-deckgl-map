@@ -1,7 +1,7 @@
 import { LineLayer } from "@deck.gl/layers";
 import type { PickingInfo } from "@deck.gl/core";
 import { ColorRoleStatsStore, OurData } from "../dataTypes";
-import { withOpacity, decodeHex } from "../col";
+import { withOpacity, decodeHex, opacityPercentToAlpha } from "../col";
 import {
   GradientBinningMethod,
   getNumericColorBinsSignature,
@@ -29,7 +29,7 @@ export default function getLineLayer(
 ) {
   const defaultLineColor = withOpacity(
     decodeHex(settings.line.color.defaultLineColor.value.value, [0, 0, 0, 100]),
-    settings.line.color.defaultLineOpacity.value,
+    opacityPercentToAlpha(settings.line.color.defaultLineOpacity.value),
   );
   const fadeFactor = Math.max(
     0,
@@ -39,7 +39,7 @@ export default function getLineLayer(
     highlighting.highlightOnClick.value && selectedIds.size > 0;
   const autoHighlightColor = withOpacity(
     decodeHex(highlighting.autoHighlightColor.value.value, [255, 153, 0, 255]),
-    highlighting.autoHighlightOpacity.value,
+    opacityPercentToAlpha(highlighting.autoHighlightOpacity.value),
   );
   const gradientSettings = {
     method: settings.gradient.binningMethod.value
@@ -61,14 +61,14 @@ export default function getLineLayer(
       getCategoricalPaletteColor(
         category,
         settings.categoricalPalette.palette.value.value as string,
-        settings.line.color.defaultLineOpacity.value,
+        opacityPercentToAlpha(settings.line.color.defaultLineOpacity.value),
       ),
     getId: (d) => String(d.id),
     defaultColor: defaultLineColor,
     getGradient: () =>
       resolveGradientPresetColors(
         settings.gradient.preset.value.value as string,
-        settings.line.color.defaultLineOpacity.value,
+        opacityPercentToAlpha(settings.line.color.defaultLineOpacity.value),
       ),
     gradientSettings,
     shouldFade: shouldFadeUnselected,
@@ -108,7 +108,7 @@ export default function getLineLayer(
       getColor: getLayerColorUpdateTriggers(
         [
           settings.line.color.defaultLineColor.value.value,
-          settings.line.color.defaultLineOpacity.value,
+          opacityPercentToAlpha(settings.line.color.defaultLineOpacity.value),
         ],
         [
           settings.gradient.preset.value.value,
@@ -130,7 +130,7 @@ export default function getLineLayer(
       ),
       highlightColor: [
         highlighting.autoHighlightColor.value.value,
-        highlighting.autoHighlightOpacity.value,
+        opacityPercentToAlpha(highlighting.autoHighlightOpacity.value),
       ],
     },
   });

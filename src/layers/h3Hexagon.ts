@@ -1,7 +1,7 @@
 import { H3HexagonLayer } from "@deck.gl/geo-layers";
 import { latLngToCell } from "h3-js";
 import type { Color, PickingInfo } from "@deck.gl/core";
-import { RGBAColor, withOpacity } from "../col";
+import { RGBAColor, withOpacity, opacityPercentToAlpha } from "../col";
 import { OurData } from "../dataTypes";
 import {
   GradientBinningMethod,
@@ -211,7 +211,7 @@ export default function getH3HexagonLayer(
   );
   const fallbackFillColor = resolveGradientPresetColors(
     settings.fillGradient.preset.value.value as string,
-    settings.highFillOpacity.value,
+    opacityPercentToAlpha(settings.highFillOpacity.value),
   ).highColor;
 
   return new H3HexagonLayer<H3HexagonCell>({
@@ -228,16 +228,16 @@ export default function getH3HexagonLayer(
         cell.count,
         fillBins,
         fillClassColors,
-        settings.lowFillOpacity.value,
-        settings.highFillOpacity.value,
+        opacityPercentToAlpha(settings.lowFillOpacity.value),
+        opacityPercentToAlpha(settings.highFillOpacity.value),
         fallbackFillColor,
       ),
     getLineColor: (cell): Color =>
       getH3OutlineColor(
         cell.count,
         fillBins,
-        settings.lowFillOpacity.value,
-        settings.highFillOpacity.value,
+        opacityPercentToAlpha(settings.lowFillOpacity.value),
+        opacityPercentToAlpha(settings.highFillOpacity.value),
       ),
     getLineWidth: settings.lineWidth.defaultLineWidth.value,
     lineWidthMinPixels: settings.lineWidth.lineWidthMinPixels.value,
@@ -251,13 +251,13 @@ export default function getH3HexagonLayer(
         settings.fillGradient.definedInterval.value,
         settings.fillGradient.manualBreaks.value,
         settings.fillGradient.manualColors.value,
-        settings.lowFillOpacity.value,
-        settings.highFillOpacity.value,
+        opacityPercentToAlpha(settings.lowFillOpacity.value),
+        opacityPercentToAlpha(settings.highFillOpacity.value),
       ],
       getLineColor: [
         H3_HEXAGON_OUTLINE_COLOR.join(","),
-        settings.lowFillOpacity.value,
-        settings.highFillOpacity.value,
+        opacityPercentToAlpha(settings.lowFillOpacity.value),
+        opacityPercentToAlpha(settings.highFillOpacity.value),
       ],
       getLineWidth: [settings.lineWidth.defaultLineWidth.value],
     },

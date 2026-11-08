@@ -1,7 +1,7 @@
 import { ScatterplotLayer } from "@deck.gl/layers";
 import type { PickingInfo } from "@deck.gl/core";
 import { ColorRoleStatsStore, OurData } from "../dataTypes";
-import { decodeHex, withOpacity } from "../col";
+import { decodeHex, withOpacity, opacityPercentToAlpha } from "../col";
 import {
   GradientBinningMethod,
   getNumericColorBinsSignature,
@@ -52,11 +52,11 @@ export default function getScatterLayer(
 ) {
   const defaultFillColor = withOpacity(
     decodeHex(settings.fill.defaultFillColor.value.value, [0, 0, 0, 100]),
-    settings.fill.defaultFillOpacity.value,
+    opacityPercentToAlpha(settings.fill.defaultFillOpacity.value),
   );
   const defaultLineColor = withOpacity(
     decodeHex(settings.line.color.defaultLineColor.value.value, [0, 0, 0, 100]),
-    settings.line.color.defaultLineOpacity.value,
+    opacityPercentToAlpha(settings.line.color.defaultLineOpacity.value),
   );
   const fadeFactor = Math.max(
     0,
@@ -66,7 +66,7 @@ export default function getScatterLayer(
     highlighting.highlightOnClick.value && selectedIds.size > 0;
   const autoHighlightColor = withOpacity(
     decodeHex(highlighting.autoHighlightColor.value.value, [255, 153, 0, 255]),
-    highlighting.autoHighlightOpacity.value,
+    opacityPercentToAlpha(highlighting.autoHighlightOpacity.value),
   );
   const fillGradientSettings = {
     method: settings.fillGradient.binningMethod.value
@@ -96,14 +96,14 @@ export default function getScatterLayer(
       getCategoricalPaletteColor(
         category,
         settings.fillCategoricalPalette.palette.value.value as string,
-        settings.fill.defaultFillOpacity.value,
+        opacityPercentToAlpha(settings.fill.defaultFillOpacity.value),
       ),
     getId: (d) => String(d.id),
     defaultColor: defaultFillColor,
     getGradient: () =>
       resolveGradientPresetColors(
         settings.fillGradient.preset.value.value as string,
-        settings.fill.defaultFillOpacity.value,
+        opacityPercentToAlpha(settings.fill.defaultFillOpacity.value),
       ),
     gradientSettings: fillGradientSettings,
     shouldFade: shouldFadeUnselected,
@@ -122,14 +122,14 @@ export default function getScatterLayer(
       getCategoricalPaletteColor(
         category,
         settings.lineCategoricalPalette.palette.value.value as string,
-        settings.line.color.defaultLineOpacity.value,
+        opacityPercentToAlpha(settings.line.color.defaultLineOpacity.value),
       ),
     getId: (d) => String(d.id),
     defaultColor: defaultLineColor,
     getGradient: () =>
       resolveGradientPresetColors(
         settings.lineGradient.preset.value.value as string,
-        settings.line.color.defaultLineOpacity.value,
+        opacityPercentToAlpha(settings.line.color.defaultLineOpacity.value),
       ),
     gradientSettings: lineGradientSettings,
     shouldFade: shouldFadeUnselected,
@@ -184,7 +184,7 @@ export default function getScatterLayer(
     getFillColor: getLayerColorUpdateTriggers(
       [
         settings.fill.defaultFillColor.value.value,
-        settings.fill.defaultFillOpacity.value,
+        opacityPercentToAlpha(settings.fill.defaultFillOpacity.value),
       ],
       [
         settings.fillGradient.preset.value.value,
@@ -207,7 +207,7 @@ export default function getScatterLayer(
     getLineColor: getLayerColorUpdateTriggers(
       [
         settings.line.color.defaultLineColor.value.value,
-        settings.line.color.defaultLineOpacity.value,
+        opacityPercentToAlpha(settings.line.color.defaultLineOpacity.value),
       ],
       [
         settings.lineGradient.preset.value.value,
@@ -229,7 +229,7 @@ export default function getScatterLayer(
     ),
     highlightColor: [
       highlighting.autoHighlightColor.value.value,
-      highlighting.autoHighlightOpacity.value,
+      opacityPercentToAlpha(highlighting.autoHighlightOpacity.value),
     ],
   };
   const layerProps = {

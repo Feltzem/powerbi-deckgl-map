@@ -110,12 +110,12 @@ test("labels default to a readable boxed style", () => {
   const labels = new VisualFormattingSettingsModel().labels;
 
   assert.equal(labels.textColor.value.value, "#000000");
-  assert.equal(labels.textOpacity.value, 255);
+  assert.equal(labels.textOpacity.value, 100);
   assert.equal(labels.showBox.value, true);
   assert.equal(labels.boxFillColor.value.value, "#ffffff");
-  assert.equal(labels.boxFillOpacity.value, 255);
+  assert.equal(labels.boxFillOpacity.value, 100);
   assert.equal(labels.boxShape.value.value, "rounded");
   assert.equal(labels.borderColor.value.value, "#000000");
-  assert.equal(labels.borderOpacity.value, 255);
+  assert.equal(labels.borderOpacity.value, 100);
   assert.equal(labels.borderWidth.value, 1);
 });

@@ -1,3 +1,4 @@
+import { opacityPercentToAlpha } from "../col";
 import { HeatmapLayer } from "@deck.gl/aggregation-layers";
 import type { Color } from "@deck.gl/core";
 import { interpolateGradientColor } from "../col";
@@ -61,7 +62,9 @@ export default function getHeatmapLayer(
   data: OurData[],
   settings: HeatmapCardSettings,
 ) {
-  const opacity = clampNumber(settings.opacity.value, 180, 0, 255);
+  const opacity = opacityPercentToAlpha(
+    clampNumber(settings.opacity.value, 71, 0, 100),
+  );
   const threshold = clampNumber(settings.threshold.value, 5, 0, 100) / 100;
 
   return new HeatmapLayer<OurData>({

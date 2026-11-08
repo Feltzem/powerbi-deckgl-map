@@ -2,7 +2,7 @@ import { CollisionFilterExtension } from "@deck.gl/extensions";
 import type { AccessorContext, Color, Position } from "@deck.gl/core";
 import { TextLayer } from "@deck.gl/layers";
 import type { TextLayerProps } from "@deck.gl/layers";
-import { decodeHex, withOpacity } from "../col";
+import { decodeHex, withOpacity, opacityPercentToAlpha } from "../col";
 import { LABEL_LAYER_ID } from "../layerState";
 import { LabelCardSettings } from "../settings";
 import {
@@ -217,23 +217,23 @@ export const getFeatureLabelLayer = (
   );
   const textColor = withOpacity(
     decodeHex(settings.textColor.value.value, [0, 0, 0, 255]),
-    settings.textOpacity.value,
+    opacityPercentToAlpha(settings.textOpacity.value),
   );
   const backgroundColor = withOpacity(
     decodeHex(settings.boxFillColor.value.value, [255, 255, 255, 255]),
-    settings.boxFillOpacity.value,
+    opacityPercentToAlpha(settings.boxFillOpacity.value),
   );
   const borderColor = withOpacity(
     decodeHex(settings.borderColor.value.value, [0, 0, 0, 255]),
-    settings.borderOpacity.value,
+    opacityPercentToAlpha(settings.borderOpacity.value),
   );
   const shadowColor = withOpacity(
     decodeHex(settings.shadowColor.value.value, [0, 0, 0, 255]),
-    settings.shadowOpacity.value,
+    opacityPercentToAlpha(settings.shadowOpacity.value),
   );
   const glowColor = withOpacity(
     decodeHex(settings.glowColor.value.value, [255, 255, 255, 255]),
-    settings.glowOpacity.value,
+    opacityPercentToAlpha(settings.glowOpacity.value),
   );
   const selectedShape = settings.boxShape.value.value;
   const borderRadius =
@@ -326,7 +326,7 @@ export const getFeatureLabelLayer = (
     collisionPadding: settings.collisionPadding.value,
     showShadow: settings.showShadow.value === true,
     shadowColor,
-    shadowOpacity: settings.shadowOpacity.value,
+    shadowOpacity: opacityPercentToAlpha(settings.shadowOpacity.value),
     shadowBlur: settings.shadowBlur.value,
     shadowOffsetX: settings.shadowOffsetX.value,
     shadowOffsetY: settings.shadowOffsetY.value,
@@ -345,7 +345,7 @@ export const getFeatureLabelLayer = (
         animation?.domainStart ?? 0,
         animation?.domainSpan ?? 0,
       ],
-      getColor: [settings.textColor.value.value, settings.textOpacity.value],
+      getColor: [settings.textColor.value.value, opacityPercentToAlpha(settings.textOpacity.value)],
       getSize: [settings.font.fontSize.value],
       getPixelOffset: [
         settings.offsetX.value,

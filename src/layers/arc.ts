@@ -1,7 +1,7 @@
 import { ArcLayer } from "@deck.gl/layers";
 import type { PickingInfo } from "@deck.gl/core";
 import { ColorRoleStatsStore, OurData } from "../dataTypes";
-import { withOpacity, decodeHex } from "../col";
+import { withOpacity, decodeHex, opacityPercentToAlpha } from "../col";
 import {
   GradientBinningMethod,
   getNumericColorBinsSignature,
@@ -29,11 +29,11 @@ export default function getArcLayer(
 ) {
   const defaultSourceColor = withOpacity(
     decodeHex(settings.defaultSourceColor.value.value, [0, 0, 0, 100]),
-    settings.defaultSourceOpacity.value,
+    opacityPercentToAlpha(settings.defaultSourceOpacity.value),
   );
   const defaultTargetColor = withOpacity(
     decodeHex(settings.defaultTargetColor.value.value, [0, 0, 0, 100]),
-    settings.defaultTargetOpacity.value,
+    opacityPercentToAlpha(settings.defaultTargetOpacity.value),
   );
   const fadeFactor = Math.max(
     0,
@@ -43,7 +43,7 @@ export default function getArcLayer(
     highlighting.highlightOnClick.value && selectedIds.size > 0;
   const autoHighlightColor = withOpacity(
     decodeHex(highlighting.autoHighlightColor.value.value, [255, 153, 0, 255]),
-    highlighting.autoHighlightOpacity.value,
+    opacityPercentToAlpha(highlighting.autoHighlightOpacity.value),
   );
   const sourceGradientSettings = {
     method: settings.sourceGradient.binningMethod.value
@@ -73,14 +73,14 @@ export default function getArcLayer(
       getCategoricalPaletteColor(
         category,
         settings.sourceCategoricalPalette.palette.value.value as string,
-        settings.defaultSourceOpacity.value,
+        opacityPercentToAlpha(settings.defaultSourceOpacity.value),
       ),
     getId: (d) => String(d.id),
     defaultColor: defaultSourceColor,
     getGradient: () =>
       resolveGradientPresetColors(
         settings.sourceGradient.preset.value.value as string,
-        settings.defaultSourceOpacity.value,
+        opacityPercentToAlpha(settings.defaultSourceOpacity.value),
       ),
     gradientSettings: sourceGradientSettings,
     shouldFade: shouldFadeUnselected,
@@ -99,14 +99,14 @@ export default function getArcLayer(
       getCategoricalPaletteColor(
         category,
         settings.targetCategoricalPalette.palette.value.value as string,
-        settings.defaultTargetOpacity.value,
+        opacityPercentToAlpha(settings.defaultTargetOpacity.value),
       ),
     getId: (d) => String(d.id),
     defaultColor: defaultTargetColor,
     getGradient: () =>
       resolveGradientPresetColors(
         settings.targetGradient.preset.value.value as string,
-        settings.defaultTargetOpacity.value,
+        opacityPercentToAlpha(settings.defaultTargetOpacity.value),
       ),
     gradientSettings: targetGradientSettings,
     shouldFade: shouldFadeUnselected,
@@ -139,7 +139,7 @@ export default function getArcLayer(
       getSourceColor: getLayerColorUpdateTriggers(
         [
           settings.defaultSourceColor.value.value,
-          settings.defaultSourceOpacity.value,
+          opacityPercentToAlpha(settings.defaultSourceOpacity.value),
         ],
         [
           settings.sourceGradient.preset.value.value,
@@ -162,7 +162,7 @@ export default function getArcLayer(
       getTargetColor: getLayerColorUpdateTriggers(
         [
           settings.defaultTargetColor.value.value,
-          settings.defaultTargetOpacity.value,
+          opacityPercentToAlpha(settings.defaultTargetOpacity.value),
         ],
         [
           settings.targetGradient.preset.value.value,
@@ -184,7 +184,7 @@ export default function getArcLayer(
       ),
       highlightColor: [
         highlighting.autoHighlightColor.value.value,
-        highlighting.autoHighlightOpacity.value,
+        opacityPercentToAlpha(highlighting.autoHighlightOpacity.value),
       ],
     },
   });

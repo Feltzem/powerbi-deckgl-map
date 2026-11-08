@@ -162,6 +162,18 @@ export function decodeHex(
   return parseColorString(hex) ?? defaultColor;
 }
 
+/**
+ * Opacity settings in the Format pane are percentages (0-100); deck.gl colours
+ * take an alpha channel (0-255). Every opacity setting goes through this.
+ */
+export function opacityPercentToAlpha(percent: number): number {
+  const value = Number(percent);
+  if (!Number.isFinite(value)) {
+    return 255;
+  }
+  return Math.round((Math.max(0, Math.min(100, value)) / 100) * 255);
+}
+
 export function withOpacity(col: RGBAColor, opacity: number): RGBAColor {
   return [col[0], col[1], col[2], clampColorChannel(opacity)];
 }

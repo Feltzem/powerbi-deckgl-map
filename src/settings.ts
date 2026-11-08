@@ -104,9 +104,9 @@ export class HighlightingCardSettings extends FormattingSettingsCard {
 
   highlightOpacity = new formattingSettings.Slider({
     name: "highlightOpacity",
-    displayName: "Highlight opacity",
+    displayName: "Highlight opacity (%)",
     description: "Opacity used for selected objects",
-    value: 100,
+    value: 39,
     options: {
       minValue: {
         type: powerbi.visuals.ValidatorType.Min,
@@ -114,7 +114,7 @@ export class HighlightingCardSettings extends FormattingSettingsCard {
       },
       maxValue: {
         type: powerbi.visuals.ValidatorType.Max,
-        value: 255,
+        value: 100,
       },
     },
   });
@@ -153,9 +153,9 @@ export class HighlightingCardSettings extends FormattingSettingsCard {
 
   autoHighlightOpacity = new formattingSettings.Slider({
     name: "autoHighlightOpacity",
-    displayName: "Highlight opacity on hover",
-    description: "Opacity of highlighted points/lines (0-255)",
-    value: 100,
+    displayName: "Highlight opacity on hover (%)",
+    description: "Opacity of highlighted points/lines",
+    value: 39,
     options: {
       minValue: {
         type: powerbi.visuals.ValidatorType.Min,
@@ -163,7 +163,7 @@ export class HighlightingCardSettings extends FormattingSettingsCard {
       },
       maxValue: {
         type: powerbi.visuals.ValidatorType.Max,
-        value: 255,
+        value: 100,
       },
     },
   });
@@ -248,9 +248,9 @@ export class BaseStrokeColorSettings extends FormattingSettingsCard {
 
   defaultLineOpacity = new formattingSettings.Slider({
     name: "defaultLineOpacity",
-    displayName: "Default line opacity",
+    displayName: "Default line opacity (%)",
     description: "Default opacity for lines if not specified in data",
-    value: 100,
+    value: 39,
     options: {
       minValue: {
         type: powerbi.visuals.ValidatorType.Min,
@@ -258,7 +258,7 @@ export class BaseStrokeColorSettings extends FormattingSettingsCard {
       },
       maxValue: {
         type: powerbi.visuals.ValidatorType.Max,
-        value: 255,
+        value: 100,
       },
     },
   });
@@ -287,9 +287,9 @@ export class BaseFillSettings extends FormattingSettingsCard {
 
   defaultFillOpacity = new formattingSettings.Slider({
     name: "defaultFillOpacity",
-    displayName: "Default fill opacity",
+    displayName: "Default fill opacity (%)",
     description: "Default opacity for fills if not specified in data",
-    value: 100,
+    value: 39,
     options: {
       minValue: {
         type: powerbi.visuals.ValidatorType.Min,
@@ -297,7 +297,7 @@ export class BaseFillSettings extends FormattingSettingsCard {
       },
       maxValue: {
         type: powerbi.visuals.ValidatorType.Max,
-        value: 255,
+        value: 100,
       },
     },
   });
@@ -580,11 +580,11 @@ export class LabelCardSettings extends FormattingSettingsCard {
 
   textOpacity = new formattingSettings.Slider({
     name: "textOpacity",
-    displayName: "Text opacity",
-    value: 255,
+    displayName: "Text opacity (%)",
+    value: 100,
     options: {
       minValue: { type: powerbi.visuals.ValidatorType.Min, value: 0 },
-      maxValue: { type: powerbi.visuals.ValidatorType.Max, value: 255 },
+      maxValue: { type: powerbi.visuals.ValidatorType.Max, value: 100 },
     },
   });
 
@@ -623,11 +623,11 @@ export class LabelCardSettings extends FormattingSettingsCard {
 
   boxFillOpacity = new formattingSettings.Slider({
     name: "boxFillOpacity",
-    displayName: "Box fill opacity",
-    value: 255,
+    displayName: "Box fill opacity (%)",
+    value: 100,
     options: {
       minValue: { type: powerbi.visuals.ValidatorType.Min, value: 0 },
-      maxValue: { type: powerbi.visuals.ValidatorType.Max, value: 255 },
+      maxValue: { type: powerbi.visuals.ValidatorType.Max, value: 100 },
     },
   });
 
@@ -653,11 +653,11 @@ export class LabelCardSettings extends FormattingSettingsCard {
 
   borderOpacity = new formattingSettings.Slider({
     name: "borderOpacity",
-    displayName: "Box border opacity",
-    value: 255,
+    displayName: "Box border opacity (%)",
+    value: 100,
     options: {
       minValue: { type: powerbi.visuals.ValidatorType.Min, value: 0 },
-      maxValue: { type: powerbi.visuals.ValidatorType.Max, value: 255 },
+      maxValue: { type: powerbi.visuals.ValidatorType.Max, value: 100 },
     },
   });
 
@@ -682,11 +682,11 @@ export class LabelCardSettings extends FormattingSettingsCard {
 
   shadowOpacity = new formattingSettings.Slider({
     name: "shadowOpacity",
-    displayName: "Shadow opacity",
-    value: 120,
+    displayName: "Shadow opacity (%)",
+    value: 47,
     options: {
       minValue: { type: powerbi.visuals.ValidatorType.Min, value: 0 },
-      maxValue: { type: powerbi.visuals.ValidatorType.Max, value: 255 },
+      maxValue: { type: powerbi.visuals.ValidatorType.Max, value: 100 },
     },
   });
 
@@ -725,11 +725,11 @@ export class LabelCardSettings extends FormattingSettingsCard {
 
   glowOpacity = new formattingSettings.Slider({
     name: "glowOpacity",
-    displayName: "Glow opacity",
-    value: 160,
+    displayName: "Glow opacity (%)",
+    value: 63,
     options: {
       minValue: { type: powerbi.visuals.ValidatorType.Min, value: 0 },
-      maxValue: { type: powerbi.visuals.ValidatorType.Max, value: 255 },
+      maxValue: { type: powerbi.visuals.ValidatorType.Max, value: 100 },
     },
   });
 
@@ -1089,9 +1089,9 @@ export class HeatmapCardSettings extends FormattingSettingsCard {
 
   opacity = new formattingSettings.Slider({
     name: "opacity",
-    displayName: "Opacity",
-    description: "Opacity of heatmap colors (0-255)",
-    value: 180,
+    displayName: "Opacity (%)",
+    description: "Opacity of heatmap colors",
+    value: 71,
     options: {
       minValue: {
         type: powerbi.visuals.ValidatorType.Min,
@@ -1099,7 +1099,7 @@ export class HeatmapCardSettings extends FormattingSettingsCard {
       },
       maxValue: {
         type: powerbi.visuals.ValidatorType.Max,
-        value: 255,
+        value: 100,
       },
     },
   });
@@ -1191,10 +1191,10 @@ export class H3HexagonCardSettings extends FormattingSettingsCard {
 
   lowFillOpacity = new formattingSettings.Slider({
     name: "lowFillOpacity",
-    displayName: "Low-count opacity",
+    displayName: "Low-count opacity (%)",
     description:
-      "Fill and outline opacity for the lowest H3 point-count class (0-255)",
-    value: 70,
+      "Fill and outline opacity for the lowest H3 point-count class",
+    value: 27,
     options: {
       minValue: {
         type: powerbi.visuals.ValidatorType.Min,
@@ -1202,17 +1202,17 @@ export class H3HexagonCardSettings extends FormattingSettingsCard {
       },
       maxValue: {
         type: powerbi.visuals.ValidatorType.Max,
-        value: 255,
+        value: 100,
       },
     },
   });
 
   highFillOpacity = new formattingSettings.Slider({
     name: "highFillOpacity",
-    displayName: "High-count opacity",
+    displayName: "High-count opacity (%)",
     description:
-      "Fill and outline opacity for the highest H3 point-count class (0-255)",
-    value: 210,
+      "Fill and outline opacity for the highest H3 point-count class",
+    value: 82,
     options: {
       minValue: {
         type: powerbi.visuals.ValidatorType.Min,
@@ -1220,7 +1220,7 @@ export class H3HexagonCardSettings extends FormattingSettingsCard {
       },
       maxValue: {
         type: powerbi.visuals.ValidatorType.Max,
-        value: 255,
+        value: 100,
       },
     },
   });
@@ -1326,9 +1326,9 @@ export class ArcCardSettings extends FormattingSettingsCard {
 
   defaultSourceOpacity = new formattingSettings.Slider({
     name: "defaultSourceOpacity",
-    displayName: "Default source opacity",
+    displayName: "Default source opacity (%)",
     description: "Default opacity for source color if not specified in data",
-    value: 100,
+    value: 39,
     options: {
       minValue: {
         type: powerbi.visuals.ValidatorType.Min,
@@ -1336,7 +1336,7 @@ export class ArcCardSettings extends FormattingSettingsCard {
       },
       maxValue: {
         type: powerbi.visuals.ValidatorType.Max,
-        value: 255,
+        value: 100,
       },
     },
   });
@@ -1350,9 +1350,9 @@ export class ArcCardSettings extends FormattingSettingsCard {
 
   defaultTargetOpacity = new formattingSettings.Slider({
     name: "defaultTargetOpacity",
-    displayName: "Default target opacity",
+    displayName: "Default target opacity (%)",
     description: "Default opacity for target color if not specified in data",
-    value: 100,
+    value: 39,
     options: {
       minValue: {
         type: powerbi.visuals.ValidatorType.Min,
@@ -1360,7 +1360,7 @@ export class ArcCardSettings extends FormattingSettingsCard {
       },
       maxValue: {
         type: powerbi.visuals.ValidatorType.Max,
-        value: 255,
+        value: 100,
       },
     },
   });
