@@ -19,6 +19,13 @@ import {
 import ScatterSymbolLayer from "./scatterSymbolLayer";
 import TemporalScatterLayer from "./temporalScatterLayer";
 import { AnimationContext } from "../timeAnimation";
+import {
+  getRadiusDomain,
+  getScatterRadiusMode,
+  getScatterSizeScaleType,
+  ScatterSizeScale,
+  scaleRadiusToPixels,
+} from "../scatterSize";
 
 export const hasScatterElevation = (d: OurData): boolean => {
   const elevation = d.scatterData?.elevation;
@@ -137,16 +144,43 @@ export default function getScatterLayer(
     }
     return settings.line.width.defaultLineWidth.value;
   };
-  const getRadius = (d: OurData) => {
-    const r = d.scatterData?.radius;
-    if (r && typeof r === "number" && isFinite(r) && r > 0) {
-      return r;
-    }
-    return settings.defaultRadius.value;
-  };
+  const radiusMode = getScatterRadiusMode(settings.radiusMode.value);
+  const sizeScaleType = getScatterSizeScaleType(settings.sizeScaleType.value);
+  const sizeMinPixels = settings.sizeMinPixels.value;
+  const sizeMaxPixels = settings.sizeMaxPixels.value;
+  let getRadius: (d: OurData) => number;
+  let radiusDomainSignature = "";
+  if (radiusMode === "scale") {
+    const domain = getRadiusDomain(data, (d) => d.scatterData?.radius);
+    const scale: ScatterSizeScale = {
+      min: domain?.min ?? 0,
+      max: domain?.max ?? 0,
+      minPixels: sizeMinPixels,
+      maxPixels: sizeMaxPixels,
+      scaleType: sizeScaleType,
+    };
+    radiusDomainSignature = `${scale.min}:${scale.max}`;
+    getRadius = (d: OurData) => scaleRadiusToPixels(d.scatterData?.radius, scale);
+  } else {
+    getRadius = (d: OurData) => {
+      const r = d.scatterData?.radius;
+      if (r && typeof r === "number" && isFinite(r) && r > 0) {
+        return r;
+      }
+      return settings.defaultRadius.value;
+    };
+  }
   const updateTriggers = {
     getLineWidth: [settings.line.width.defaultLineWidth.value],
-    getRadius: [settings.defaultRadius.value],
+    getRadius: [
+      dataVersion,
+      radiusMode,
+      settings.defaultRadius.value,
+      sizeScaleType,
+      sizeMinPixels,
+      sizeMaxPixels,
+      radiusDomainSignature,
+    ],
     getFillColor: getLayerColorUpdateTriggers(
       [
         settings.fill.defaultFillColor.value.value,
@@ -209,8 +243,14 @@ export default function getScatterLayer(
     getRadius,
     getFillColor: fillColor.accessor,
     getLineColor: lineColor.accessor,
-    radiusMinPixels: settings.radiusMinPixels.value,
-    radiusMaxPixels: settings.radiusMaxPixels.value,
+    // In "scale" mode getRadius already returns pixels, so the metre-based
+    // pixel clamps must not apply.
+    radiusUnits: radiusMode === "scale" ? ("pixels" as const) : ("meters" as const),
+    radiusMinPixels: radiusMode === "scale" ? 0 : settings.radiusMinPixels.value,
+    radiusMaxPixels:
+      radiusMode === "scale"
+        ? Number.MAX_SAFE_INTEGER
+        : settings.radiusMaxPixels.value,
     billboard: settings.billboard.billboard.value,
     lineWidthMinPixels: settings.line.width.lineWidthMinPixels.value,
     lineWidthMaxPixels: settings.line.width.lineWidthMaxPixels.value,

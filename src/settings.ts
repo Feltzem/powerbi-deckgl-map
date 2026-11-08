@@ -30,6 +30,13 @@ import {
   scatterSymbolItems,
 } from "./scatterSymbols";
 import {
+  defaultScatterRadiusMode,
+  defaultScatterSizeScaleType,
+  getScatterRadiusMode,
+  scatterRadiusModeItems,
+  scatterSizeScaleTypeItems,
+} from "./scatterSize";
+import {
   basemapOptions,
   DEFAULT_BASEMAP_ID,
   isAerialBasemap,
@@ -919,6 +926,53 @@ export class ScatterCardSettings extends FormattingSettingsCard {
     },
   });
 
+  radiusMode = new formattingSettings.ItemDropdown({
+    name: "radiusMode",
+    displayName: "Radius mode",
+    description:
+      "Metres: the Scatter radius field is a ground distance in metres. Scale to size range: the field's values are rescaled to the min/max size in pixels, like a bubble map",
+    value: {
+      value: defaultScatterRadiusMode,
+      displayName: scatterRadiusModeItems[0].displayName,
+    },
+    items: scatterRadiusModeItems,
+  });
+
+  sizeScaleType = new formattingSettings.ItemDropdown({
+    name: "sizeScaleType",
+    displayName: "Size scale",
+    description:
+      "Area: circle area is proportional to the value (recommended). Linear: circle radius is proportional to the value",
+    value: {
+      value: defaultScatterSizeScaleType,
+      displayName: scatterSizeScaleTypeItems[0].displayName,
+    },
+    items: scatterSizeScaleTypeItems,
+  });
+
+  sizeMinPixels = new formattingSettings.NumUpDown({
+    name: "sizeMinPixels",
+    displayName: "Min size (pixels)",
+    description:
+      "Radius in pixels for the smallest Scatter radius value (and for rows with no value)",
+    value: 3,
+    options: {
+      minValue: { type: powerbi.visuals.ValidatorType.Min, value: 0 },
+      maxValue: { type: powerbi.visuals.ValidatorType.Max, value: 200 },
+    },
+  });
+
+  sizeMaxPixels = new formattingSettings.NumUpDown({
+    name: "sizeMaxPixels",
+    displayName: "Max size (pixels)",
+    description: "Radius in pixels for the largest Scatter radius value",
+    value: 30,
+    options: {
+      minValue: { type: powerbi.visuals.ValidatorType.Min, value: 0 },
+      maxValue: { type: powerbi.visuals.ValidatorType.Max, value: 200 },
+    },
+  });
+
   defaultRadius = new formattingSettings.NumUpDown({
     name: "defaultRadius",
     displayName: "Default radius (m)",
@@ -950,11 +1004,25 @@ export class ScatterCardSettings extends FormattingSettingsCard {
     value: true,
   });
 
+  applyRadiusModeVisibility(): void {
+    const scaled = getScatterRadiusMode(this.radiusMode.value) === "scale";
+    this.sizeScaleType.visible = scaled;
+    this.sizeMinPixels.visible = scaled;
+    this.sizeMaxPixels.visible = scaled;
+    this.defaultRadius.visible = !scaled;
+    this.radiusMinPixels.visible = !scaled;
+    this.radiusMaxPixels.visible = !scaled;
+  }
+
   name: string = "scatterProps";
   displayName: string = "Scatter properties";
   slices: Array<FormattingSettingsSlice> = [
     this.layerType,
     this.symbolType,
+    this.radiusMode,
+    this.sizeScaleType,
+    this.sizeMinPixels,
+    this.sizeMaxPixels,
     this.defaultRadius,
     this.radiusMinPixels,
     this.radiusMaxPixels,
@@ -2030,6 +2098,7 @@ export class VisualFormattingSettingsModel extends FormattingSettingsModel {
   applyConditionalVisibility(): void {
     this.map.applyBasemapVisibility();
     this.labels.applyConditionalVisibility();
+    this.scatter.applyRadiusModeVisibility();
 
     for (const card of this.cards) {
       for (const value of Object.values(card)) {

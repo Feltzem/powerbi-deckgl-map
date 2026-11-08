@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Added a scatter `Radius mode` setting. `Scale to size range` rescales the `Scatter radius` field from its data range onto `Min size (pixels)` to `Max size (pixels)`, like a bubble map, with an area (square root) or linear scale. Previously the field was always read as metres, so typical measures (counts, amounts, scores) were a fraction of a pixel at city zoom and every point clamped to the same minimum size. `Metres` stays the default, so existing reports render as before.
+
 ## 1.9.0.4 - 2026-10-29
 
 ### Fixed

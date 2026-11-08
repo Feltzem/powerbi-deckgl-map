@@ -35,6 +35,7 @@ The demo dashboard is intentionally Hamilton-sized so it opens quickly and stays
   - Line and arc use `Point1` and `Point2` latitude/longitude pairs.
   - Path uses WKT or WKP `LineString` / `MultiLineString` geometry.
   - Polygon uses WKT or WKP `Polygon` / `MultiPolygon` geometry.
+- Scatter sizing: `Scatter radius` is read as metres by default. For a measure that isn't a distance (count, amount, score), set Format pane → Scatter properties → `Radius mode` to `Scale to size range`, and the values are rescaled to `Min size (pixels)` to `Max size (pixels)`.
 - Per-row styling: bind width, radius, scatter elevation, fill colour, line colour, arc source colour, arc target colour, and polygon extrusion height fields, with Format pane defaults as fallbacks.
 - Colour inputs: colour buckets accept `#RGB`, `#RRGGBB`, `#RRGGBBAA`, `rgb(...)`, `rgba(...)`, numeric values, or categorical text values.
 - Numeric gradients: numeric colour fields can be mapped through preset gradients with natural breaks, quantile, equal interval, or defined interval classification. Active numeric colour fields render scrollable gradient legends.
