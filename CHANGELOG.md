@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.9.0.5 - 2026-11-09
 
 ### Added
 
@@ -9,6 +9,12 @@
 ### Changed
 
 - Changed every opacity setting in the Format pane from a raw 0-255 alpha value to a 0-100% slider, matching `Unselected fade factor`, the aerial basemap opacity and the legend opacity. Affected: default fill and line opacity (scatter, line, path, polygon), arc source and target opacity, hover and selection highlight opacity, heatmap opacity, H3 low and high-count opacity, and label text, box, border, shadow and glow opacity. Defaults were converted so new visuals look the same as before (for example fill and line default to 39%, about the old 100/255). **Reports that saved a custom opacity will read it as a percentage**: values above 100 become fully opaque and lower values become more opaque, so check and re-set those opacities after upgrading.
+- Cached colour parsing by string value, so each distinct colour string is parsed once per update instead of once per row.
+- Coalesced role columns without building a per-row array.
+- Reused H3 cell aggregation across renders and the legend instead of rerunning it on every data, format, click and zoom update.
+- Parsed WKT through `WKTLoader.parseTextSync` directly on the main-thread fallback path.
+- Computed data bounds in a single pass with no stored longitudes when the data spans less than half the globe (about 20x faster at 1M rows). Wider data still uses the linear-time widest-gap search.
+- Together these cut data change to first draw by up to 2x on typical tables and up to 2.4x at 500k rows. See `BENCHMARKS.md`.
 
 ## 1.9.0.4 - 2026-10-29
 
