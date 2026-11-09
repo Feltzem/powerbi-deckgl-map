@@ -25,7 +25,6 @@ import {
 } from "./colorRoles";
 import { VisualFormattingSettingsModel } from "./settings";
 import { WKTLoader } from "@loaders.gl/wkt";
-import { parseSync } from "@loaders.gl/core";
 import { Geometry } from "geojson";
 import { parsePath } from "./parsers/path";
 import { parsePolygon } from "./parsers/polygon";
@@ -158,6 +157,10 @@ const getGeometryCacheKey = (
 ): string =>
   `${encoding}:${String(geometryId)}:${encoded.length}:${hashString(encoded)}`;
 
+// parseSync merged the loader's default options on every call before calling
+// parseTextSync; passing those defaults directly gives the same geometry.
+const wktParseOptions = { wkt: WKTLoader.options.wkt };
+
 const parseWkt = (
   wkt: string,
   geometryId: unknown,
@@ -167,7 +170,7 @@ const parseWkt = (
     return null;
   }
   try {
-    const geojson = parseSync(wkt, WKTLoader);
+    const geojson = WKTLoader.parseTextSync(wkt, wktParseOptions);
     if (!geojson) {
       errorMessages.push(`Geometry ${geometryId}: invalid WKT geometry.`);
       return null;
@@ -325,21 +328,30 @@ const getRoleColumns = (
       return candidates[0];
     }
 
-    const mergedValues = Array.from({ length: rowCount }, (_value, index) => {
-      const rowValues = candidates
-        .map((column) => column.values?.[index] ?? null)
-        .filter((value) => hasMeaningfulRoleValue(fieldName, value));
-
-      if (rowValues.length === 0) {
-        return null;
+    // One scratch array is reused for every row; the merger never keeps it.
+    const mergedValues: powerbi.PrimitiveValue[] = [];
+    const rowValues: powerbi.PrimitiveValue[] = [];
+    let hasMeaningfulValue = false;
+    for (let index = 0; index < rowCount; index += 1) {
+      rowValues.length = 0;
+      for (const column of candidates) {
+        const value = column.values?.[index] ?? null;
+        if (hasMeaningfulRoleValue(fieldName, value)) {
+          rowValues.push(value);
+        }
       }
 
-      return mergeGroupedRoleValues(fieldName, rowValues) ?? rowValues[0];
-    });
+      if (rowValues.length === 0) {
+        mergedValues.push(null);
+        continue;
+      }
 
-    if (
-      !mergedValues.some((value) => hasMeaningfulRoleValue(fieldName, value))
-    ) {
+      const merged = mergeGroupedRoleValues(fieldName, rowValues) ?? rowValues[0];
+      mergedValues.push(merged);
+      hasMeaningfulValue ||= hasMeaningfulRoleValue(fieldName, merged);
+    }
+
+    if (!hasMeaningfulValue) {
       return candidates[0];
     }
 
@@ -447,14 +459,19 @@ const mergeGroupedRoleValues = (
     return values[0] ?? null;
   }
 
-  const numericValues = values
-    .map((value) => parseColorInput(value).numericValue)
-    .filter((value): value is number => value !== null);
-  if (numericValues.length === values.length && numericValues.length > 0) {
-    return mergeNumericGroupedValues(numericValues);
+  // Colour values merge numerically only when every value is numeric.
+  const numericValues: number[] = [];
+  for (const value of values) {
+    const numericValue = parseColorInput(value).numericValue;
+    if (numericValue === null) {
+      return values[0] ?? null;
+    }
+    numericValues.push(numericValue);
   }
 
-  return values[0] ?? null;
+  return numericValues.length > 0
+    ? mergeNumericGroupedValues(numericValues)
+    : (values[0] ?? null);
 };
 
 /** Every column inside `values.grouped()`, or none if the values aren't grouped. */

@@ -27,7 +27,7 @@ function getMinimalLongitudeRange(
             const value = lon < 0 ? lon + 360 : lon;
             normalized[length++] = value;
             if (value < lo) lo = value;
-            if (value > hi) hi = value;
+            if (value >= hi) hi = value;
         }
     }
     if (length === 0) {
@@ -51,7 +51,7 @@ function getMinimalLongitudeRange(
             let bucket = Math.floor((value - lo) * scale);
             if (bucket >= length) bucket = length - 1;
             if (value < bucketMin[bucket]) bucketMin[bucket] = value;
-            if (value > bucketMax[bucket]) bucketMax[bucket] = value;
+            if (value >= bucketMax[bucket]) bucketMax[bucket] = value;
         }
         let previousMax = bucketMax[0];
         for (let bucket = 1; bucket < length; bucket++) {
