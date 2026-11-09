@@ -720,6 +720,26 @@
             "enumeration": []
           }
         },
+        "radiusMode": {
+          "type": {
+            "enumeration": []
+          }
+        },
+        "sizeScaleType": {
+          "type": {
+            "enumeration": []
+          }
+        },
+        "sizeMinPixels": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "sizeMaxPixels": {
+          "type": {
+            "numeric": true
+          }
+        },
         "radiusMinPixels": {
           "type": {
             "numeric": true

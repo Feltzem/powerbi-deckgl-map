@@ -1,5 +1,5 @@
 import powerbi from "powerbi-visuals-api";
-import { interpolateGradientColor, RGBAColor, withOpacity } from "./col";
+import { interpolateGradientColor, RGBAColor, withOpacity, opacityPercentToAlpha } from "./col";
 import { ColorRoleStats, ColorRoleStatsStore, LayerDataStore } from "./dataTypes";
 import {
   GradientBinningMethod,
@@ -600,10 +600,10 @@ export const getGradientLegendSpecs = (
         ),
         getLegendGradient(
           settings.scatter.fillGradient,
-          settings.scatter.fill.defaultFillOpacity.value,
+          opacityPercentToAlpha(settings.scatter.fill.defaultFillOpacity.value),
         ),
         settings.scatter.fillGradient.binningMethod.value.value as string,
-        getManualColorMapper(settings.scatter.fillGradient, settings.scatter.fill.defaultFillOpacity.value),
+        getManualColorMapper(settings.scatter.fillGradient, opacityPercentToAlpha(settings.scatter.fill.defaultFillOpacity.value)),
       ),
     );
     appendCategoricalSpec(
@@ -612,7 +612,7 @@ export const getGradientLegendSpecs = (
       "scatter-fill",
       title,
       settings.scatter.fillCategoricalPalette,
-      settings.scatter.fill.defaultFillOpacity.value,
+      opacityPercentToAlpha(settings.scatter.fill.defaultFillOpacity.value),
     );
   }
 
@@ -641,10 +641,10 @@ export const getGradientLegendSpecs = (
         ),
         getLegendGradient(
           settings.scatter.lineGradient,
-          settings.scatter.line.color.defaultLineOpacity.value,
+          opacityPercentToAlpha(settings.scatter.line.color.defaultLineOpacity.value),
         ),
         settings.scatter.lineGradient.binningMethod.value.value as string,
-        getManualColorMapper(settings.scatter.lineGradient, settings.scatter.line.color.defaultLineOpacity.value),
+        getManualColorMapper(settings.scatter.lineGradient, opacityPercentToAlpha(settings.scatter.line.color.defaultLineOpacity.value)),
       ),
     );
     appendCategoricalSpec(
@@ -653,7 +653,7 @@ export const getGradientLegendSpecs = (
       "scatter-line",
       title,
       settings.scatter.lineCategoricalPalette,
-      settings.scatter.line.color.defaultLineOpacity.value,
+      opacityPercentToAlpha(settings.scatter.line.color.defaultLineOpacity.value),
     );
   }
 
@@ -673,8 +673,8 @@ export const getGradientLegendSpecs = (
             `${dataVersion}:h3-fill:${resolution}`,
           ),
           settings.h3Hexagon.fillGradient,
-          settings.h3Hexagon.lowFillOpacity.value,
-          settings.h3Hexagon.highFillOpacity.value,
+          opacityPercentToAlpha(settings.h3Hexagon.lowFillOpacity.value),
+          opacityPercentToAlpha(settings.h3Hexagon.highFillOpacity.value),
         ),
       );
     }
@@ -703,10 +703,10 @@ export const getGradientLegendSpecs = (
       ),
       getLegendGradient(
         settings.line.gradient,
-        settings.line.line.color.defaultLineOpacity.value,
+        opacityPercentToAlpha(settings.line.line.color.defaultLineOpacity.value),
       ),
       settings.line.gradient.binningMethod.value.value as string,
-      getManualColorMapper(settings.line.gradient, settings.line.line.color.defaultLineOpacity.value),
+      getManualColorMapper(settings.line.gradient, opacityPercentToAlpha(settings.line.line.color.defaultLineOpacity.value)),
     ),
   );
   appendCategoricalSpec(
@@ -715,7 +715,7 @@ export const getGradientLegendSpecs = (
     "line",
     lineTitle,
     settings.line.categoricalPalette,
-    settings.line.line.color.defaultLineOpacity.value,
+    opacityPercentToAlpha(settings.line.line.color.defaultLineOpacity.value),
   );
 
   const pathTitle = getLegendTitle(roleTitles, "pathColor", "Path");
@@ -741,10 +741,10 @@ export const getGradientLegendSpecs = (
       ),
       getLegendGradient(
         settings.path.gradient,
-        settings.path.line.color.defaultLineOpacity.value,
+        opacityPercentToAlpha(settings.path.line.color.defaultLineOpacity.value),
       ),
       settings.path.gradient.binningMethod.value.value as string,
-      getManualColorMapper(settings.path.gradient, settings.path.line.color.defaultLineOpacity.value),
+      getManualColorMapper(settings.path.gradient, opacityPercentToAlpha(settings.path.line.color.defaultLineOpacity.value)),
     ),
   );
   appendCategoricalSpec(
@@ -753,7 +753,7 @@ export const getGradientLegendSpecs = (
     "path",
     pathTitle,
     settings.path.categoricalPalette,
-    settings.path.line.color.defaultLineOpacity.value,
+    opacityPercentToAlpha(settings.path.line.color.defaultLineOpacity.value),
   );
 
   if (settings.polygon.filled.value) {
@@ -781,10 +781,10 @@ export const getGradientLegendSpecs = (
         ),
         getLegendGradient(
           settings.polygon.fillGradient,
-          settings.polygon.fill.defaultFillOpacity.value,
+          opacityPercentToAlpha(settings.polygon.fill.defaultFillOpacity.value),
         ),
         settings.polygon.fillGradient.binningMethod.value.value as string,
-        getManualColorMapper(settings.polygon.fillGradient, settings.polygon.fill.defaultFillOpacity.value),
+        getManualColorMapper(settings.polygon.fillGradient, opacityPercentToAlpha(settings.polygon.fill.defaultFillOpacity.value)),
       ),
     );
     appendCategoricalSpec(
@@ -793,7 +793,7 @@ export const getGradientLegendSpecs = (
       "polygon-fill",
       title,
       settings.polygon.fillCategoricalPalette,
-      settings.polygon.fill.defaultFillOpacity.value,
+      opacityPercentToAlpha(settings.polygon.fill.defaultFillOpacity.value),
     );
   }
 
@@ -822,10 +822,10 @@ export const getGradientLegendSpecs = (
         ),
         getLegendGradient(
           settings.polygon.lineGradient,
-          settings.polygon.line.color.defaultLineOpacity.value,
+          opacityPercentToAlpha(settings.polygon.line.color.defaultLineOpacity.value),
         ),
         settings.polygon.lineGradient.binningMethod.value.value as string,
-        getManualColorMapper(settings.polygon.lineGradient, settings.polygon.line.color.defaultLineOpacity.value),
+        getManualColorMapper(settings.polygon.lineGradient, opacityPercentToAlpha(settings.polygon.line.color.defaultLineOpacity.value)),
       ),
     );
     appendCategoricalSpec(
@@ -834,7 +834,7 @@ export const getGradientLegendSpecs = (
       "polygon-line",
       title,
       settings.polygon.lineCategoricalPalette,
-      settings.polygon.line.color.defaultLineOpacity.value,
+      opacityPercentToAlpha(settings.polygon.line.color.defaultLineOpacity.value),
     );
   }
 
@@ -861,10 +861,10 @@ export const getGradientLegendSpecs = (
       ),
       getLegendGradient(
         settings.arc.sourceGradient,
-        settings.arc.defaultSourceOpacity.value,
+        opacityPercentToAlpha(settings.arc.defaultSourceOpacity.value),
       ),
       settings.arc.sourceGradient.binningMethod.value.value as string,
-      getManualColorMapper(settings.arc.sourceGradient, settings.arc.defaultSourceOpacity.value),
+      getManualColorMapper(settings.arc.sourceGradient, opacityPercentToAlpha(settings.arc.defaultSourceOpacity.value)),
     ),
   );
   appendCategoricalSpec(
@@ -873,7 +873,7 @@ export const getGradientLegendSpecs = (
     "arc-source",
     arcSourceTitle,
     settings.arc.sourceCategoricalPalette,
-    settings.arc.defaultSourceOpacity.value,
+    opacityPercentToAlpha(settings.arc.defaultSourceOpacity.value),
   );
 
   const arcTargetTitle = getLegendTitle(roleTitles, "arcTargetColor", "Arc target");
@@ -899,10 +899,10 @@ export const getGradientLegendSpecs = (
       ),
       getLegendGradient(
         settings.arc.targetGradient,
-        settings.arc.defaultTargetOpacity.value,
+        opacityPercentToAlpha(settings.arc.defaultTargetOpacity.value),
       ),
       settings.arc.targetGradient.binningMethod.value.value as string,
-      getManualColorMapper(settings.arc.targetGradient, settings.arc.defaultTargetOpacity.value),
+      getManualColorMapper(settings.arc.targetGradient, opacityPercentToAlpha(settings.arc.defaultTargetOpacity.value)),
     ),
   );
   appendCategoricalSpec(
@@ -911,7 +911,7 @@ export const getGradientLegendSpecs = (
     "arc-target",
     arcTargetTitle,
     settings.arc.targetCategoricalPalette,
-    settings.arc.defaultTargetOpacity.value,
+    opacityPercentToAlpha(settings.arc.defaultTargetOpacity.value),
   );
 
   return specs;

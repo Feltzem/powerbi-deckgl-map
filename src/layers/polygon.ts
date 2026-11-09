@@ -1,7 +1,7 @@
 import { GeoJsonLayer } from "@deck.gl/layers";
 import type { PickingInfo } from "@deck.gl/core";
 import { ColorRoleStatsStore, PolygonFeature } from "../dataTypes";
-import { withOpacity, decodeHex } from "../col";
+import { withOpacity, decodeHex, opacityPercentToAlpha } from "../col";
 import {
   GradientBinningMethod,
   getNumericColorBinsSignature,
@@ -29,11 +29,11 @@ export default function getPolygonLayer(
 ): any {
   const defaultLineColor = withOpacity(
     decodeHex(settings.line.color.defaultLineColor.value.value, [0, 0, 0, 100]),
-    settings.line.color.defaultLineOpacity.value,
+    opacityPercentToAlpha(settings.line.color.defaultLineOpacity.value),
   );
   const defaultFillColor = withOpacity(
     decodeHex(settings.fill.defaultFillColor.value.value, [0, 0, 0, 100]),
-    settings.fill.defaultFillOpacity.value,
+    opacityPercentToAlpha(settings.fill.defaultFillOpacity.value),
   );
   const fadeFactor = Math.max(
     0,
@@ -43,7 +43,7 @@ export default function getPolygonLayer(
     highlighting.highlightOnClick.value && selectedIds.size > 0;
   const autoHighlightColor = withOpacity(
     decodeHex(highlighting.autoHighlightColor.value.value, [255, 153, 0, 255]),
-    highlighting.autoHighlightOpacity.value,
+    opacityPercentToAlpha(highlighting.autoHighlightOpacity.value),
   );
   const lineGradientSettings = {
     method: settings.lineGradient.binningMethod.value
@@ -73,14 +73,14 @@ export default function getPolygonLayer(
       getCategoricalPaletteColor(
         category,
         settings.lineCategoricalPalette.palette.value.value as string,
-        settings.line.color.defaultLineOpacity.value,
+        opacityPercentToAlpha(settings.line.color.defaultLineOpacity.value),
       ),
     getId: (d) => String(d.id),
     defaultColor: defaultLineColor,
     getGradient: () =>
       resolveGradientPresetColors(
         settings.lineGradient.preset.value.value as string,
-        settings.line.color.defaultLineOpacity.value,
+        opacityPercentToAlpha(settings.line.color.defaultLineOpacity.value),
       ),
     gradientSettings: lineGradientSettings,
     shouldFade: shouldFadeUnselected,
@@ -99,14 +99,14 @@ export default function getPolygonLayer(
       getCategoricalPaletteColor(
         category,
         settings.fillCategoricalPalette.palette.value.value as string,
-        settings.fill.defaultFillOpacity.value,
+        opacityPercentToAlpha(settings.fill.defaultFillOpacity.value),
       ),
     getId: (d) => String(d.id),
     defaultColor: defaultFillColor,
     getGradient: () =>
       resolveGradientPresetColors(
         settings.fillGradient.preset.value.value as string,
-        settings.fill.defaultFillOpacity.value,
+        opacityPercentToAlpha(settings.fill.defaultFillOpacity.value),
       ),
     gradientSettings: fillGradientSettings,
     shouldFade: shouldFadeUnselected,
@@ -153,7 +153,7 @@ export default function getPolygonLayer(
       getLineColor: getLayerColorUpdateTriggers(
         [
           settings.line.color.defaultLineColor.value.value,
-          settings.line.color.defaultLineOpacity.value,
+          opacityPercentToAlpha(settings.line.color.defaultLineOpacity.value),
         ],
         [
           settings.lineGradient.preset.value.value,
@@ -176,7 +176,7 @@ export default function getPolygonLayer(
       getFillColor: getLayerColorUpdateTriggers(
         [
           settings.fill.defaultFillColor.value.value,
-          settings.fill.defaultFillOpacity.value,
+          opacityPercentToAlpha(settings.fill.defaultFillOpacity.value),
         ],
         [
           settings.fillGradient.preset.value.value,
@@ -202,7 +202,7 @@ export default function getPolygonLayer(
       getBillboard: [settings.billboard.billboard.value],
       highlightColor: [
         highlighting.autoHighlightColor.value.value,
-        highlighting.autoHighlightOpacity.value,
+        opacityPercentToAlpha(highlighting.autoHighlightOpacity.value),
       ],
     },
   });

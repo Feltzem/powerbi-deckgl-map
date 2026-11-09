@@ -201,8 +201,8 @@ test("getGradientLegendSpecs includes H3 count legends when enabled", () => {
 
 test("getH3HexagonLayer uses a fixed dark grey outline with count opacity", () => {
   const settings = new VisualFormattingSettingsModel();
-  settings.h3Hexagon.lowFillOpacity.value = 20;
-  settings.h3Hexagon.highFillOpacity.value = 220;
+  settings.h3Hexagon.lowFillOpacity.value = 8;
+  settings.h3Hexagon.highFillOpacity.value = 80;
   const layer = getH3HexagonLayer(
     [makeScatterPoint(-37.8, 175.2)],
     settings.h3Hexagon,
@@ -219,7 +219,7 @@ test("getH3HexagonLayer uses a fixed dark grey outline with count opacity", () =
     H3_HEXAGON_OUTLINE_COLOR[0],
     H3_HEXAGON_OUTLINE_COLOR[1],
     H3_HEXAGON_OUTLINE_COLOR[2],
-    220,
+    204, // 80% of 255
   ]);
 });
 

@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Added a scatter `Radius mode` setting. `Scale to size range` rescales the `Scatter radius` field from its data range onto `Min size (pixels)` to `Max size (pixels)`, like a bubble map, with an area (square root) or linear scale. Previously the field was always read as metres, so typical measures (counts, amounts, scores) were a fraction of a pixel at city zoom and every point clamped to the same minimum size. `Metres` stays the default, so existing reports render as before.
+
+### Changed
+
+- Changed every opacity setting in the Format pane from a raw 0-255 alpha value to a 0-100% slider, matching `Unselected fade factor`, the aerial basemap opacity and the legend opacity. Affected: default fill and line opacity (scatter, line, path, polygon), arc source and target opacity, hover and selection highlight opacity, heatmap opacity, H3 low and high-count opacity, and label text, box, border, shadow and glow opacity. Defaults were converted so new visuals look the same as before (for example fill and line default to 39%, about the old 100/255). **Reports that saved a custom opacity will read it as a percentage**: values above 100 become fully opaque and lower values become more opaque, so check and re-set those opacities after upgrading.
+
 ## 1.9.0.4 - 2026-10-29
 
 ### Fixed

@@ -1,7 +1,7 @@
 import { ScatterplotLayer } from "@deck.gl/layers";
 import type { PickingInfo } from "@deck.gl/core";
 import { ColorRoleStatsStore, OurData } from "../dataTypes";
-import { decodeHex, withOpacity } from "../col";
+import { decodeHex, withOpacity, opacityPercentToAlpha } from "../col";
 import {
   GradientBinningMethod,
   getNumericColorBinsSignature,
@@ -19,6 +19,13 @@ import {
 import ScatterSymbolLayer from "./scatterSymbolLayer";
 import TemporalScatterLayer from "./temporalScatterLayer";
 import { AnimationContext } from "../timeAnimation";
+import {
+  getRadiusDomain,
+  getScatterRadiusMode,
+  getScatterSizeScaleType,
+  ScatterSizeScale,
+  scaleRadiusToPixels,
+} from "../scatterSize";
 
 export const hasScatterElevation = (d: OurData): boolean => {
   const elevation = d.scatterData?.elevation;
@@ -45,11 +52,11 @@ export default function getScatterLayer(
 ) {
   const defaultFillColor = withOpacity(
     decodeHex(settings.fill.defaultFillColor.value.value, [0, 0, 0, 100]),
-    settings.fill.defaultFillOpacity.value,
+    opacityPercentToAlpha(settings.fill.defaultFillOpacity.value),
   );
   const defaultLineColor = withOpacity(
     decodeHex(settings.line.color.defaultLineColor.value.value, [0, 0, 0, 100]),
-    settings.line.color.defaultLineOpacity.value,
+    opacityPercentToAlpha(settings.line.color.defaultLineOpacity.value),
   );
   const fadeFactor = Math.max(
     0,
@@ -59,7 +66,7 @@ export default function getScatterLayer(
     highlighting.highlightOnClick.value && selectedIds.size > 0;
   const autoHighlightColor = withOpacity(
     decodeHex(highlighting.autoHighlightColor.value.value, [255, 153, 0, 255]),
-    highlighting.autoHighlightOpacity.value,
+    opacityPercentToAlpha(highlighting.autoHighlightOpacity.value),
   );
   const fillGradientSettings = {
     method: settings.fillGradient.binningMethod.value
@@ -89,14 +96,14 @@ export default function getScatterLayer(
       getCategoricalPaletteColor(
         category,
         settings.fillCategoricalPalette.palette.value.value as string,
-        settings.fill.defaultFillOpacity.value,
+        opacityPercentToAlpha(settings.fill.defaultFillOpacity.value),
       ),
     getId: (d) => String(d.id),
     defaultColor: defaultFillColor,
     getGradient: () =>
       resolveGradientPresetColors(
         settings.fillGradient.preset.value.value as string,
-        settings.fill.defaultFillOpacity.value,
+        opacityPercentToAlpha(settings.fill.defaultFillOpacity.value),
       ),
     gradientSettings: fillGradientSettings,
     shouldFade: shouldFadeUnselected,
@@ -115,14 +122,14 @@ export default function getScatterLayer(
       getCategoricalPaletteColor(
         category,
         settings.lineCategoricalPalette.palette.value.value as string,
-        settings.line.color.defaultLineOpacity.value,
+        opacityPercentToAlpha(settings.line.color.defaultLineOpacity.value),
       ),
     getId: (d) => String(d.id),
     defaultColor: defaultLineColor,
     getGradient: () =>
       resolveGradientPresetColors(
         settings.lineGradient.preset.value.value as string,
-        settings.line.color.defaultLineOpacity.value,
+        opacityPercentToAlpha(settings.line.color.defaultLineOpacity.value),
       ),
     gradientSettings: lineGradientSettings,
     shouldFade: shouldFadeUnselected,
@@ -137,20 +144,47 @@ export default function getScatterLayer(
     }
     return settings.line.width.defaultLineWidth.value;
   };
-  const getRadius = (d: OurData) => {
-    const r = d.scatterData?.radius;
-    if (r && typeof r === "number" && isFinite(r) && r > 0) {
-      return r;
-    }
-    return settings.defaultRadius.value;
-  };
+  const radiusMode = getScatterRadiusMode(settings.radiusMode.value);
+  const sizeScaleType = getScatterSizeScaleType(settings.sizeScaleType.value);
+  const sizeMinPixels = settings.sizeMinPixels.value;
+  const sizeMaxPixels = settings.sizeMaxPixels.value;
+  let getRadius: (d: OurData) => number;
+  let radiusDomainSignature = "";
+  if (radiusMode === "scale") {
+    const domain = getRadiusDomain(data, (d) => d.scatterData?.radius);
+    const scale: ScatterSizeScale = {
+      min: domain?.min ?? 0,
+      max: domain?.max ?? 0,
+      minPixels: sizeMinPixels,
+      maxPixels: sizeMaxPixels,
+      scaleType: sizeScaleType,
+    };
+    radiusDomainSignature = `${scale.min}:${scale.max}`;
+    getRadius = (d: OurData) => scaleRadiusToPixels(d.scatterData?.radius, scale);
+  } else {
+    getRadius = (d: OurData) => {
+      const r = d.scatterData?.radius;
+      if (r && typeof r === "number" && isFinite(r) && r > 0) {
+        return r;
+      }
+      return settings.defaultRadius.value;
+    };
+  }
   const updateTriggers = {
     getLineWidth: [settings.line.width.defaultLineWidth.value],
-    getRadius: [settings.defaultRadius.value],
+    getRadius: [
+      dataVersion,
+      radiusMode,
+      settings.defaultRadius.value,
+      sizeScaleType,
+      sizeMinPixels,
+      sizeMaxPixels,
+      radiusDomainSignature,
+    ],
     getFillColor: getLayerColorUpdateTriggers(
       [
         settings.fill.defaultFillColor.value.value,
-        settings.fill.defaultFillOpacity.value,
+        opacityPercentToAlpha(settings.fill.defaultFillOpacity.value),
       ],
       [
         settings.fillGradient.preset.value.value,
@@ -173,7 +207,7 @@ export default function getScatterLayer(
     getLineColor: getLayerColorUpdateTriggers(
       [
         settings.line.color.defaultLineColor.value.value,
-        settings.line.color.defaultLineOpacity.value,
+        opacityPercentToAlpha(settings.line.color.defaultLineOpacity.value),
       ],
       [
         settings.lineGradient.preset.value.value,
@@ -195,7 +229,7 @@ export default function getScatterLayer(
     ),
     highlightColor: [
       highlighting.autoHighlightColor.value.value,
-      highlighting.autoHighlightOpacity.value,
+      opacityPercentToAlpha(highlighting.autoHighlightOpacity.value),
     ],
   };
   const layerProps = {
@@ -209,8 +243,14 @@ export default function getScatterLayer(
     getRadius,
     getFillColor: fillColor.accessor,
     getLineColor: lineColor.accessor,
-    radiusMinPixels: settings.radiusMinPixels.value,
-    radiusMaxPixels: settings.radiusMaxPixels.value,
+    // In "scale" mode getRadius already returns pixels, so the metre-based
+    // pixel clamps must not apply.
+    radiusUnits: radiusMode === "scale" ? ("pixels" as const) : ("meters" as const),
+    radiusMinPixels: radiusMode === "scale" ? 0 : settings.radiusMinPixels.value,
+    radiusMaxPixels:
+      radiusMode === "scale"
+        ? Number.MAX_SAFE_INTEGER
+        : settings.radiusMaxPixels.value,
     billboard: settings.billboard.billboard.value,
     lineWidthMinPixels: settings.line.width.lineWidthMinPixels.value,
     lineWidthMaxPixels: settings.line.width.lineWidthMaxPixels.value,
