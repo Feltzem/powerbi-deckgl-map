@@ -81,6 +81,11 @@ import {
   resolveBasemap,
 } from "./basemaps";
 import {
+  getZoomToCoordinatesState,
+  toLngLatBounds,
+  ZoomToCoordinatesState,
+} from "./zoomToCoordinates";
+import {
   BUILDINGS_LAYER_ID,
   BUILDINGS_SOURCE_ID,
   clamp3DBuildingsMinZoom,
@@ -192,6 +197,7 @@ export class Visual implements IVisual {
   private pendingOptions: VisualUpdateOptions | null;
   private hasInitialViewBeenSet: boolean;
   private suppressNextFlyTo: boolean;
+  private lastZoomToCoordinatesSignature: string | null = null;
   private currentBaseMap: string;
   private currentBaseMapStyleSignature: string;
   private legendContainer: HTMLDivElement | null;
@@ -1465,6 +1471,7 @@ export class Visual implements IVisual {
     this.pendingOptions = null;
     this.hasInitialViewBeenSet = false;
     this.suppressNextFlyTo = false;
+    this.lastZoomToCoordinatesSignature = null;
     this.legendContainer = null;
     this.lastLegendSignature = null;
     this.lastDataSignature = null;
@@ -1966,6 +1973,46 @@ export class Visual implements IVisual {
     return true;
   };
 
+  private getZoomToCoordinatesState(
+    settings: MapCardSettings = this.formattingSettings.map,
+  ): ZoomToCoordinatesState {
+    return getZoomToCoordinatesState({
+      enabled: settings.zoomToCoordinates.value === true,
+      lock: settings.lockToCoordinates.value === true,
+      south: settings.initialSouth.value,
+      west: settings.initialWest.value,
+      north: settings.initialNorth.value,
+      east: settings.initialEast.value,
+    });
+  }
+
+  /**
+   * Apply Zoom to coordinates when it is first seen or its settings change:
+   * set or clear the camera lock, and move to the area (or back to the data
+   * when it is turned off).
+   */
+  private applyZoomToCoordinatesSettings(): void {
+    if (!this.map) {
+      return;
+    }
+    const state = this.getZoomToCoordinatesState();
+    const previousSignature = this.lastZoomToCoordinatesSignature;
+    if (state.signature === previousSignature) {
+      return;
+    }
+    this.lastZoomToCoordinatesSignature = state.signature;
+    this.map.setMaxBounds(
+      state.maxBounds ? toLngLatBounds(state.maxBounds) : null,
+    );
+
+    if (state.viewBounds) {
+      this.handleFlyTo(this.formattingSettings.map);
+      this.hasInitialViewBeenSet = true;
+    } else if (previousSignature !== null && previousSignature !== "off") {
+      this.handleFlyTo(this.formattingSettings.map);
+    }
+  }
+
   public handleFlyTo(
     settings: MapCardSettings,
     selectedIdsOverride?: Set<string>,
@@ -1983,6 +2030,12 @@ export class Visual implements IVisual {
       selectedIdsOverride && selectedIdsOverride.size > 0
         ? selectedIdsOverride
         : null;
+    const coordinateBounds = this.getZoomToCoordinatesState(settings).viewBounds;
+    if (!activeSelectedIds && coordinateBounds) {
+      this.map.fitBounds(toLngLatBounds(coordinateBounds), cameraOptions);
+      this.recordAutomaticPitchState(cameraOptions);
+      return true;
+    }
     const dataBounds = activeSelectedIds
       ? getDataBoundingBox(
           Array.from(activeSelectedIds)
@@ -2353,6 +2406,7 @@ export class Visual implements IVisual {
       this.syncScatterSymbolSettingFromMetadata(dataView);
     }
     this.updateBaseMap();
+    this.applyZoomToCoordinatesSettings();
     this.renderLayerOrderControl();
     this.renderTimeSliderControl();
     this.updateOverlayLayout();

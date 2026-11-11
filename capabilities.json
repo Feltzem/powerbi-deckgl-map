@@ -304,6 +304,16 @@
             "numeric": true
           }
         },
+        "zoomToCoordinates": {
+          "type": {
+            "bool": true
+          }
+        },
+        "lockToCoordinates": {
+          "type": {
+            "bool": true
+          }
+        },
         "initialSouth": {
           "type": {
             "numeric": true

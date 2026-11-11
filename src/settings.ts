@@ -1623,10 +1623,27 @@ export class MapCardSettings extends FormattingSettingsCard {
     },
   });
 
+  zoomToCoordinates = new formattingSettings.ToggleSwitch({
+    name: "zoomToCoordinates",
+    displayName: "Zoom to coordinates",
+    description:
+      "Show the area set by the latitude and longitude fields below instead of fitting the map to the data. The map opens on it and returns to it on reset and, with Fly to on, when filters change",
+    value: false,
+  });
+
+  lockToCoordinates = new formattingSettings.ToggleSwitch({
+    name: "lockToCoordinates",
+    displayName: "Lock to coordinates",
+    description:
+      "Stop panning and zooming out beyond the area. The map always fills the visual, so if the area's shape differs from the visual's, part of it is cropped (you can still pan to it)",
+    value: false,
+  });
+
   initialSouth = new formattingSettings.NumUpDown({
     name: "initialSouth",
-    displayName: "Initial southern map latitude",
-    description: "The bottom of the map will be at this latitude",
+    displayName: "South latitude",
+    description:
+      "Bottom edge of the area for Zoom to coordinates (also the view used when there is no data)",
     value: -37.8496,
     options: {
       minValue: {
@@ -1642,8 +1659,9 @@ export class MapCardSettings extends FormattingSettingsCard {
 
   initialWest = new formattingSettings.NumUpDown({
     name: "initialWest",
-    displayName: "Initial western map longitude",
-    description: "The left of the map will be at this longitude",
+    displayName: "West longitude",
+    description:
+      "Left edge of the area for Zoom to coordinates (also the view used when there is no data)",
     value: 175.1771,
     options: {
       minValue: {
@@ -1659,8 +1677,9 @@ export class MapCardSettings extends FormattingSettingsCard {
 
   initialNorth = new formattingSettings.NumUpDown({
     name: "initialNorth",
-    displayName: "Initial northern map latitude",
-    description: "The top of the map will be at this latitude",
+    displayName: "North latitude",
+    description:
+      "Top edge of the area for Zoom to coordinates (also the view used when there is no data)",
     value: -37.6735,
     options: {
       minValue: {
@@ -1676,8 +1695,9 @@ export class MapCardSettings extends FormattingSettingsCard {
 
   initialEast = new formattingSettings.NumUpDown({
     name: "initialEast",
-    displayName: "Initial eastern map longitude",
-    description: "The right of the map will be at this longitude",
+    displayName: "East longitude",
+    description:
+      "Right edge of the area for Zoom to coordinates (also the view used when there is no data)",
     value: 175.3555,
     options: {
       minValue: {
@@ -1742,6 +1762,8 @@ export class MapCardSettings extends FormattingSettingsCard {
     this.aerialBasemapOpacity,
     this.show3DBuildings,
     this.buildingsMinZoom,
+    this.zoomToCoordinates,
+    this.lockToCoordinates,
     this.initialSouth,
     this.initialWest,
     this.initialNorth,
@@ -1756,6 +1778,7 @@ export class MapCardSettings extends FormattingSettingsCard {
     this.mapboxAccessToken.visible = isMapboxSatelliteBasemap(baseMap);
     this.cartoApiKey.visible = resolveBasemap(baseMap).kind === "carto-raster";
     this.aerialBasemapOpacity.visible = isAerialBasemap(baseMap);
+    this.lockToCoordinates.visible = this.zoomToCoordinates.value === true;
   }
 }
 

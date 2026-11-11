@@ -35,6 +35,7 @@ The demo dashboard is intentionally Hamilton-sized so it opens quickly and stays
   - Line and arc use `Point1` and `Point2` latitude/longitude pairs.
   - Path uses WKT or WKP `LineString` / `MultiLineString` geometry.
   - Polygon uses WKT or WKP `Polygon` / `MultiPolygon` geometry.
+- Zoom to coordinates: Format pane → Map properties → `Zoom to coordinates` keeps the map on the area given by `South latitude`, `West longitude`, `North latitude` and `East longitude` instead of fitting to the data. Turn on `Lock to coordinates` to stop people panning outside it.
 - Scatter sizing: `Scatter radius` is read as metres by default. For a measure that isn't a distance (count, amount, score), set Format pane → Scatter properties → `Radius mode` to `Scale to size range`, and the values are rescaled to `Min size (pixels)` to `Max size (pixels)`.
 - Per-row styling: bind width, radius, scatter elevation, fill colour, line colour, arc source colour, arc target colour, and polygon extrusion height fields, with Format pane defaults as fallbacks.
 - Colour inputs: colour buckets accept `#RGB`, `#RRGGBB`, `#RRGGBBAA`, `rgb(...)`, `rgba(...)`, numeric values, or categorical text values.

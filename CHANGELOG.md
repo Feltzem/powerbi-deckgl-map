@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.9.0.6 - 2026-11-12
+
+### Added
+
+- Added **Zoom to coordinates** to the Map card. When on, the map shows the area set by the South/West/North/East latitude and longitude fields instead of fitting to the data: it opens on that area, returns to it from the reset button, and (with Fly to on) returns to it when filters change. Cross-highlights from other visuals still zoom to the highlighted features. **Lock to coordinates** also stops panning and zooming out beyond the area; the map always fills the visual, so an area whose shape differs from the visual's is partly cropped but can still be panned across. Both are off by default. The four coordinate fields were renamed from "Initial … map latitude/longitude" to "South latitude", "West longitude", "North latitude" and "East longitude"; they keep their saved values.
+
 ## 1.9.0.5 - 2026-11-09
 
 ### Added
