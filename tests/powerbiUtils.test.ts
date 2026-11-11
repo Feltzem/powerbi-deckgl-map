@@ -38,3 +38,15 @@ test("parseColorInput treats empty and null values as missing", () => {
     categoricalValue: null,
   });
 });
+
+test("parseColorInput returns the same result for repeated and evicted strings", () => {
+  const inputs = ["#336699", "rgba(10, 20, 30, 0.5)", " 12.5 ", "sealed", "'metalled'", ""];
+  const first = inputs.map((input) => structuredClone(parseColorInput(input)));
+
+  for (let index = 0; index < 100_500; index += 1) {
+    parseColorInput(`category-${index}`);
+  }
+
+  assert.deepEqual(inputs.map((input) => parseColorInput(input)), first);
+  assert.deepEqual(inputs.map((input) => parseColorInput(input)), first);
+});
